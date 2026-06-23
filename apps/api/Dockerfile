@@ -4,6 +4,9 @@ RUN corepack enable && corepack prepare pnpm@9 --activate
 # ── Install workspace deps ────────────────────────────────────────────────────
 FROM base AS deps
 WORKDIR /monorepo
+# Force development so pnpm installs ALL deps including devDependencies
+# (Coolify injects NODE_ENV=production as a build ARG which would skip devDeps)
+ENV NODE_ENV=development
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages/shared/package.json ./packages/shared/
 COPY apps/api/package.json ./apps/api/
