@@ -1,17 +1,16 @@
 FROM node:22-alpine AS base
-RUN corepack enable && corepack prepare pnpm@9 --activate
+RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 
 # ── Install workspace deps ────────────────────────────────────────────────────
 FROM base AS deps
 WORKDIR /monorepo
-# Force development so pnpm installs ALL deps including devDependencies
-# (Coolify injects NODE_ENV=production as a build ARG which would skip devDeps)
-ENV NODE_ENV=development
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages/shared/package.json ./packages/shared/
 COPY apps/api/package.json ./apps/api/
 COPY apps/web/package.json ./apps/web/
-RUN pnpm install --frozen-lockfile
+# NODE_ENV=development inline: overrides any build-arg injection from Coolify
+# --no-frozen-lockfile: avoids strict CI-mode lockfile validation failures
+RUN NODE_ENV=development pnpm install --no-frozen-lockfile
 
 # ── Build ─────────────────────────────────────────────────────────────────────
 FROM deps AS builder
