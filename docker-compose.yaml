@@ -74,7 +74,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: 4000
-      DATABASE_URL: postgresql://${POSTGRES_USER:-jap}:${POSTGRES_PASSWORD:-jap_password}@postgres:5432/${POSTGRES_DB:-shacky_cms}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://jap:jap_password@postgres:5432/shacky_cms}
       REDIS_URL: redis://redis:6379
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
