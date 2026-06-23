@@ -1,5 +1,5 @@
 # Dependencies
-node_modules/
+**/node_modules/
 .pnpm-store/
 
 # Next.js
@@ -11,22 +11,19 @@ dist/
 build/
 coverage/
 
-# TypeScript
+# TypeScript incremental build cache
 *.tsbuildinfo
 
-# Environment files
-.env
-.env.*
-!.env.example
+# Environment files — never commit real values
+**/.env
+**/.env.*
+!**/.env.example
 
 # Logs
 *.log
 logs/
 
-# Next.js
-.next/
-
-# Prisma
+# Prisma local databases
 prisma/dev.db
 prisma/*.db
 prisma/*.db-journal
@@ -35,11 +32,9 @@ prisma/*.db-journal
 .vscode/
 .idea/
 
-# OS files
+# OS
 .DS_Store
 Thumbs.db
 
-# Docker
+# Docker local data volumes (if running compose locally)
 docker-data/
-
-apps/api/.env

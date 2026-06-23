@@ -1,30 +1,22 @@
-version: '3.9'
-
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: jap_postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: jap
-      POSTGRES_PASSWORD: jap_password
-      POSTGRES_DB: shacky_cms
-    ports:
-      - '5433:5432'
+      POSTGRES_USER: ${POSTGRES_USER:-jap}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-jap_password}
+      POSTGRES_DB: ${POSTGRES_DB:-shacky_cms}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U jap -d shacky_cms']
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-jap} -d ${POSTGRES_DB:-shacky_cms}']
       interval: 5s
       timeout: 5s
       retries: 10
 
   redis:
     image: redis:7-alpine
-    container_name: jap_redis
     restart: unless-stopped
-    ports:
-      - '6379:6379'
     volumes:
       - redis_data:/data
     healthcheck:
@@ -35,7 +27,6 @@ services:
 
   minio:
     image: minio/minio:latest
-    container_name: jap_minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
@@ -52,10 +43,9 @@ services:
       timeout: 5s
       retries: 10
 
-  # MinIO bucket creation on startup
   minio_init:
     image: minio/mc:latest
-    container_name: jap_minio_init
+    restart: 'no'
     depends_on:
       minio:
         condition: service_healthy
@@ -67,12 +57,10 @@ services:
       exit 0;
       "
 
-  # ── API (Fastify) ────────────────────────────────────────────────────────────
   api:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
-    container_name: jap_api
     restart: unless-stopped
     depends_on:
       postgres:
@@ -86,22 +74,19 @@ services:
     environment:
       NODE_ENV: production
       PORT: 4000
-      DATABASE_URL: postgresql://jap:jap_password@postgres:5432/shacky_cms
+      DATABASE_URL: postgresql://${POSTGRES_USER:-jap}:${POSTGRES_PASSWORD:-jap_password}@postgres:5432/${POSTGRES_DB:-shacky_cms}
       REDIS_URL: redis://redis:6379
-      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-CHANGE_ME_32_char_access_secret!!}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-CHANGE_ME_32_char_refresh_secret!}
-      # S3 — API writes with MINIO_INTERNAL_URL; public URLs use S3_PUBLIC_URL
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       S3_ENDPOINT: http://minio:9000
       S3_REGION: ${S3_REGION:-us-east-1}
       S3_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
       S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
       S3_BUCKET: shacky-media
-      # Images are served via the Next.js /s3/* proxy so they work from both
-      # the browser and the Next.js server container. Change to your public
-      # domain in production, e.g. https://yourdomain.com/s3
-      S3_PUBLIC_URL: ${S3_PUBLIC_URL:-http://localhost:3000/s3}
-      APP_URL: ${APP_URL:-http://localhost:3000}
-      API_URL: ${API_URL:-http://localhost:4000}
+      S3_PUBLIC_URL: ${S3_PUBLIC_URL}
+      APP_URL: ${APP_URL}
+      API_URL: ${API_URL}
+      CORS_ORIGIN: ${APP_URL}
       EMAIL_PROVIDER: ${EMAIL_PROVIDER:-smtp}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       SMTP_HOST: ${SMTP_HOST:-}
@@ -109,7 +94,6 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       EMAIL_FROM: ${EMAIL_FROM:-noreply@example.com}
-      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
     healthcheck:
       test: ['CMD-SHELL', 'wget -qO- http://localhost:4000/health || exit 1']
       interval: 10s
@@ -117,16 +101,12 @@ services:
       retries: 10
       start_period: 30s
 
-  # ── Web (Next.js) ────────────────────────────────────────────────────────────
   web:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
       args:
-        # Baked at build time — used only for server-side fetches inside Docker.
-        # Browser API calls go through the /api/* rewrite above (never hits this URL).
         NEXT_PUBLIC_API_URL: http://api:4000
-    container_name: jap_web
     restart: unless-stopped
     depends_on:
       api:
@@ -135,9 +115,7 @@ services:
       - '3000:3000'
     environment:
       NODE_ENV: production
-      # Runtime URL for /api/* rewrite (Next.js → API container)
       API_INTERNAL_URL: http://api:4000
-      # Runtime URL for /s3/* rewrite (Next.js → MinIO container)
       MINIO_INTERNAL_URL: http://minio:9000
 
 volumes:
