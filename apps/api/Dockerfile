@@ -27,6 +27,11 @@ RUN pnpm --filter @shacky/api build
 # prisma is a prod dep so pnpm deploy includes it; @prisma/client postinstall runs prisma generate
 RUN pnpm --filter @shacky/api --prod deploy /deploy
 
+# pnpm deploy's postinstall runs prisma generate in the monorepo context, so
+# the generated client lands in the monorepo's node_modules, not /deploy.
+# Re-run from /deploy so .prisma/client/* ends up where Node.js can find it.
+RUN cd /deploy && node_modules/.bin/prisma generate
+
 # pnpm deploy excludes .gitignored files (dist/), so copy it explicitly
 RUN cp -r apps/api/dist /deploy/dist
 
