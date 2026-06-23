@@ -8,9 +8,9 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages/shared/package.json ./packages/shared/
 COPY apps/api/package.json ./apps/api/
 COPY apps/web/package.json ./apps/web/
-# NODE_ENV=development inline: overrides any build-arg injection from Coolify
-# --no-frozen-lockfile: avoids strict CI-mode lockfile validation failures
-RUN NODE_ENV=development pnpm install --no-frozen-lockfile
+# Install only api + its workspace deps (shared) — halves RAM vs full workspace install
+# NODE_ENV=development inline so Coolify's --build-arg NODE_ENV=production is ignored
+RUN NODE_ENV=development pnpm install --no-frozen-lockfile --filter @shacky/api...
 
 # ── Build ─────────────────────────────────────────────────────────────────────
 FROM deps AS builder
