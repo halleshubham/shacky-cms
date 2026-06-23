@@ -81,7 +81,7 @@ export default function UsersPage() {
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-medium">{u.name}</p>
-                    {u.totpEnabled && <ShieldCheck className="h-3.5 w-3.5 text-green-600" title="2FA enabled" />}
+                    {u.totpEnabled && <ShieldCheck className="h-3.5 w-3.5 text-green-600" aria-label="2FA enabled" />}
                   </div>
                   <p className="text-xs text-muted-foreground">{u.email}</p>
                 </div>
