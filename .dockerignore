@@ -1,0 +1,26 @@
+**/.git
+**/.gitignore
+**/node_modules
+**/.next
+**/dist
+**/.turbo
+
+# Env files — never bake secrets into image layers
+**/.env
+**/.env.*
+!**/.env.example
+
+# Logs & editor files
+**/*.log
+**/.DS_Store
+**/Thumbs.db
+
+# Test / coverage
+**/coverage
+**/__tests__
+**/*.test.ts
+**/*.spec.ts
+
+# Docker files (no need to copy into image)
+**/Dockerfile
+**/.dockerignore

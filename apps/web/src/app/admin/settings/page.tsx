@@ -1,0 +1,816 @@
+'use client';
+import { useState, useEffect } from 'react';
+import { Save, Key, Copy, Check, Loader2, Globe, Webhook, Plus, Trash2, Camera, Sparkles, Upload, X, Image as ImageIcon } from 'lucide-react';
+import { useRef } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { api } from '@/lib/api';
+import toast from 'react-hot-toast';
+import { useAuth } from '@/lib/auth';
+
+const SECTIONS = [
+  { id: 'site', label: 'Site & Branding' },
+  { id: 'profile', label: 'My Profile' },
+  { id: 'stock', label: 'Stock Photos' },
+  { id: 'ai', label: 'AI Configuration' },
+  { id: 'webhooks', label: 'Webhooks' },
+  { id: '2fa', label: 'Two-Factor Auth' },
+  { id: 'app-passwords', label: 'App Passwords' },
+];
+
+export default function SettingsPage() {
+  const { user } = useAuth();
+  const [appPasswords, setAppPasswords] = useState<any[]>([]);
+  const [newPassName, setNewPassName] = useState('');
+  const [newToken, setNewToken] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [qrCode, setQrCode] = useState<string | null>(null);
+  const [totpSecret, setTotpSecret] = useState('');
+  const [totpCode, setTotpCode] = useState('');
+  const [enablingTotp, setEnablingTotp] = useState(false);
+  const [setupMode, setSetupMode] = useState(false);
+
+  // Site settings
+  const [siteTitle, setSiteTitle] = useState('');
+  const [siteDescription, setSiteDescription] = useState('');
+  const [siteLogo, setSiteLogo] = useState('');
+  const [siteFavicon, setSiteFavicon] = useState('');
+  const [navPrimary, setNavPrimary] = useState('');
+  const [codeHead, setCodeHead] = useState('');
+  const [codeFoot, setCodeFoot] = useState('');
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadingFavicon, setUploadingFavicon] = useState(false);
+  const logoInputRef = useRef<HTMLInputElement>(null);
+  const faviconInputRef = useRef<HTMLInputElement>(null);
+
+  // Profile
+  const [profileName, setProfileName] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [savingProfile, setSavingProfile] = useState(false);
+
+  // Stock photo API keys
+  const [stockUnsplash, setStockUnsplash] = useState('');
+  const [stockPexels, setStockPexels] = useState('');
+  const [stockPixabay, setStockPixabay] = useState('');
+  const [savingStock, setSavingStock] = useState(false);
+
+  // Webhooks
+  const [webhooks, setWebhooks] = useState<any[]>([]);
+  const [webhookEvents, setWebhookEvents] = useState<string[]>([]);
+  const [newHookName, setNewHookName] = useState('');
+  const [newHookEvent, setNewHookEvent] = useState('');
+  const [newHookUrl, setNewHookUrl] = useState('');
+  const [newHookSecret, setNewHookSecret] = useState('');
+  const [savingHook, setSavingHook] = useState(false);
+
+  // AI configuration
+  const [aiProvider, setAiProvider] = useState<'openai' | 'gemini' | 'ollama' | 'groq'>('openai');
+  const [aiApiKey, setAiApiKey] = useState('');
+  const [aiApiUrl, setAiApiUrl] = useState('http://localhost:11434');
+  const [aiTextModel, setAiTextModel] = useState('');
+  const [aiImageModel, setAiImageModel] = useState('');
+  const [aiModels, setAiModels] = useState<Record<string, { text: string[]; image: string[] }>>({
+    openai: { text: [], image: [] }, gemini: { text: [], image: [] },
+    groq: { text: [], image: [] }, ollama: { text: [], image: [] },
+  });
+  const [aiConfigured, setAiConfigured] = useState(false);
+  const [savingAI, setSavingAI] = useState(false);
+  const [fetchingOllamaModels, setFetchingOllamaModels] = useState(false);
+
+  useEffect(() => {
+    api.get<any>('/api/auth/me').then((me) => setProfileName(me.name || '')).catch(() => {});
+    api.get<any[]>('/api/auth/application-passwords').then(setAppPasswords);
+    api.get<any>('/api/settings').then((s) => {
+      setSiteTitle(s.site_title || '');
+      setSiteDescription(s.site_description || '');
+      setSiteLogo(s.site_logo || '');
+      setSiteFavicon(s.site_icon || '');
+      setNavPrimary(s.nav_primary ? (typeof s.nav_primary === 'string' ? s.nav_primary : JSON.stringify(s.nav_primary, null, 2)) : '');
+      setCodeHead(s.code_injection_head || '');
+      setCodeFoot(s.code_injection_foot || '');
+      setStockUnsplash(s.stock_unsplash_key ? '••••••••' : '');
+      setStockPexels(s.stock_pexels_key ? '••••••••' : '');
+      setStockPixabay(s.stock_pixabay_key ? '••••••••' : '');
+    }).catch(() => {});
+    api.get<any[]>('/api/webhooks').then(setWebhooks).catch(() => {});
+    api.get<string[]>('/api/webhooks/events').then(setWebhookEvents).catch(() => {});
+    api.get<any>('/api/ai/config').then((cfg) => {
+      if (cfg.configured) {
+        setAiConfigured(true);
+        setAiProvider(cfg.provider);
+        // Normalize to bullet-masked so the guard consistently catches it
+        if (cfg.apiKeyMasked) setAiApiKey(`••••${cfg.apiKeyMasked.slice(-4)}`);
+        if (cfg.apiUrl) setAiApiUrl(cfg.apiUrl);
+        setAiTextModel(cfg.textModel || '');
+        setAiImageModel(cfg.imageModel || '');
+      }
+    }).catch(() => {});
+    api.get<any>('/api/ai/models').then(setAiModels).catch(() => {});
+  }, []);
+
+  const saveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingProfile(true);
+    try {
+      const payload: any = {};
+      if (profileName) payload.name = profileName;
+      if (newPassword) { payload.currentPassword = currentPassword; payload.newPassword = newPassword; }
+      await api.patch('/api/auth/me', payload);
+      toast.success('Profile updated');
+      setCurrentPassword(''); setNewPassword('');
+    } catch (err: any) { toast.error(err?.message || 'Update failed'); }
+    finally { setSavingProfile(false); }
+  };
+
+  const saveSiteSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingSettings(true);
+    try {
+      await api.patch('/api/settings', {
+        site_title: siteTitle,
+        site_description: siteDescription,
+        site_logo: siteLogo,
+        site_icon: siteFavicon,
+        nav_primary: navPrimary,
+        code_injection_head: codeHead,
+        code_injection_foot: codeFoot,
+      });
+      toast.success('Site settings saved');
+    } catch (err: any) { toast.error(err?.message || 'Save failed'); }
+    finally { setSavingSettings(false); }
+  };
+
+  const saveStockKeys = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingStock(true);
+    try {
+      const payload: Record<string, string> = {};
+      if (stockUnsplash && !stockUnsplash.startsWith('•')) payload.stock_unsplash_key = stockUnsplash;
+      if (stockPexels && !stockPexels.startsWith('•')) payload.stock_pexels_key = stockPexels;
+      if (stockPixabay && !stockPixabay.startsWith('•')) payload.stock_pixabay_key = stockPixabay;
+      if (Object.keys(payload).length > 0) {
+        await api.patch('/api/settings', payload);
+        toast.success('Stock photo API keys saved');
+      }
+    } catch (err: any) { toast.error(err?.message || 'Save failed'); }
+    finally { setSavingStock(false); }
+  };
+
+  const uploadImage = async (file: File, setter: (url: string) => void, setUploading: (v: boolean) => void) => {
+    if (!file.type.startsWith('image/')) { toast.error('Please select an image file'); return; }
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const result = await api.upload<{ url: string }>('/api/media/upload', form);
+      setter(result.url);
+      toast.success('Uploaded');
+    } catch (err: any) { toast.error(err?.message || 'Upload failed'); }
+    finally { setUploading(false); }
+  };
+
+  const createWebhook = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newHookName || !newHookEvent || !newHookUrl) return;
+    setSavingHook(true);
+    try {
+      const hook = await api.post<any>('/api/webhooks', {
+        name: newHookName, event: newHookEvent, targetUrl: newHookUrl,
+        secret: newHookSecret || undefined,
+      });
+      setWebhooks((prev) => [hook, ...prev]);
+      setNewHookName(''); setNewHookEvent(''); setNewHookUrl(''); setNewHookSecret('');
+      toast.success('Webhook created');
+    } catch (err: any) { toast.error(err?.message || 'Failed'); }
+    finally { setSavingHook(false); }
+  };
+
+  const deleteWebhook = async (id: string) => {
+    await api.delete(`/api/webhooks/${id}`);
+    setWebhooks((prev) => prev.filter((h) => h.id !== id));
+    toast.success('Webhook deleted');
+  };
+
+  const saveAIConfig = async (e: React.FormEvent) => {
+    e.preventDefault();
+    // Key is "new" only if it was typed (not masked). Masked = starts with •.
+    const keyIsNew = aiProvider !== 'ollama' && !!aiApiKey && !aiApiKey.startsWith('•');
+    // Require a key only on first-time setup (not already configured)
+    if (aiProvider !== 'ollama' && !aiConfigured && !keyIsNew) {
+      toast.error('Enter your API key to save'); return;
+    }
+    setSavingAI(true);
+    try {
+      await api.post('/api/ai/config', {
+        provider: aiProvider,
+        // Only include apiKey when user actually typed a new one — never re-send the masked placeholder
+        ...(keyIsNew ? { apiKey: aiApiKey } : {}),
+        apiUrl: aiProvider === 'ollama' ? aiApiUrl : undefined,
+        textModel: aiTextModel || undefined,
+        imageModel: (aiProvider === 'openai' || aiProvider === 'gemini') ? (aiImageModel || undefined) : undefined,
+      });
+      setAiConfigured(true);
+      if (keyIsNew) setAiApiKey(`••••${aiApiKey.slice(-4)}`);
+      toast.success('AI configuration saved');
+    } catch (err: any) { toast.error(err?.message || 'Failed'); }
+    finally { setSavingAI(false); }
+  };
+
+  const removeAIConfig = async () => {
+    if (!confirm('Remove AI configuration?')) return;
+    try {
+      await api.delete('/api/ai/config');
+      setAiConfigured(false); setAiApiKey(''); setAiTextModel(''); setAiImageModel('');
+      toast.success('AI configuration removed');
+    } catch (err: any) { toast.error(err?.message || 'Failed'); }
+  };
+
+  const refreshOllamaModels = async () => {
+    setFetchingOllamaModels(true);
+    try {
+      const data = await api.get<any>(`/api/ai/models?ollamaUrl=${encodeURIComponent(aiApiUrl)}`);
+      setAiModels(data);
+      toast.success(`Found ${data.ollama?.text?.length || 0} Ollama model(s)`);
+    } catch { toast.error('Could not reach Ollama server'); }
+    finally { setFetchingOllamaModels(false); }
+  };
+
+  const createAppPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPassName.trim()) return;
+    setLoading(true);
+    try {
+      const result = await api.post<any>('/api/auth/application-passwords', { name: newPassName.trim() });
+      setAppPasswords((prev) => [...prev, { id: result.id, name: result.name, createdAt: result.createdAt }]);
+      setNewToken(result.token);
+      setNewPassName('');
+      toast.success('Application password created — copy it now, it won\'t be shown again');
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deleteAppPassword = async (id: string) => {
+    await api.delete(`/api/auth/application-passwords/${id}`);
+    setAppPasswords((prev) => prev.filter((p) => p.id !== id));
+    toast.success('Deleted');
+  };
+
+  const setupTotp = async () => {
+    const data = await api.post<any>('/api/auth/totp/setup');
+    setQrCode(data.qrCode);
+    setTotpSecret(data.secret);
+    setSetupMode(true);
+  };
+
+  const verifyTotp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setEnablingTotp(true);
+    try {
+      await api.post('/api/auth/totp/verify', { code: totpCode });
+      toast.success('2FA enabled successfully');
+      setSetupMode(false);
+      setQrCode(null);
+    } catch (err: any) {
+      toast.error(err?.message || 'Invalid code');
+    } finally {
+      setEnablingTotp(false);
+    }
+  };
+
+  const copyToken = () => {
+    if (newToken) {
+      navigator.clipboard.writeText(newToken);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  return (
+    <div className="flex gap-8 items-start">
+      {/* Quick-nav sidebar */}
+      <nav className="hidden lg:flex flex-col gap-0.5 w-44 shrink-0 sticky top-0">
+        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-2 px-2">Jump to</p>
+        {SECTIONS.map((s) => (
+          <a
+            key={s.id}
+            href={`#${s.id}`}
+            className="text-sm text-muted-foreground hover:text-foreground px-2 py-1.5 rounded hover:bg-muted transition-colors"
+          >
+            {s.label}
+          </a>
+        ))}
+      </nav>
+
+      <div className="flex-1 max-w-2xl space-y-6">
+      <h1 className="text-2xl font-bold">Settings</h1>
+
+      {/* Site & Branding */}
+      <Card id="site">
+        <CardHeader><CardTitle className="text-base flex items-center gap-2"><Globe className="h-4 w-4" /> Site &amp; Branding</CardTitle></CardHeader>
+        <CardContent>
+          <form onSubmit={saveSiteSettings} className="space-y-4">
+            <div className="space-y-1">
+              <Label className="text-xs">Site Title</Label>
+              <Input value={siteTitle} onChange={(e) => setSiteTitle(e.target.value)} placeholder="Shacky CMS" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Site Description</Label>
+              <textarea value={siteDescription} onChange={(e) => setSiteDescription(e.target.value)} rows={2}
+                placeholder="An independent weekly publication…"
+                className="w-full text-sm bg-background border border-input rounded-md p-2 resize-none focus:outline-none focus:ring-2 focus:ring-ring" />
+            </div>
+
+            {/* Logo upload */}
+            <div className="space-y-2">
+              <Label className="text-xs">Logo</Label>
+              <input ref={logoInputRef} type="file" accept="image/*" className="hidden"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadImage(f, setSiteLogo, setUploadingLogo); e.target.value = ''; }} />
+              {siteLogo ? (
+                <div className="flex items-center gap-3 p-2 border border-border rounded-md bg-muted/30">
+                  <img src={siteLogo} alt="Logo" className="h-10 w-auto max-w-[120px] object-contain rounded" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-muted-foreground truncate">{siteLogo.split('/').pop()}</p>
+                  </div>
+                  <div className="flex gap-1 shrink-0">
+                    <Button type="button" size="sm" variant="outline" className="h-7 gap-1 text-xs" onClick={() => logoInputRef.current?.click()} disabled={uploadingLogo}>
+                      {uploadingLogo ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />} Replace
+                    </Button>
+                    <Button type="button" size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground" onClick={() => setSiteLogo('')}>
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <button type="button" onClick={() => logoInputRef.current?.click()} disabled={uploadingLogo}
+                  className="flex items-center gap-2 w-full border-2 border-dashed border-border rounded-md px-4 py-3 text-sm text-muted-foreground hover:border-primary hover:text-foreground transition-colors">
+                  {uploadingLogo ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-4 w-4" />}
+                  {uploadingLogo ? 'Uploading…' : 'Upload logo image'}
+                  <span className="text-xs ml-auto opacity-60">PNG, SVG, WebP</span>
+                </button>
+              )}
+              <Input value={siteLogo} onChange={(e) => setSiteLogo(e.target.value)} placeholder="Or paste a URL…" className="text-xs" />
+            </div>
+
+            {/* Favicon upload */}
+            <div className="space-y-2">
+              <Label className="text-xs">Favicon</Label>
+              <input ref={faviconInputRef} type="file" accept="image/*" className="hidden"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadImage(f, setSiteFavicon, setUploadingFavicon); e.target.value = ''; }} />
+              {siteFavicon ? (
+                <div className="flex items-center gap-3 p-2 border border-border rounded-md bg-muted/30">
+                  <img src={siteFavicon} alt="Favicon" className="h-8 w-8 object-contain rounded" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-muted-foreground truncate">{siteFavicon.split('/').pop()}</p>
+                  </div>
+                  <div className="flex gap-1 shrink-0">
+                    <Button type="button" size="sm" variant="outline" className="h-7 gap-1 text-xs" onClick={() => faviconInputRef.current?.click()} disabled={uploadingFavicon}>
+                      {uploadingFavicon ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />} Replace
+                    </Button>
+                    <Button type="button" size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground" onClick={() => setSiteFavicon('')}>
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <button type="button" onClick={() => faviconInputRef.current?.click()} disabled={uploadingFavicon}
+                  className="flex items-center gap-2 w-full border-2 border-dashed border-border rounded-md px-4 py-3 text-sm text-muted-foreground hover:border-primary hover:text-foreground transition-colors">
+                  {uploadingFavicon ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-4 w-4" />}
+                  {uploadingFavicon ? 'Uploading…' : 'Upload favicon'}
+                  <span className="text-xs ml-auto opacity-60">32×32 or 64×64 recommended</span>
+                </button>
+              )}
+              <Input value={siteFavicon} onChange={(e) => setSiteFavicon(e.target.value)} placeholder="Or paste a URL…" className="text-xs" />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">Primary Navigation (JSON — e.g. [{`{"label":"Home","url":"/"}`}])</Label>
+              <textarea value={navPrimary} onChange={(e) => setNavPrimary(e.target.value)} rows={3}
+                placeholder='[{"label": "Home", "url": "/"}]'
+                className="w-full text-xs font-mono bg-background border border-input rounded-md p-2 resize-none focus:outline-none focus:ring-2 focus:ring-ring" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Code Injection &lt;head&gt;</Label>
+                <textarea value={codeHead} onChange={(e) => setCodeHead(e.target.value)} rows={3}
+                  placeholder="<!-- Analytics, etc -->"
+                  className="w-full text-xs font-mono bg-background border border-input rounded-md p-2 resize-none focus:outline-none focus:ring-2 focus:ring-ring" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Code Injection &lt;/body&gt;</Label>
+                <textarea value={codeFoot} onChange={(e) => setCodeFoot(e.target.value)} rows={3}
+                  placeholder="<!-- Footer scripts -->"
+                  className="w-full text-xs font-mono bg-background border border-input rounded-md p-2 resize-none focus:outline-none focus:ring-2 focus:ring-ring" />
+              </div>
+            </div>
+            <Button type="submit" disabled={savingSettings} className="gap-2">
+              {savingSettings ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save Settings
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      {/* Profile */}
+      <Card id="profile">
+        <CardHeader><CardTitle className="text-base flex items-center gap-2"><Key className="h-4 w-4" /> My Profile</CardTitle></CardHeader>
+        <CardContent>
+          <form onSubmit={saveProfile} className="space-y-4">
+            <div className="space-y-1">
+              <Label className="text-xs">Display Name</Label>
+              <Input value={profileName} onChange={(e) => setProfileName(e.target.value)} placeholder="Your name" />
+            </div>
+            <div className="border-t border-border pt-4 space-y-3">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Change Password</p>
+              <div className="space-y-1">
+                <Label className="text-xs">Current Password</Label>
+                <Input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} placeholder="••••••••••••" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">New Password (min 12 chars)</Label>
+                <Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="••••••••••••" />
+              </div>
+            </div>
+            <Button type="submit" disabled={savingProfile} className="gap-2">
+              {savingProfile ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save Profile
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      {/* Stock Photos */}
+      <Card id="stock">
+        <CardHeader><CardTitle className="text-base flex items-center gap-2"><Camera className="h-4 w-4" /> Stock Photos API Keys</CardTitle></CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground mb-4">
+            Connect free stock photo services to search and use copyright-free images in your posts.
+            <strong> Wikimedia Commons works without any key.</strong>
+          </p>
+          <form onSubmit={saveStockKeys} className="space-y-4">
+            <div className="space-y-1">
+              <Label className="text-xs flex items-center gap-1.5">
+                <span className="inline-block w-2 h-2 rounded-full bg-black" />
+                Unsplash Access Key
+              </Label>
+              <Input
+                value={stockUnsplash}
+                onChange={(e) => setStockUnsplash(e.target.value)}
+                placeholder="Paste your Unsplash Client-ID key…"
+                type={stockUnsplash.startsWith('•') ? 'password' : 'text'}
+                onFocus={(e) => { if (e.target.value.startsWith('•')) setStockUnsplash(''); }}
+              />
+              <p className="text-xs text-muted-foreground">
+                Get a free key at <a href="https://unsplash.com/developers" target="_blank" rel="noopener noreferrer" className="text-primary underline">unsplash.com/developers</a>
+              </p>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs flex items-center gap-1.5">
+                <span className="inline-block w-2 h-2 rounded-full bg-[#05A081]" />
+                Pexels API Key
+              </Label>
+              <Input
+                value={stockPexels}
+                onChange={(e) => setStockPexels(e.target.value)}
+                placeholder="Paste your Pexels API key…"
+                type={stockPexels.startsWith('•') ? 'password' : 'text'}
+                onFocus={(e) => { if (e.target.value.startsWith('•')) setStockPexels(''); }}
+              />
+              <p className="text-xs text-muted-foreground">
+                Get a free key at <a href="https://www.pexels.com/api/" target="_blank" rel="noopener noreferrer" className="text-primary underline">pexels.com/api</a>
+              </p>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs flex items-center gap-1.5">
+                <span className="inline-block w-2 h-2 rounded-full bg-[#2EC66E]" />
+                Pixabay API Key
+              </Label>
+              <Input
+                value={stockPixabay}
+                onChange={(e) => setStockPixabay(e.target.value)}
+                placeholder="Paste your Pixabay API key…"
+                type={stockPixabay.startsWith('•') ? 'password' : 'text'}
+                onFocus={(e) => { if (e.target.value.startsWith('•')) setStockPixabay(''); }}
+              />
+              <p className="text-xs text-muted-foreground">
+                Get a free key at <a href="https://pixabay.com/api/docs/" target="_blank" rel="noopener noreferrer" className="text-primary underline">pixabay.com/api</a>
+              </p>
+            </div>
+            <Button type="submit" disabled={savingStock} className="gap-2">
+              {savingStock ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save API Keys
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      {/* AI Configuration */}
+      <Card id="ai">
+        <CardHeader><CardTitle className="text-base flex items-center gap-2"><Sparkles className="h-4 w-4 text-primary" /> AI Configuration</CardTitle></CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground mb-4">
+            Connect an AI provider to enable article writing assistance, SEO suggestions, and featured image generation.
+          </p>
+          <form onSubmit={saveAIConfig} className="space-y-4">
+            {/* Provider selector */}
+            <div className="space-y-1">
+              <Label className="text-xs">Provider</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {([
+                  { id: 'openai',  label: 'OpenAI',         sub: 'GPT-4o · DALL-E · paid' },
+                  { id: 'gemini',  label: 'Google Gemini',  sub: 'Gemini · Imagen · paid' },
+                  { id: 'groq',    label: 'Groq',           sub: 'Llama · Mixtral · free' },
+                  { id: 'ollama',  label: 'Ollama',         sub: 'Local models · free' },
+                ] as const).map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => { setAiProvider(p.id); setAiTextModel(''); setAiImageModel(''); }}
+                    className={`py-2 px-3 rounded-md border text-left transition-colors ${
+                      aiProvider === p.id ? 'border-primary bg-primary/5 text-primary' : 'border-border text-muted-foreground hover:text-foreground hover:border-border/80'
+                    }`}
+                  >
+                    <div className="text-sm font-medium">{p.label}</div>
+                    <div className="text-xs opacity-60 mt-0.5">{p.sub}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Ollama: URL field */}
+            {aiProvider === 'ollama' ? (
+              <div className="space-y-1">
+                <Label className="text-xs">Ollama Server URL</Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={aiApiUrl}
+                    onChange={(e) => setAiApiUrl(e.target.value)}
+                    placeholder="http://localhost:11434"
+                  />
+                  <Button
+                    type="button" variant="outline" size="sm"
+                    onClick={refreshOllamaModels}
+                    disabled={fetchingOllamaModels}
+                    className="shrink-0 gap-1.5"
+                  >
+                    {fetchingOllamaModels ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                    Fetch models
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Install from <a href="https://ollama.com" target="_blank" rel="noopener noreferrer" className="text-primary underline">ollama.com</a>. Run <code className="bg-muted px-1 rounded">ollama pull llama3.2</code> to download a model.
+                </p>
+              </div>
+            ) : (
+              /* API Key for all other providers */
+              <div className="space-y-1">
+                <Label className="text-xs">
+                  {aiProvider === 'openai' ? 'OpenAI' : aiProvider === 'gemini' ? 'Gemini' : 'Groq'} API Key
+                </Label>
+                <Input
+                  value={aiApiKey}
+                  onChange={(e) => setAiApiKey(e.target.value)}
+                  onFocus={(e) => { if (e.target.value.startsWith('•')) setAiApiKey(''); }}
+                  placeholder={aiProvider === 'openai' ? 'sk-…' : aiProvider === 'groq' ? 'gsk_…' : 'AI…'}
+                  type={aiApiKey.startsWith('•') ? 'password' : 'text'}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {aiProvider === 'openai' && <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-primary underline">platform.openai.com/api-keys</a>}
+                  {aiProvider === 'gemini' && <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-primary underline">aistudio.google.com/app/apikey</a>}
+                  {aiProvider === 'groq' && <><a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer" className="text-primary underline">console.groq.com/keys</a> — free tier, very fast</>}
+                </p>
+              </div>
+            )}
+
+            {/* Model selectors */}
+            <div className={`grid gap-3 ${(aiProvider === 'openai' || aiProvider === 'gemini') ? 'grid-cols-2' : 'grid-cols-1'}`}>
+              <div className="space-y-1">
+                <Label className="text-xs">Text / Writing Model</Label>
+                {aiProvider === 'ollama' ? (
+                  <Input
+                    value={aiTextModel}
+                    onChange={(e) => setAiTextModel(e.target.value)}
+                    placeholder="e.g. llama3.2"
+                    className="text-sm"
+                  />
+                ) : (
+                  <select
+                    value={aiTextModel}
+                    onChange={(e) => setAiTextModel(e.target.value)}
+                    className="w-full h-9 text-sm rounded-md border border-input bg-background px-3 focus:outline-none focus:ring-2 focus:ring-ring"
+                  >
+                    <option value="">— default —</option>
+                    {(aiModels[aiProvider]?.text || []).map((m) => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+              {(aiProvider === 'openai' || aiProvider === 'gemini') && (
+                <div className="space-y-1">
+                  <Label className="text-xs">Image Generation Model</Label>
+                  <select
+                    value={aiImageModel}
+                    onChange={(e) => setAiImageModel(e.target.value)}
+                    className="w-full h-9 text-sm rounded-md border border-input bg-background px-3 focus:outline-none focus:ring-2 focus:ring-ring"
+                  >
+                    <option value="">— default —</option>
+                    {(aiModels[aiProvider]?.image || []).map((m) => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+
+            {(aiProvider === 'groq' || aiProvider === 'ollama') && (
+              <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                Image generation is not supported with {aiProvider === 'ollama' ? 'Ollama' : 'Groq'}. Use OpenAI or Gemini to generate featured images.
+              </p>
+            )}
+
+            <div className="flex items-center gap-3">
+              <Button type="submit" disabled={savingAI} className="gap-2">
+                {savingAI ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save AI Config
+              </Button>
+              {aiConfigured && (
+                <Button type="button" variant="outline" onClick={removeAIConfig} className="text-destructive hover:text-destructive border-destructive/30">
+                  Remove
+                </Button>
+              )}
+            </div>
+
+            {aiConfigured && (
+              <div className="flex items-center gap-1.5 text-xs text-green-600">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
+                AI configured · {
+                  aiProvider === 'openai' ? 'OpenAI' :
+                  aiProvider === 'gemini' ? 'Google Gemini' :
+                  aiProvider === 'groq' ? 'Groq (free)' : 'Ollama (local)'
+                } is ready
+              </div>
+            )}
+          </form>
+        </CardContent>
+      </Card>
+
+      {/* Webhooks */}
+      <Card id="webhooks">
+        <CardHeader><CardTitle className="text-base flex items-center gap-2"><Webhook className="h-4 w-4" /> Webhooks</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">Receive HTTP POST notifications when events happen in Shacky CMS.</p>
+          <form onSubmit={createWebhook} className="space-y-3 border border-border rounded-lg p-4">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Add Webhook</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Name</Label>
+                <Input value={newHookName} onChange={(e) => setNewHookName(e.target.value)} placeholder="My webhook" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Event</Label>
+                <select value={newHookEvent} onChange={(e) => setNewHookEvent(e.target.value)}
+                  className="w-full h-9 text-sm rounded-md border border-input bg-background px-3 focus:outline-none focus:ring-2 focus:ring-ring">
+                  <option value="">— select event —</option>
+                  {webhookEvents.map((ev) => <option key={ev} value={ev}>{ev}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Target URL</Label>
+              <Input value={newHookUrl} onChange={(e) => setNewHookUrl(e.target.value)} placeholder="https://yourserver.com/hook" type="url" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Secret (optional — for HMAC signature)</Label>
+              <Input value={newHookSecret} onChange={(e) => setNewHookSecret(e.target.value)} placeholder="my-secret" type="password" />
+            </div>
+            <Button type="submit" size="sm" disabled={savingHook || !newHookName || !newHookEvent || !newHookUrl} className="gap-2">
+              {savingHook ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />} Add Webhook
+            </Button>
+          </form>
+
+          {webhooks.length > 0 && (
+            <div className="divide-y border rounded-lg">
+              {webhooks.map((h) => (
+                <div key={h.id} className="flex items-start justify-between px-3 py-3 gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium">{h.name}</p>
+                      <span className="text-xs bg-muted px-1.5 py-0.5 rounded">{h.event}</span>
+                      {!h.isActive && <span className="text-xs text-muted-foreground">(inactive)</span>}
+                    </div>
+                    <p className="text-xs text-muted-foreground truncate mt-0.5">{h.targetUrl}</p>
+                  </div>
+                  <button onClick={() => deleteWebhook(h.id)} className="text-destructive hover:text-destructive/80 shrink-0 p-1">
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Two-Factor Auth */}
+      <Card id="2fa">
+        <CardHeader>
+          <CardTitle className="text-base">Two-Factor Authentication</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {user?.totpEnabled ? (
+            <div className="flex items-center gap-2 text-sm text-green-600">
+              <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
+              2FA is enabled on your account
+            </div>
+          ) : setupMode ? (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">Scan this QR code with your authenticator app:</p>
+              {qrCode && <img src={qrCode} alt="TOTP QR Code" className="w-48 h-48 border rounded" />}
+              <p className="text-xs font-mono bg-muted p-2 rounded break-all">Secret: {totpSecret}</p>
+              <form onSubmit={verifyTotp} className="flex gap-2">
+                <Input
+                  placeholder="Enter 6-digit code"
+                  value={totpCode}
+                  onChange={(e) => setTotpCode(e.target.value)}
+                  maxLength={6}
+                  inputMode="numeric"
+                  className="max-w-xs"
+                />
+                <Button type="submit" disabled={enablingTotp || totpCode.length < 6}>
+                  {enablingTotp ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Verify & Enable'}
+                </Button>
+              </form>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">Add an extra layer of security to your account.</p>
+              <Button onClick={setupTotp} variant="outline" className="gap-2">
+                <Key className="h-4 w-4" /> Set up 2FA
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Application Passwords */}
+      <Card id="app-passwords">
+        <CardHeader>
+          <CardTitle className="text-base">Application Passwords</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Create named API tokens for programmatic access. Tokens are shown only once on creation.
+          </p>
+
+          {newToken && (
+            <div className="border border-green-300 bg-green-50 dark:bg-green-950 rounded-md p-3 space-y-2">
+              <p className="text-sm font-medium text-green-800 dark:text-green-200">New application password — copy it now!</p>
+              <div className="flex items-center gap-2">
+                <Input readOnly value={newToken} className="font-mono text-xs" />
+                <Button size="sm" variant="outline" onClick={copyToken}>
+                  {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+                </Button>
+              </div>
+              <Button size="sm" variant="ghost" onClick={() => setNewToken(null)} className="text-xs">Dismiss</Button>
+            </div>
+          )}
+
+          <form onSubmit={createAppPassword} className="flex gap-2">
+            <Input
+              placeholder="Token name (e.g. CLI script)"
+              value={newPassName}
+              onChange={(e) => setNewPassName(e.target.value)}
+              className="max-w-xs"
+            />
+            <Button type="submit" disabled={loading || !newPassName.trim()} className="gap-2">
+              <Key className="h-4 w-4" /> {loading ? 'Creating…' : 'Create'}
+            </Button>
+          </form>
+
+          {appPasswords.length > 0 && (
+            <div className="divide-y border rounded-lg">
+              {appPasswords.map((ap) => (
+                <div key={ap.id} className="flex items-center justify-between px-3 py-2">
+                  <div>
+                    <p className="text-sm font-medium">{ap.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Created {new Date(ap.createdAt).toLocaleDateString()}
+                      {ap.lastUsed && ` · Last used ${new Date(ap.lastUsed).toLocaleDateString()}`}
+                    </p>
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={() => deleteAppPassword(ap.id)} className="text-destructive hover:text-destructive">
+                    Revoke
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+      </div>
+    </div>
+  );
+}

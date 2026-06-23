@@ -1,0 +1,98 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* NEO CLASSIC CORPORATE palette
+     Midnight Navy  #0F172A  — headlines, foreground
+     Cobalt Blue    #2563EB  — primary, accents, links
+     Powder Blue-Gray #F0F4F8 — page background
+     Steel Gray     #475569  — body copy, muted text
+     Pure White     #FFFFFF  — cards, content areas            */
+  :root {
+    --background: 210 37% 96%;      /* #F0F4F8 powder blue-gray */
+    --foreground: 222 47% 11%;      /* #0F172A midnight navy    */
+    --card: 0 0% 100%;              /* pure white               */
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 221 83% 53%;         /* #2563EB cobalt blue      */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 30% 90%;
+    --secondary-foreground: 222 47% 20%;
+    --muted: 210 25% 92%;
+    --muted-foreground: 215 19% 47%; /* #475569 steel gray       */
+    --accent: 221 83% 95%;
+    --accent-foreground: 221 83% 35%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 210 20% 88%;
+    --input: 210 20% 88%;
+    --ring: 221 83% 53%;
+    --radius: 0.375rem;
+  }
+
+  .dark {
+    --background: 222 47% 7%;
+    --foreground: 210 40% 96%;
+    --card: 222 40% 11%;
+    --card-foreground: 210 40% 96%;
+    --popover: 222 40% 11%;
+    --popover-foreground: 210 40% 96%;
+    --primary: 221 83% 60%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 222 30% 18%;
+    --secondary-foreground: 210 40% 96%;
+    --muted: 222 30% 16%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 222 30% 18%;
+    --accent-foreground: 210 40% 96%;
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 210 40% 96%;
+    --border: 222 30% 18%;
+    --input: 222 30% 18%;
+    --ring: 221 83% 60%;
+  }
+}
+
+@layer base {
+  * { @apply border-border; }
+  body { @apply bg-background text-foreground; }
+
+  /* Playfair Display for all headings */
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-playfair), Georgia, serif;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+}
+
+/* TipTap editor styles */
+.ProseMirror {
+  outline: none;
+  min-height: 400px;
+}
+
+.ProseMirror p.is-editor-empty:first-child::before {
+  color: hsl(var(--muted-foreground));
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+.ProseMirror h2 { @apply text-2xl font-bold mt-6 mb-3; }
+.ProseMirror h3 { @apply text-xl font-semibold mt-5 mb-2; }
+.ProseMirror h4 { @apply text-lg font-semibold mt-4 mb-2; }
+.ProseMirror p  { @apply mb-3 leading-relaxed; }
+.ProseMirror ul { @apply list-disc pl-6 mb-3; }
+.ProseMirror ol { @apply list-decimal pl-6 mb-3; }
+.ProseMirror blockquote { @apply border-l-4 border-primary pl-4 italic my-4 text-muted-foreground; }
+.ProseMirror pre { @apply bg-muted rounded-md p-4 font-mono text-sm overflow-x-auto my-4; }
+.ProseMirror code { @apply bg-muted px-1 py-0.5 rounded text-sm font-mono; }
+.ProseMirror hr { @apply my-6 border-border; }
+.ProseMirror img { @apply max-w-full rounded-md my-4; }
+.ProseMirror a { @apply text-primary underline; }
+.ProseMirror table { @apply w-full border-collapse my-4; }
+.ProseMirror th { @apply border border-border bg-muted px-3 py-2 text-left font-semibold; }
+.ProseMirror td { @apply border border-border px-3 py-2; }

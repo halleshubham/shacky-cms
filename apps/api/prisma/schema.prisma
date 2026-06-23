@@ -1,0 +1,365 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                   String                @id @default(cuid())
+  email                String                @unique
+  passwordHash         String
+  name                 String
+  role                 Role                  @default(author)
+  totpSecret           String?
+  totpEnabled          Boolean               @default(false)
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  applicationPasswords ApplicationPassword[]
+  auditLogs            AuditLog[]
+  uploadedMedia        Media[]
+  posts                PostAuthor[]
+  revisions            Revision[]
+
+  @@map("users")
+}
+
+model ApplicationPassword {
+  id        String    @id @default(cuid())
+  userId    String
+  name      String
+  tokenHash String    @unique
+  lastUsed  DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("application_passwords")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@map("refresh_tokens")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String
+  entity    String?
+  entityId  String?
+  ip        String?
+  userAgent String?
+  meta      Json?
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model Author {
+  id          String       @id @default(cuid())
+  slug        String       @unique
+  displayName String
+  bio         String?
+  avatarUrl   String?
+  email       String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  posts       PostAuthor[]
+
+  @@map("authors")
+}
+
+model Category {
+  id          String         @id @default(cuid())
+  name        String         @unique
+  slug        String         @unique
+  description String?
+  parentId    String?
+  parent      Category?      @relation("CategoryParent", fields: [parentId], references: [id])
+  children    Category[]     @relation("CategoryParent")
+  posts       PostCategory[]
+
+  @@map("categories")
+}
+
+model Tag {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  slug        String    @unique
+  description String?
+  posts       PostTag[]
+
+  @@map("tags")
+}
+
+model Media {
+  id           String   @id @default(cuid())
+  filename     String
+  originalName String
+  mimeType     String
+  size         Int
+  width        Int?
+  height       Int?
+  url          String
+  altText      String?
+  uploadedById String
+  createdAt    DateTime @default(now())
+  uploadedBy   User     @relation(fields: [uploadedById], references: [id])
+  posts        Post[]   @relation("PostFeaturedMedia")
+  pages        Page[]   @relation("PageFeaturedMedia")
+
+  @@index([uploadedById])
+  @@index([createdAt])
+  @@map("media")
+}
+
+model Post {
+  id                String         @id @default(cuid())
+  title             String
+  slug              String         @unique
+  content           String
+  excerpt           String?
+  status            PostStatus     @default(draft)
+  publishedAt       DateTime?
+  featuredMediaId   String?
+  seoTitle          String?
+  seoDescription    String?
+  issueId           String?
+  issueOrder        Int?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  codeInjectionFoot String?
+  codeInjectionHead String?
+  isFeatured        Boolean        @default(false)
+  viewCount         Int            @default(0)
+  authors           PostAuthor[]
+  categories        PostCategory[]
+  tags              PostTag[]
+  featuredMedia     Media?         @relation("PostFeaturedMedia", fields: [featuredMediaId], references: [id])
+  issue             Issue?         @relation(fields: [issueId], references: [id])
+  revisions         Revision[]
+
+  @@index([status])
+  @@index([isFeatured])
+  @@index([issueId])
+  @@index([publishedAt])
+  @@map("posts")
+}
+
+model PostAuthor {
+  postId   String
+  authorId String
+  userId   String?
+  order    Int     @default(0)
+  author   Author  @relation(fields: [authorId], references: [id])
+  post     Post    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user     User?   @relation(fields: [userId], references: [id])
+
+  @@id([postId, authorId])
+  @@map("post_authors")
+}
+
+model PostCategory {
+  postId     String
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id])
+  post       Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@id([postId, categoryId])
+  @@map("post_categories")
+}
+
+model PostTag {
+  postId String
+  tagId  String
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  tag    Tag    @relation(fields: [tagId], references: [id])
+
+  @@id([postId, tagId])
+  @@map("post_tags")
+}
+
+model Page {
+  id              String     @id @default(cuid())
+  title           String
+  slug            String     @unique
+  content         String
+  excerpt         String?
+  status          PostStatus @default(draft)
+  publishedAt     DateTime?
+  featuredMediaId String?
+  seoTitle        String?
+  seoDescription  String?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  featuredMedia   Media?     @relation("PageFeaturedMedia", fields: [featuredMediaId], references: [id])
+
+  @@map("pages")
+}
+
+model Issue {
+  id           String     @id @default(cuid())
+  volumeNumber Int
+  issueNumber  Int
+  title        String
+  publishDate  DateTime
+  type         IssueType  @default(combined)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  campaigns    Campaign[]
+  posts        Post[]
+
+  @@unique([volumeNumber, issueNumber])
+  @@map("issues")
+}
+
+model Revision {
+  id          String   @id @default(cuid())
+  postId      String
+  title       String
+  content     String
+  createdById String
+  createdAt   DateTime @default(now())
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  post        Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+  @@map("revisions")
+}
+
+model Subscriber {
+  id               String                 @id @default(cuid())
+  email            String?                @unique
+  phone            String?                @unique
+  name             String?
+  status           SubscriberStatus       @default(active)
+  channels         SubscriberChannel      @default(email)
+  source           SubscriberSource       @default(web_form)
+  unsubscribeToken String                 @unique @default(cuid())
+  subscribedAt     DateTime               @default(now())
+  unsubscribedAt   DateTime?
+  lists            SubscriberListMember[]
+
+  @@map("subscribers")
+}
+
+model SubscriberList {
+  id          String                 @id @default(cuid())
+  name        String                 @unique
+  description String?
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+  campaigns   Campaign[]
+  members     SubscriberListMember[]
+
+  @@map("subscriber_lists")
+}
+
+model SubscriberListMember {
+  subscriberId String
+  listId       String
+  addedAt      DateTime       @default(now())
+  list         SubscriberList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  subscriber   Subscriber     @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+
+  @@id([subscriberId, listId])
+  @@map("subscriber_list_members")
+}
+
+model Campaign {
+  id               String         @id @default(cuid())
+  name             String
+  issueId          String
+  subscriberListId String
+  status           CampaignStatus @default(draft)
+  scheduledAt      DateTime?
+  sentAt           DateTime?
+  sentCount        Int            @default(0)
+  openCount        Int            @default(0)
+  clickCount       Int            @default(0)
+  unsubscribeCount Int            @default(0)
+  htmlContent      String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  issue            Issue          @relation(fields: [issueId], references: [id])
+  subscriberList   SubscriberList @relation(fields: [subscriberListId], references: [id])
+
+  @@map("campaigns")
+}
+
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@map("settings")
+}
+
+model Webhook {
+  id        String   @id @default(cuid())
+  name      String
+  event     String
+  targetUrl String
+  secret    String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([event])
+  @@map("webhooks")
+}
+
+enum Role {
+  superadmin
+  editor
+  author
+  subscriber_manager
+}
+
+enum PostStatus {
+  draft
+  scheduled
+  published
+}
+
+enum IssueType {
+  print
+  blog
+  combined
+}
+
+enum SubscriberStatus {
+  active
+  unsubscribed
+  bounced
+}
+
+enum SubscriberChannel {
+  email
+  whatsapp
+  both
+}
+
+enum SubscriberSource {
+  web_form
+  import
+  api
+}
+
+enum CampaignStatus {
+  draft
+  scheduled
+  sending
+  sent
+  failed
+}
