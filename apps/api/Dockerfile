@@ -21,22 +21,11 @@ RUN pnpm --filter @shacky/shared build
 RUN pnpm --filter @shacky/api build
 
 # Create self-contained deployment with only prod deps
+# prisma is a prod dep so pnpm deploy includes it; @prisma/client postinstall runs prisma generate
 RUN pnpm --filter @shacky/api --prod deploy /deploy
 
 # pnpm deploy excludes .gitignored files (dist/), so copy it explicitly
 RUN cp -r apps/api/dist /deploy/dist
-
-# Prisma CLI is a devDep — copy it into the deployment (follow pnpm symlinks with -L)
-RUN cp -rL node_modules/prisma /deploy/node_modules/prisma 2>/dev/null || \
-    find node_modules -maxdepth 5 -name "prisma" -path "*/node_modules/prisma" -not -path "*/prisma/node_modules/*" \
-      -exec cp -r {} /deploy/node_modules/prisma \; 2>/dev/null || true
-
-# Shell wrapper so entrypoint.sh can call prisma as a command
-RUN printf '#!/bin/sh\nexec node /app/node_modules/prisma/bin/prisma.js "$@"\n' \
-      > /deploy/node_modules/.bin/prisma && chmod +x /deploy/node_modules/.bin/prisma
-
-# Generate Prisma client inside the deploy dir (needed for runtime queries)
-RUN cd /deploy && node node_modules/prisma/bin/prisma.js generate
 
 # ── Runtime image ─────────────────────────────────────────────────────────────
 FROM node:22-alpine AS runner

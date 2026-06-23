@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "tsx watch --env-file=.env src/server.ts",
-    "build": "tsc && prisma generate",
+    "build": "prisma generate && tsc",
     "start": "node dist/server.js",
     "prisma": "prisma",
     "db:seed": "tsx prisma/seed.ts",
@@ -24,6 +24,7 @@
     "@shacky/shared": "workspace:*",
     "@paralleldrive/cuid2": "^2.2.2",
     "@prisma/client": "^5.16.1",
+    "prisma": "^5.16.1",
     "bcryptjs": "^2.4.3",
     "bullmq": "^5.13.2",
     "fastify": "^4.28.1",
@@ -50,7 +51,6 @@
     "@types/node": "^20.14.11",
     "@types/nodemailer": "^6.4.15",
     "@types/qrcode": "^1.5.5",
-    "prisma": "^5.16.1",
     "tsx": "^4.16.2",
     "typescript": "^5.4.5"
   },
