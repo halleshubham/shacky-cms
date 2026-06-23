@@ -2,6 +2,7 @@
   "name": "@shacky/shared",
   "version": "1.0.0",
   "private": true,
+  "files": ["dist"],
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
