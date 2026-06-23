@@ -8,6 +8,10 @@ const nextConfig = {
   output: 'standalone',
   // Required for pnpm monorepo standalone builds — traces files from repo root
   outputFileTracingRoot: path.join(__dirname, '../../'),
+  experimental: {
+    // Limit parallel static-page workers so constrained build hosts don't OOM
+    cpus: 1,
+  },
 
   // Proxy /api/* through Next.js so browser cookies are always same-origin.
   // Proxy /s3/* to MinIO so images work from both browser and Next.js server

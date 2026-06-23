@@ -24,6 +24,8 @@ RUN pnpm --filter @shacky/shared build
 # Set to the internal API hostname so SSR works inside Docker network.
 ARG NEXT_PUBLIC_API_URL=http://api:4000
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+# Cap heap and serialise static-page workers to avoid OOM on constrained build hosts
+ENV NODE_OPTIONS="--max-old-space-size=1536"
 RUN pnpm --filter @shacky/web build
 
 # ── Runtime image (Next.js standalone) ───────────────────────────────────────
