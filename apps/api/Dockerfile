@@ -1,4 +1,7 @@
 FROM node:22-alpine AS base
+# openssl CLI is required by @prisma/get-platform to detect OpenSSL 3.x;
+# without it Prisma defaults to openssl-1.1.x binaries which segfault on Alpine 3.20
+RUN apk add --no-cache openssl
 RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 
 # ── Install workspace deps ────────────────────────────────────────────────────
@@ -30,6 +33,7 @@ RUN cp -r apps/api/dist /deploy/dist
 # ── Runtime image ─────────────────────────────────────────────────────────────
 FROM node:22-alpine AS runner
 WORKDIR /app
+RUN apk add --no-cache openssl
 COPY --from=builder /deploy .
 COPY apps/api/entrypoint.sh ./
 RUN chmod +x entrypoint.sh
