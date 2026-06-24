@@ -11,6 +11,8 @@ const nextConfig = {
   experimental: {
     // Limit parallel static-page workers so constrained build hosts don't OOM
     cpus: 1,
+    // DALL-E 3 and large-batch AI ingest can take >30s; default proxy timeout is 30000
+    proxyTimeout: 120000,
   },
 
   // Proxy /api/* through Next.js so browser cookies are always same-origin.
