@@ -4,157 +4,16 @@ import { prisma } from '../plugins/prisma.js';
 import { uploadToS3 } from '../utils/s3.js';
 import { authenticate } from '../middleware/auth.js';
 import { createId } from '@paralleldrive/cuid2';
+import {
+  type StockPhoto,
+  getStockKeys,
+  browseUnsplash, searchUnsplash,
+  browsePexels, searchPexels,
+  browsePixabay, searchPixabay,
+  searchWikimedia,
+} from '../services/stockSearch.js';
 
-export interface StockPhoto {
-  id: string;
-  thumbnailUrl: string;
-  fullUrl: string;
-  downloadUrl: string; // URL to pass back to /stock/use
-  alt: string;
-  credit: string;
-  creditUrl?: string;
-  source: 'unsplash' | 'pexels' | 'pixabay' | 'wikimedia';
-}
-
-// ─── API key helpers ─────────────────────────────────────────────────────────
-
-async function getKeys() {
-  const rows = await prisma.setting.findMany({
-    where: { key: { in: ['stock_unsplash_key', 'stock_pexels_key', 'stock_pixabay_key'] } },
-  });
-  const m: Record<string, string> = {};
-  for (const r of rows) m[r.key] = r.value;
-  return {
-    unsplash: m['stock_unsplash_key'] || '',
-    pexels: m['stock_pexels_key'] || '',
-    pixabay: m['stock_pixabay_key'] || '',
-  };
-}
-
-// ─── Source adapters ─────────────────────────────────────────────────────────
-
-function mapUnsplashPhoto(p: any, fallbackAlt = ''): StockPhoto {
-  return {
-    id: `unsplash-${p.id}`,
-    thumbnailUrl: p.urls.small,
-    fullUrl: p.urls.regular,
-    downloadUrl: p.links.download_location,
-    alt: p.alt_description || p.description || fallbackAlt,
-    credit: `Photo by ${p.user.name} on Unsplash`,
-    creditUrl: p.user.links.html,
-    source: 'unsplash',
-  };
-}
-
-async function browseUnsplash(page: number, key: string): Promise<StockPhoto[]> {
-  if (!key) return [];
-  const url = `https://api.unsplash.com/photos?page=${page}&per_page=20&order_by=popular`;
-  const res = await fetch(url, { headers: { Authorization: `Client-ID ${key}` } });
-  if (!res.ok) return [];
-  const data = await res.json() as any;
-  return (Array.isArray(data) ? data : []).map((p: any) => mapUnsplashPhoto(p));
-}
-
-async function searchUnsplash(query: string, page: number, key: string): Promise<StockPhoto[]> {
-  if (!key) return [];
-  const url = `https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&page=${page}&per_page=20&orientation=landscape`;
-  const res = await fetch(url, { headers: { Authorization: `Client-ID ${key}` } });
-  if (!res.ok) return [];
-  const data = await res.json() as any;
-  return (data.results || []).map((p: any) => mapUnsplashPhoto(p, query));
-}
-
-function mapPexelsPhoto(p: any, fallbackAlt = ''): StockPhoto {
-  return {
-    id: `pexels-${p.id}`,
-    thumbnailUrl: p.src.medium,
-    fullUrl: p.src.large2x,
-    downloadUrl: p.src.original,
-    alt: p.alt || fallbackAlt,
-    credit: `Photo by ${p.photographer} on Pexels`,
-    creditUrl: p.photographer_url,
-    source: 'pexels',
-  };
-}
-
-async function browsePexels(page: number, key: string): Promise<StockPhoto[]> {
-  if (!key) return [];
-  const url = `https://api.pexels.com/v1/curated?page=${page}&per_page=20`;
-  const res = await fetch(url, { headers: { Authorization: key } });
-  if (!res.ok) return [];
-  const data = await res.json() as any;
-  return (data.photos || []).map((p: any) => mapPexelsPhoto(p));
-}
-
-async function searchPexels(query: string, page: number, key: string): Promise<StockPhoto[]> {
-  if (!key) return [];
-  const url = `https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&page=${page}&per_page=20&orientation=landscape`;
-  const res = await fetch(url, { headers: { Authorization: key } });
-  if (!res.ok) return [];
-  const data = await res.json() as any;
-  return (data.photos || []).map((p: any) => mapPexelsPhoto(p, query));
-}
-
-function mapPixabayPhoto(p: any, fallbackAlt = ''): StockPhoto {
-  return {
-    id: `pixabay-${p.id}`,
-    thumbnailUrl: p.webformatURL,
-    fullUrl: p.largeImageURL,
-    downloadUrl: p.largeImageURL,
-    alt: p.tags || fallbackAlt,
-    credit: `Photo by ${p.user} on Pixabay`,
-    creditUrl: `https://pixabay.com/users/${p.user}-${p.user_id}/`,
-    source: 'pixabay',
-  };
-}
-
-async function browsePixabay(page: number, key: string): Promise<StockPhoto[]> {
-  if (!key) return [];
-  const url = `https://pixabay.com/api/?key=${key}&page=${page}&per_page=20&image_type=photo&orientation=horizontal&safesearch=true&order=popular`;
-  const res = await fetch(url);
-  if (!res.ok) return [];
-  const data = await res.json() as any;
-  return (data.hits || []).map((p: any) => mapPixabayPhoto(p));
-}
-
-async function searchPixabay(query: string, page: number, key: string): Promise<StockPhoto[]> {
-  if (!key) return [];
-  const url = `https://pixabay.com/api/?key=${key}&q=${encodeURIComponent(query)}&page=${page}&per_page=20&image_type=photo&orientation=horizontal&safesearch=true`;
-  const res = await fetch(url);
-  if (!res.ok) return [];
-  const data = await res.json() as any;
-  return (data.hits || []).map((p: any) => mapPixabayPhoto(p, query));
-}
-
-async function searchWikimedia(query: string, page: number): Promise<StockPhoto[]> {
-  const offset = (page - 1) * 20;
-  const url = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(query)}%20filetype:bitmap&gsrnamespace=6&gsrlimit=20&gsroffset=${offset}&prop=imageinfo&iiprop=url|size|mime|extmetadata&iiurlwidth=400&format=json&origin=*`;
-  const res = await fetch(url, { headers: { 'User-Agent': 'Shacky-CMS/1.0' } });
-  if (!res.ok) return [];
-  const data = await res.json() as any;
-  const pages = Object.values(data?.query?.pages || {}) as any[];
-  return pages
-    .filter((p: any) => {
-      const info = p.imageinfo?.[0];
-      return info && info.mime?.startsWith('image/') && info.url;
-    })
-    .map((p: any): StockPhoto => {
-      const info = p.imageinfo[0];
-      const meta = info.extmetadata || {};
-      const artist = meta.Artist?.value?.replace(/<[^>]+>/g, '') || 'Unknown';
-      const license = meta.LicenseShortName?.value || 'CC';
-      return {
-        id: `wikimedia-${p.pageid}`,
-        thumbnailUrl: info.thumburl || info.url,
-        fullUrl: info.url,
-        downloadUrl: info.url,
-        alt: meta.ObjectName?.value || p.title?.replace('File:', '') || query,
-        credit: `${artist} (${license}) via Wikimedia Commons`,
-        creditUrl: `https://commons.wikimedia.org/wiki/${encodeURIComponent(p.title || '')}`,
-        source: 'wikimedia',
-      };
-    });
-}
+export type { StockPhoto };
 
 // ─── Route plugin ─────────────────────────────────────────────────────────────
 
@@ -167,7 +26,7 @@ const stockRoutes: FastifyPluginAsync = async (fastify) => {
       page: z.coerce.number().int().positive().default(1),
     }).parse(req.query);
 
-    const keys = await getKeys();
+    const keys = await getStockKeys();
     const browse = !q || !q.trim();
     const query = q?.trim() || '';
 
@@ -209,19 +68,19 @@ const stockRoutes: FastifyPluginAsync = async (fastify) => {
 
   // POST /stock/use — download image, process, upload to S3, create media record
   fastify.post('/use', { preHandler: [authenticate] }, async (req, reply) => {
-    const { downloadUrl, fullUrl, alt, credit, source } = z.object({
+    const { downloadUrl, fullUrl, alt, credit, creditUrl, source } = z.object({
       downloadUrl: z.string().url(),
       fullUrl: z.string().url(),
       alt: z.string().default(''),
       credit: z.string().default(''),
+      creditUrl: z.string().default(''),
       source: z.string().default(''),
     }).parse(req.body);
 
     // For Unsplash, we must hit the download_location URL first (API TOS requirement)
-    // It returns a redirect to the actual download URL
     let imageUrl = fullUrl;
     if (source === 'unsplash' && downloadUrl !== fullUrl) {
-      const keys = await getKeys();
+      const keys = await getStockKeys();
       if (keys.unsplash) {
         try {
           const dlRes = await fetch(downloadUrl, { headers: { Authorization: `Client-ID ${keys.unsplash}` } });
@@ -233,14 +92,12 @@ const stockRoutes: FastifyPluginAsync = async (fastify) => {
       }
     }
 
-    // Download the image
     const imgRes = await fetch(imageUrl, { signal: AbortSignal.timeout(30000) });
     if (!imgRes.ok) return reply.status(502).send({ statusCode: 502, error: 'Download Failed', message: `Could not fetch image: ${imgRes.status}` });
 
     const arrayBuffer = await imgRes.arrayBuffer();
     const rawBuffer = Buffer.from(arrayBuffer);
 
-    // Process via sharp
     const { default: sharp } = await import('sharp');
     let sharpInst = sharp(rawBuffer).rotate();
 
@@ -255,8 +112,6 @@ const stockRoutes: FastifyPluginAsync = async (fastify) => {
     const filename = `stock-${source}-${createId()}.jpg`;
     const url = await uploadToS3(`media/${filename}`, processed.data, 'image/jpeg');
 
-    // Create media record with credit in altText
-    const altText = [alt, credit].filter(Boolean).join(' — ').slice(0, 500);
     const media = await prisma.media.create({
       data: {
         filename,
@@ -266,17 +121,19 @@ const stockRoutes: FastifyPluginAsync = async (fastify) => {
         width: processed.info.width,
         height: processed.info.height,
         url,
-        altText,
+        altText: alt.slice(0, 500) || null,
+        credit: credit || null,
+        creditUrl: creditUrl || null,
         uploadedById: req.user!.id,
       },
     });
 
-    return reply.send({ id: media.id, url: media.url, altText: media.altText, filename: media.filename });
+    return reply.send({ id: media.id, url: media.url, altText: media.altText, credit: media.credit, creditUrl: media.creditUrl, filename: media.filename });
   });
 
   // GET /stock/keys — check which sources are configured (no keys returned)
   fastify.get('/keys', { preHandler: [authenticate] }, async (_req, reply) => {
-    const keys = await getKeys();
+    const keys = await getStockKeys();
     return reply.send({
       unsplash: !!keys.unsplash,
       pexels: !!keys.pexels,

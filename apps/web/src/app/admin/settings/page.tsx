@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { Save, Key, Copy, Check, Loader2, Globe, Webhook, Plus, Trash2, Camera, Sparkles, Upload, X, Image as ImageIcon, AlertTriangle } from 'lucide-react';
+import { Save, Key, Copy, Check, Loader2, Globe, Webhook, Plus, Trash2, Camera, Sparkles, Upload, X, Image as ImageIcon, AlertTriangle, Mail } from 'lucide-react';
 import { useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,6 +13,7 @@ import { useAuth } from '@/lib/auth';
 
 const SECTIONS = [
   { id: 'site', label: 'Site & Branding' },
+  { id: 'newsletter', label: 'Newsletter' },
   { id: 'profile', label: 'My Profile' },
   { id: 'stock', label: 'Stock Photos' },
   { id: 'ai', label: 'AI Configuration' },
@@ -81,6 +82,16 @@ export default function SettingsPage() {
   const [newHookSecret, setNewHookSecret] = useState('');
   const [savingHook, setSavingHook] = useState(false);
 
+  // Newsletter / WhatsApp settings
+  const [nlTagline, setNlTagline] = useState('');
+  const [nlEditors, setNlEditors] = useState('');
+  const [nlAbout, setNlAbout] = useState('');
+  const [nlFacebook, setNlFacebook] = useState('');
+  const [nlSubscribeUrl, setNlSubscribeUrl] = useState('');
+  const [nlWaGroups, setNlWaGroups] = useState('');
+  const [nlWaChannels, setNlWaChannels] = useState('');
+  const [savingNl, setSavingNl] = useState(false);
+
   // AI configuration
   const [aiProvider, setAiProvider] = useState<'openai' | 'gemini' | 'ollama' | 'groq'>('openai');
   const [aiApiKey, setAiApiKey] = useState('');
@@ -109,6 +120,13 @@ export default function SettingsPage() {
       setStockUnsplash(s.stock_unsplash_key ? '••••••••' : '');
       setStockPexels(s.stock_pexels_key ? '••••••••' : '');
       setStockPixabay(s.stock_pixabay_key ? '••••••••' : '');
+      setNlTagline(s.newsletter_tagline || '');
+      setNlEditors(s.newsletter_editors || '');
+      setNlAbout(s.newsletter_about || '');
+      setNlFacebook(s.newsletter_facebook || '');
+      setNlSubscribeUrl(s.newsletter_subscribe_url || '');
+      setNlWaGroups(s.newsletter_wa_groups || '');
+      setNlWaChannels(s.newsletter_wa_channels || '');
     }).catch(() => {});
     api.get<any[]>('/api/webhooks').then(setWebhooks).catch(() => {});
     api.get<string[]>('/api/webhooks/events').then(setWebhookEvents).catch(() => {});
@@ -156,6 +174,24 @@ export default function SettingsPage() {
       toast.success('Site settings saved');
     } catch (err: any) { toast.error(err?.message || 'Save failed'); }
     finally { setSavingSettings(false); }
+  };
+
+  const saveNewsletterSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingNl(true);
+    try {
+      await api.patch('/api/settings', {
+        newsletter_tagline: nlTagline,
+        newsletter_editors: nlEditors,
+        newsletter_about: nlAbout,
+        newsletter_facebook: nlFacebook,
+        newsletter_subscribe_url: nlSubscribeUrl,
+        newsletter_wa_groups: nlWaGroups,
+        newsletter_wa_channels: nlWaChannels,
+      });
+      toast.success('Newsletter settings saved');
+    } catch (err: any) { toast.error(err?.message || 'Save failed'); }
+    finally { setSavingNl(false); }
   };
 
   const saveStockKeys = async (e: React.FormEvent) => {
@@ -454,6 +490,64 @@ export default function SettingsPage() {
             </div>
             <Button type="submit" disabled={savingSettings} className="gap-2">
               {savingSettings ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save Settings
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      {/* Newsletter & WhatsApp */}
+      <Card id="newsletter">
+        <CardHeader><CardTitle className="text-base flex items-center gap-2"><Mail className="h-4 w-4" /> Newsletter &amp; WhatsApp</CardTitle></CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground mb-4">
+            Configure the branding and links used when generating HTML newsletters and WhatsApp messages from campaigns.
+          </p>
+          <form onSubmit={saveNewsletterSettings} className="space-y-4">
+            <div className="space-y-1">
+              <Label className="text-xs">Tagline</Label>
+              <Input value={nlTagline} onChange={(e) => setNlTagline(e.target.value)} placeholder="India's oldest Socialist Weekly!" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Editors (one per line, e.g. "Editor: Dr. G.G. Parikh")</Label>
+              <textarea value={nlEditors} onChange={(e) => setNlEditors(e.target.value)} rows={3}
+                placeholder={"Editor: Dr. G.G. Parikh\nAssociate Editor: Neeraj Jain\nManaging Editor: Guddi"}
+                className="w-full text-sm bg-background border border-input rounded-md p-2 resize-none focus:outline-none focus:ring-2 focus:ring-ring" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">About (short paragraph used in email footer and WhatsApp footer)</Label>
+              <textarea value={nlAbout} onChange={(e) => setNlAbout(e.target.value)} rows={3}
+                placeholder="An independent socialist journal raising its voice of principled dissent…"
+                className="w-full text-sm bg-background border border-input rounded-md p-2 resize-none focus:outline-none focus:ring-2 focus:ring-ring" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Facebook URL</Label>
+                <Input value={nlFacebook} onChange={(e) => setNlFacebook(e.target.value)} placeholder="https://facebook.com/yourpage" type="url" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Subscribe Page URL</Label>
+                <Input value={nlSubscribeUrl} onChange={(e) => setNlSubscribeUrl(e.target.value)} placeholder="https://yoursite.com/subscribe" type="url" />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">WhatsApp Groups — Digest footer (JSON)</Label>
+              <p className="text-xs text-muted-foreground">Array of groups shown at the bottom of each digest part.</p>
+              <textarea value={nlWaGroups} onChange={(e) => setNlWaGroups(e.target.value)} rows={3}
+                placeholder={'[{"label":"Group 1","url":"https://chat.whatsapp.com/..."},{"label":"Group 2","url":"..."}]'}
+                className="w-full text-xs font-mono bg-background border border-input rounded-md p-2 resize-none focus:outline-none focus:ring-2 focus:ring-ring" />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">WhatsApp Channels — Per-article footer (JSON)</Label>
+              <p className="text-xs text-muted-foreground">Each channel generates its own set of per-article messages with a custom footer.</p>
+              <textarea value={nlWaChannels} onChange={(e) => setNlWaChannels(e.target.value)} rows={5}
+                placeholder={'[{"id":"abhivyakti","name":"Abhivyakti","links":[{"label":"Join English Channel","url":"https://..."},{"label":"Join Marathi Channel","url":"https://..."}]}]'}
+                className="w-full text-xs font-mono bg-background border border-input rounded-md p-2 resize-none focus:outline-none focus:ring-2 focus:ring-ring" />
+            </div>
+
+            <Button type="submit" disabled={savingNl} className="gap-2">
+              {savingNl ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save Newsletter Settings
             </Button>
           </form>
         </CardContent>

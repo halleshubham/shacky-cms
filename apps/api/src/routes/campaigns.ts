@@ -2,10 +2,13 @@ import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../plugins/prisma.js';
 import { authenticate, requireRoles } from '../middleware/auth.js';
-import { generateNewsletterHtml, generateWhatsAppMessage } from '../services/newsletter.js';
+import {
+  generateNewsletterHtml,
+  generateWhatsAppDigest,
+  generateWhatsAppChannelMessages,
+} from '../services/newsletter.js';
 import { sendMail } from '../services/email.js';
 import { audit } from '../utils/audit.js';
-import { env } from '../utils/env.js';
 
 const campaignBodySchema = z.object({
   name: z.string().min(1),
@@ -65,7 +68,7 @@ const campaignsRoutes: FastifyPluginAsync = async (fastify) => {
     return reply.status(201).send(campaign);
   });
 
-  // PATCH /campaigns/:id — update campaign
+  // PATCH /campaigns/:id
   fastify.patch('/:id', { preHandler: [authenticate, canManage] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const body = campaignBodySchema.partial().parse(req.body);
@@ -87,7 +90,7 @@ const campaignsRoutes: FastifyPluginAsync = async (fastify) => {
     return reply.send(updated);
   });
 
-  // POST /campaigns/:id/test-send — send to a single email address for testing
+  // POST /campaigns/:id/test-send
   fastify.post('/:id/test-send', { preHandler: [authenticate, canManage] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const { email } = z.object({ email: z.string().email() }).parse(req.body);
@@ -95,48 +98,43 @@ const campaignsRoutes: FastifyPluginAsync = async (fastify) => {
     const campaign = await prisma.campaign.findUnique({ where: { id } });
     if (!campaign) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Not found' });
 
-    const issue = await prisma.issue.findUnique({
-      where: { id: campaign.issueId },
-      include: {
-        posts: {
-          where: { status: 'published' },
-          orderBy: { issueOrder: 'asc' },
-          include: { featuredMedia: true, authors: { include: { author: true } } },
-        },
-      },
-    });
+    const issue = await fetchIssueWithPosts(campaign.issueId);
     if (!issue) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Issue not found' });
 
-    const html = generateNewsletterHtml(issue as any, { subscriberToken: 'test-preview' });
+    const html = await generateNewsletterHtml(issue, { subscriberToken: 'test-preview' });
     await sendMail({ to: email, subject: `[TEST] ${issue.title}`, html });
-
     return reply.send({ success: true, sentTo: email });
   });
 
-  // GET /campaigns/:id/preview — generate HTML preview
+  // GET /campaigns/:id/newsletter — return HTML for copy-paste
+  fastify.get('/:id/newsletter', { preHandler: [authenticate, canManage] }, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const campaign = await prisma.campaign.findUnique({ where: { id } });
+    if (!campaign) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Not found' });
+
+    const issue = await fetchIssueWithPosts(campaign.issueId);
+    if (!issue) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Issue not found' });
+
+    const html = await generateNewsletterHtml(issue, { subscriberToken: 'preview-token' });
+
+    // Cache on the campaign record
+    if (campaign.htmlContent !== html) {
+      await prisma.campaign.update({ where: { id }, data: { htmlContent: html } });
+    }
+
+    return reply.send({ html });
+  });
+
+  // GET /campaigns/:id/preview — browser preview (served as HTML)
   fastify.get('/:id/preview', { preHandler: [authenticate, canManage] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const campaign = await prisma.campaign.findUnique({ where: { id } });
     if (!campaign) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Not found' });
 
-    const issue = await prisma.issue.findUnique({
-      where: { id: campaign.issueId },
-      include: {
-        posts: {
-          where: { status: 'published' },
-          orderBy: { issueOrder: 'asc' },
-          include: {
-            featuredMedia: true,
-            authors: { include: { author: true } },
-          },
-        },
-      },
-    });
+    const issue = await fetchIssueWithPosts(campaign.issueId);
     if (!issue) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Issue not found' });
 
-    const html = generateNewsletterHtml(issue as any, {
-      subscriberToken: 'preview-token',
-    });
+    const html = await generateNewsletterHtml(issue, { subscriberToken: 'preview-token' });
 
     if (campaign.htmlContent !== html) {
       await prisma.campaign.update({ where: { id }, data: { htmlContent: html } });
@@ -146,32 +144,24 @@ const campaignsRoutes: FastifyPluginAsync = async (fastify) => {
     return reply.send(html);
   });
 
-  // GET /campaigns/:id/whatsapp — generate WhatsApp messages
+  // GET /campaigns/:id/whatsapp — digest parts + per-channel per-article messages
   fastify.get('/:id/whatsapp', { preHandler: [authenticate, canManage] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const campaign = await prisma.campaign.findUnique({ where: { id } });
     if (!campaign) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Not found' });
 
-    const issue = await prisma.issue.findUnique({
-      where: { id: campaign.issueId },
-      include: {
-        posts: {
-          where: { status: 'published' },
-          orderBy: { issueOrder: 'asc' },
-          include: { authors: { include: { author: true } } },
-        },
-      },
-    });
+    const issue = await fetchIssueWithPosts(campaign.issueId);
     if (!issue) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Issue not found' });
 
-    return reply.send({
-      janata: generateWhatsAppMessage(issue as any, 'janata', env.APP_URL),
-      lokayat: generateWhatsAppMessage(issue as any, 'lokayat', env.APP_URL),
-      abhivyakti: generateWhatsAppMessage(issue as any, 'abhivyakti', env.APP_URL),
-    });
+    const [digest, channels] = await Promise.all([
+      generateWhatsAppDigest(issue),
+      generateWhatsAppChannelMessages(issue),
+    ]);
+
+    return reply.send({ digest, channels });
   });
 
-  // POST /campaigns/:id/send — send the campaign
+  // POST /campaigns/:id/send
   fastify.post('/:id/send', { preHandler: [authenticate, canManage] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const campaign = await prisma.campaign.findUnique({ where: { id } });
@@ -182,16 +172,7 @@ const campaignsRoutes: FastifyPluginAsync = async (fastify) => {
 
     await prisma.campaign.update({ where: { id }, data: { status: 'sending' } });
 
-    const issue = await prisma.issue.findUnique({
-      where: { id: campaign.issueId },
-      include: {
-        posts: {
-          where: { status: 'published' },
-          orderBy: { issueOrder: 'asc' },
-          include: { featuredMedia: true, authors: { include: { author: true } } },
-        },
-      },
-    });
+    const issue = await fetchIssueWithPosts(campaign.issueId);
 
     const subscribers = await prisma.subscriber.findMany({
       where: {
@@ -205,9 +186,7 @@ const campaignsRoutes: FastifyPluginAsync = async (fastify) => {
     let sent = 0;
     for (const sub of subscribers) {
       try {
-        const html = generateNewsletterHtml(issue as any, {
-          subscriberToken: sub.unsubscribeToken,
-        });
+        const html = await generateNewsletterHtml(issue as any, { subscriberToken: sub.unsubscribeToken });
         await sendMail({ to: sub.email!, subject: issue!.title, html });
         sent++;
       } catch (err) {
@@ -231,5 +210,20 @@ const campaignsRoutes: FastifyPluginAsync = async (fastify) => {
     return reply.send({ success: true });
   });
 };
+
+// ─── Shared DB query ──────────────────────────────────────────────────────────
+
+async function fetchIssueWithPosts(issueId: string) {
+  return prisma.issue.findUnique({
+    where: { id: issueId },
+    include: {
+      posts: {
+        where: { status: 'published' },
+        orderBy: { issueOrder: 'asc' },
+        include: { featuredMedia: true, authors: { include: { author: true } } },
+      },
+    },
+  });
+}
 
 export default campaignsRoutes;

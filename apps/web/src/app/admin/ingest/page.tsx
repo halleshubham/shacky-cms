@@ -28,7 +28,8 @@ export default function IngestPage() {
 
   // AI options
   const [aiStatus, setAiStatus] = useState<AiStatus | null>(null);
-  const [aiGenerateImage, setAiGenerateImage] = useState(false);
+  // imageSource: which strategy to use for articles with no photo in the ZIP
+  const [imageSource, setImageSource] = useState<'none' | 'stock' | 'ai'>('none');
   const [aiMapCategories, setAiMapCategories] = useState(false);
   const [aiGenerateTags, setAiGenerateTags] = useState(false);
 
@@ -99,14 +100,19 @@ export default function IngestPage() {
       fd.append('type', issueType);
       fd.append('title', buildTitle());
       fd.append('aiOptions', JSON.stringify({
-        generateImage: aiGenerateImage,
+        generateImage: imageSource === 'ai',
+        searchStockImage: imageSource === 'stock',
         mapCategories: aiMapCategories,
         generateTags: aiGenerateTags,
       }));
 
       const result = await api.upload<any>('/api/ingest/issue', fd);
 
-      toast.success(`Issue created — ${result.created} articles ingested`, { id: toastId });
+      if (result.jobId) {
+        toast.success(`${result.created} articles created. Enhancements running in background…`, { id: toastId, duration: 6000 });
+      } else {
+        toast.success(`Issue created — ${result.created} articles ingested`, { id: toastId });
+      }
       if (result.warnings?.length > 0) {
         result.warnings.forEach((w: string) => toast.error(w, { duration: 8000 }));
       }
@@ -118,7 +124,7 @@ export default function IngestPage() {
   };
 
   const aiUnavailable = !aiStatus?.configured;
-  const imageUnavailable = !aiStatus?.supportsImages;
+  const aiImageUnavailable = !aiStatus?.supportsImages;
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -209,41 +215,59 @@ export default function IngestPage() {
         </CardContent>
       </Card>
 
-      {/* AI enhancements */}
+      {/* Enhancements */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
-            <Sparkles className="h-4 w-4" /> AI Enhancements
+            <Sparkles className="h-4 w-4" /> Enhancements
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-4">
+          {/* Featured image source — mutually exclusive */}
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Featured image for articles with no photo in ZIP</p>
+            <div className="space-y-2">
+              {([
+                { value: 'none', label: 'None', description: 'Leave articles without a featured image.' },
+                { value: 'stock', label: 'Auto-search stock image', description: 'Search Wikimedia Commons and configured stock sources (Unsplash, Pexels, Pixabay) using the article title. Attribution is saved automatically.' },
+                { value: 'ai', label: 'Generate with AI', description: aiImageUnavailable ? 'Requires OpenAI or Gemini — current provider doesn\'t support image generation.' : 'Use AI to generate a unique featured image from the article title and excerpt.', disabled: aiImageUnavailable },
+              ] as { value: 'none' | 'stock' | 'ai'; label: string; description: string; disabled?: boolean }[]).map(({ value, label, description, disabled }) => (
+                <label key={value} className={`flex items-start gap-3 cursor-pointer ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`}>
+                  <input
+                    type="radio"
+                    name="imageSource"
+                    value={value}
+                    checked={imageSource === value}
+                    onChange={() => !disabled && setImageSource(value)}
+                    disabled={disabled}
+                    className="mt-0.5"
+                  />
+                  <div>
+                    <p className="text-sm font-medium">{label}</p>
+                    <p className="text-xs text-muted-foreground">{description}</p>
+                  </div>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* AI text enhancements */}
           {aiUnavailable ? (
-            <p className="text-sm text-muted-foreground">
-              AI is not configured.{' '}
+            <p className="text-sm text-muted-foreground pt-3 border-t border-border">
+              AI text features (categories, tags) require an API key.{' '}
               <Link href="/admin/settings" className="text-primary underline underline-offset-2">
-                Go to Settings → AI
-              </Link>{' '}
-              to add an API key, then come back.
+                Settings → AI
+              </Link>
             </p>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-3 pt-3 border-t border-border">
               {[
-                {
-                  id: 'generateImage',
-                  label: 'Generate featured image',
-                  description: 'Use AI to generate a featured image for each article that has no photo in the ZIP.',
-                  value: aiGenerateImage,
-                  set: setAiGenerateImage,
-                  disabled: imageUnavailable,
-                  disabledNote: imageUnavailable ? 'Requires OpenAI or Gemini — current provider doesn\'t support image generation.' : undefined,
-                },
                 {
                   id: 'mapCategories',
                   label: 'Auto-assign categories',
                   description: 'AI reads each article title and excerpt, then picks the best matching categories from your category list.',
                   value: aiMapCategories,
                   set: setAiMapCategories,
-                  disabled: false,
                 },
                 {
                   id: 'generateTags',
@@ -251,20 +275,18 @@ export default function IngestPage() {
                   description: 'AI generates 3–6 relevant tags per article and creates them if they don\'t exist.',
                   value: aiGenerateTags,
                   set: setAiGenerateTags,
-                  disabled: false,
                 },
-              ].map(({ id, label, description, value, set, disabled, disabledNote }) => (
-                <label key={id} className={`flex items-start gap-3 cursor-pointer ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
+              ].map(({ id, label, description, value, set }) => (
+                <label key={id} className="flex items-start gap-3 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={value}
-                    onChange={(e) => !disabled && set(e.target.checked)}
-                    disabled={disabled}
+                    onChange={(e) => set(e.target.checked)}
                     className="mt-0.5 rounded border-input"
                   />
                   <div>
                     <p className="text-sm font-medium">{label}</p>
-                    <p className="text-xs text-muted-foreground">{disabledNote ?? description}</p>
+                    <p className="text-xs text-muted-foreground">{description}</p>
                   </div>
                 </label>
               ))}

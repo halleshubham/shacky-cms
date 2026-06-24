@@ -5,6 +5,7 @@ import { previewIngestion, ingestIssue } from '../services/docxIngestion.js';
 import { prisma } from '../plugins/prisma.js';
 import { getAIConfig } from '../services/ai.js';
 import { audit } from '../utils/audit.js';
+import { ingestQueue } from '../jobs/ingestQueue.js';
 
 function parseAiOptions(raw: string) {
   try {
@@ -13,10 +14,16 @@ function parseAiOptions(raw: string) {
       generateImage: !!v.generateImage,
       mapCategories: !!v.mapCategories,
       generateTags: !!v.generateTags,
+      searchStockImage: !!v.searchStockImage,
     };
   } catch {
     return undefined;
   }
+}
+
+function hasAnyEnhancement(opts: ReturnType<typeof parseAiOptions>): boolean {
+  if (!opts) return false;
+  return !!(opts.generateImage || opts.mapCategories || opts.generateTags || opts.searchStockImage);
 }
 
 const ingestRoutes: FastifyPluginAsync = async (fastify) => {
@@ -62,21 +69,32 @@ const ingestRoutes: FastifyPluginAsync = async (fastify) => {
     if (!zipBuffer) return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'No ZIP file' });
     if (!issueId) return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'issueId required' });
 
-    const result = await ingestIssue(zipBuffer, {
+    const { created, warnings, postsForAI } = await ingestIssue(zipBuffer, {
       issueId,
       categoryIds: [],
       publishHour,
       uploadedById: req.user!.id,
-      aiOptions,
+      aiOptions: undefined, // Phase 1 only; enhancements go to queue below
     });
+
+    let jobId: string | undefined;
+    if (hasAnyEnhancement(aiOptions) && postsForAI.length > 0) {
+      const job = await ingestQueue.add('enhance', {
+        issueId,
+        posts: postsForAI,
+        aiOptions: aiOptions!,
+        uploadedById: req.user!.id,
+      });
+      jobId = job.id;
+    }
 
     await audit(req, 'ingest.completed', {
       entity: 'issue',
       entityId: issueId,
-      meta: { created: result.created, warnings: result.warnings.length },
+      meta: { created, warnings: warnings.length, jobId },
     });
 
-    return reply.send(result);
+    return reply.send({ created, warnings, jobId });
   });
 
   // POST /ingest/issue — create issue + ingest ZIP in one step
@@ -93,7 +111,6 @@ const ingestRoutes: FastifyPluginAsync = async (fastify) => {
 
     for await (const part of parts) {
       if (part.type === 'file' && part.fieldname === 'file') {
-        // Copy the buffer so it's fully detached from the multipart stream lifecycle
         zipBuffer = Buffer.from(await part.toBuffer());
       } else if (part.type === 'field') {
         const v = part.value as string;
@@ -138,21 +155,57 @@ const ingestRoutes: FastifyPluginAsync = async (fastify) => {
       },
     });
 
-    const result = await ingestIssue(zipBuffer, {
+    // Phase 1: create articles from ZIP (synchronous — must finish before we respond)
+    const { created, warnings, postsForAI } = await ingestIssue(zipBuffer, {
       issueId: issue.id,
       categoryIds: [],
       publishHour,
       uploadedById: req.user!.id,
-      aiOptions,
+      aiOptions: undefined, // Phase 1 only
     });
+
+    // Phase 2: enqueue AI/stock enhancements as a background job
+    let jobId: string | undefined;
+    if (hasAnyEnhancement(aiOptions) && postsForAI.length > 0) {
+      const job = await ingestQueue.add('enhance', {
+        issueId: issue.id,
+        posts: postsForAI,
+        aiOptions: aiOptions!,
+        uploadedById: req.user!.id,
+      });
+      jobId = job.id;
+    }
 
     await audit(req, 'ingest.completed', {
       entity: 'issue',
       entityId: issue.id,
-      meta: { created: result.created, warnings: result.warnings.length },
+      meta: { created, warnings: warnings.length, jobId },
     });
 
-    return reply.status(201).send({ issueId: issue.id, title: issue.title, ...result });
+    return reply.status(201).send({
+      issueId: issue.id,
+      title: issue.title,
+      created,
+      warnings,
+      jobId,
+    });
+  });
+
+  // GET /ingest/job/:jobId — check enhancement job status
+  fastify.get('/job/:jobId', { preHandler: [authenticate] }, async (req, reply) => {
+    const { jobId } = req.params as { jobId: string };
+    const job = await ingestQueue.getJob(jobId);
+    if (!job) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Job not found' });
+
+    const state = await job.getState();
+    const result = job.returnvalue as { warnings: string[] } | undefined;
+
+    return reply.send({
+      jobId: job.id,
+      state,
+      warnings: result?.warnings ?? [],
+      failReason: job.failedReason ?? undefined,
+    });
   });
 };
 

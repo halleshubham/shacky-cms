@@ -99,15 +99,28 @@ export default async function ArticlePage({ params }: { params: { slug: string }
 
       {/* Featured image */}
       {post.featuredMedia && (
-        <div className="relative aspect-[16/9] rounded-lg overflow-hidden mb-8 bg-muted">
-          <Image
-            src={post.featuredMedia.url}
-            alt={post.featuredMedia.altText || post.title}
-            fill
-            className="object-cover"
-            priority
-          />
-        </div>
+        <figure className="mb-8">
+          <div className="relative aspect-[16/9] rounded-lg overflow-hidden bg-muted">
+            <Image
+              src={post.featuredMedia.url}
+              alt={post.featuredMedia.altText || post.title}
+              fill
+              className="object-cover"
+              priority
+            />
+          </div>
+          {post.featuredMedia.credit && (
+            <figcaption className="mt-1.5 text-xs text-muted-foreground text-right">
+              {post.featuredMedia.creditUrl ? (
+                <a href={post.featuredMedia.creditUrl} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                  {post.featuredMedia.credit}
+                </a>
+              ) : (
+                post.featuredMedia.credit
+              )}
+            </figcaption>
+          )}
+        </figure>
       )}
 
       {/* Article body */}

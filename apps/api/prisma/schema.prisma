@@ -113,6 +113,8 @@ model Media {
   height       Int?
   url          String
   altText      String?
+  credit       String?
+  creditUrl    String?
   uploadedById String
   createdAt    DateTime @default(now())
   uploadedBy   User     @relation(fields: [uploadedById], references: [id])

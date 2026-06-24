@@ -29,6 +29,7 @@ import stockRoutes from './routes/stock.js';
 import statsRoutes from './routes/stats.js';
 import migrationRoutes from './routes/migration.js';
 import { startScheduler } from './workers/scheduler.js';
+import { startIngestWorker } from './workers/ingestWorker.js';
 
 const fastify = Fastify({
   logger: {
@@ -158,6 +159,8 @@ async function main() {
   console.log(`Docs at http://0.0.0.0:${env.PORT}/docs`);
   startScheduler();
   console.log('[scheduler] Post scheduler started (60s interval)');
+  startIngestWorker();
+  console.log('[ingest-worker] BullMQ enhancement worker started');
 }
 
 main().catch((err) => {
