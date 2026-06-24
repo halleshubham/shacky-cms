@@ -37,10 +37,11 @@ ENV HOSTNAME=0.0.0.0
 
 # Standalone server + auto-traced node_modules
 COPY --from=builder /monorepo/apps/web/.next/standalone ./
-# Static assets (not included in standalone output)
-COPY --from=builder /monorepo/apps/web/.next/static ./.next/static
-# Public folder (favicon, robots.txt, etc.)
-COPY --from=builder /monorepo/apps/web/public ./public
+# Static assets — must land at apps/web/.next/static because server.js
+# resolves paths relative to its own directory (/app/apps/web/)
+COPY --from=builder /monorepo/apps/web/.next/static ./apps/web/.next/static
+# Public folder — same reason, server.js serves it from apps/web/public
+COPY --from=builder /monorepo/apps/web/public ./apps/web/public
 
 EXPOSE 3000
 # The standalone entry is server.js at the root of the output,
