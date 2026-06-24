@@ -21,8 +21,20 @@ interface IngestOptions {
   uploadedById: string;
 }
 
-// Parse Summary.docx — expects lines like "1. Title | Author | Excerpt"
-// or "1. Title\nAuthor\nExcerpt" — flexible heuristic parser
+// Normalise an author line: strip leading "by " and clean up semicolons → commas
+function normaliseAuthor(raw: string): string {
+  return raw.replace(/^by\s+/i, '').replace(/\s*;\s*/g, ', ').trim();
+}
+
+// Strip leading fancy/straight single/double quote characters from excerpts
+function normaliseExcerpt(raw: string): string {
+  return raw.replace(/^[‘’‚‛“”"'‹›]+/, '').trim();
+}
+
+// Parse Summary.docx — supports three formats:
+//   Pipe-delimited:  "1. Title | Author | Excerpt"
+//   Multi-line:      "1. Title\n[by] Author\nExcerpt"
+//   Real-world ZIPs: numbered docx named "1-Title_Author.docx" — no summary needed
 export async function parseSummary(buffer: Buffer): Promise<ParsedArticle[]> {
   const result = await mammoth.extractRawText({ buffer: buffer as any });
   const lines = result.value.split('\n').map((l) => l.trim()).filter(Boolean);
@@ -38,18 +50,22 @@ export async function parseSummary(buffer: Buffer): Promise<ParsedArticle[]> {
       // Try pipe-delimited: "Title | Author | Excerpt"
       const parts = rest.split('|').map((s) => s.trim());
       if (parts.length >= 3) {
-        articles.push({ number, title: parts[0], authorName: parts[1], excerpt: parts[2] });
+        articles.push({ number, title: parts[0], authorName: normaliseAuthor(parts[1]), excerpt: normaliseExcerpt(parts[2]) });
       } else if (parts.length === 2) {
-        articles.push({ number, title: parts[0], authorName: parts[1], excerpt: '' });
+        articles.push({ number, title: parts[0], authorName: normaliseAuthor(parts[1]), excerpt: '' });
       } else {
-        // Multi-line format: next line = author, line after = excerpt
+        // Multi-line format: next line = [by] author, line after = excerpt
         const title = rest;
-        const authorName = lines[i + 1] || '';
-        const excerpt = lines[i + 2] || '';
-        // Skip if next lines look like article headers too
-        if (!authorName.match(articleLineRegex)) {
-          articles.push({ number, title, authorName, excerpt });
-          i += 3;
+        const rawAuthor = lines[i + 1] || '';
+        const rawExcerpt = lines[i + 2] || '';
+        if (!rawAuthor.match(articleLineRegex)) {
+          articles.push({
+            number,
+            title,
+            authorName: normaliseAuthor(rawAuthor),
+            excerpt: rawExcerpt.match(articleLineRegex) ? '' : normaliseExcerpt(rawExcerpt),
+          });
+          i += rawExcerpt.match(articleLineRegex) ? 2 : 3;
           continue;
         }
         articles.push({ number, title, authorName: '', excerpt: '' });
@@ -144,10 +160,10 @@ export async function previewIngestion(zipBuffer: Buffer): Promise<IngestPreview
   const summaryBuffer = Buffer.from(await zip.files[summaryFile].async('arraybuffer'));
   const parsed = await parseSummary(summaryBuffer);
 
-  // Count docx files
+  // Count docx files — matches "1.docx" and "1-Title_Author.docx" style names
   const docxFiles = Object.keys(zip.files).filter((f) => {
     const name = f.split('/').pop() || '';
-    return name.match(/^\d+\.docx$/) && !name.toLowerCase().includes('summary');
+    return name.match(/^\d+[-. ]/) && name.endsWith('.docx') && !name.toLowerCase().includes('summary');
   });
 
   if (docxFiles.length !== parsed.length) {
@@ -191,10 +207,10 @@ export async function ingestIssue(zipBuffer: Buffer, options: IngestOptions): Pr
 
   for (const summary of summaryArticles) {
     try {
-      // Find matching .docx
+      // Find matching .docx — supports "1.docx" and "1-Title_Author.docx" naming
       const docxKey = Object.keys(zip.files).find((f) => {
         const name = f.split('/').pop() || '';
-        return name === `${summary.number}.docx`;
+        return name.match(new RegExp(`^${summary.number}[-.\\s]`)) && name.endsWith('.docx');
       });
 
       let htmlContent = '';
