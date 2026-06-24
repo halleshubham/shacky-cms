@@ -34,6 +34,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     refresh();
+    // Proactively refresh every 7 hours so the 8h access token never expires mid-session
+    const id = setInterval(refresh, 7 * 60 * 60 * 1000);
+    return () => clearInterval(id);
   }, [refresh]);
 
   const login = useCallback(async (email: string, password: string, totpCode?: string) => {

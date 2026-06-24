@@ -63,7 +63,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
         httpOnly: true,
         secure: env.NODE_ENV === 'production',
         sameSite: 'strict',
-        maxAge: 15 * 60,
+        maxAge: 8 * 60 * 60,
         path: '/',
       })
       .setCookie('refresh_token', refreshToken, {
@@ -111,7 +111,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
           httpOnly: true,
           secure: env.NODE_ENV === 'production',
           sameSite: 'strict',
-          maxAge: 15 * 60,
+          maxAge: 8 * 60 * 60,
           path: '/',
         })
         .setCookie('refresh_token', newRefreshToken, {
