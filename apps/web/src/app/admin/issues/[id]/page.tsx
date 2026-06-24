@@ -1,8 +1,11 @@
 'use client';
-import { useState, useEffect, useRef } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Plus, Upload, Loader2, GripVertical, Trash2, Eye, CheckCircle } from 'lucide-react';
+import {
+  ArrowLeft, Plus, Upload, Loader2, Eye, CheckCircle,
+  Link2, Search, X, Zap,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -12,20 +15,44 @@ import toast from 'react-hot-toast';
 
 export default function IssueDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const router = useRouter();
   const [issue, setIssue] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+
+  // ZIP ingest
   const [ingesting, setIngesting] = useState(false);
   const [ingestPreview, setIngestPreview] = useState<any>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const load = async () => {
+  // Attach existing posts
+  const [attachSearch, setAttachSearch] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [attaching, setAttaching] = useState(false);
+  const [autoAttaching, setAutoAttaching] = useState(false);
+
+  const load = useCallback(async () => {
     const issueData = await api.get<any>(`/api/issues/${id}`);
     setIssue(issueData);
     setLoading(false);
-  };
+  }, [id]);
 
-  useEffect(() => { load(); }, [id]);
+  useEffect(() => { load(); }, [load]);
+
+  // Debounced search for unassigned posts
+  useEffect(() => {
+    if (!attachSearch.trim()) { setSearchResults([]); return; }
+    const t = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const data = await api.get<any>(`/api/posts?unassigned=true&search=${encodeURIComponent(attachSearch)}&pageSize=20`);
+        setSearchResults(data.data || []);
+      } catch { /* ignore */ } finally {
+        setSearching(false);
+      }
+    }, 350);
+    return () => clearTimeout(t);
+  }, [attachSearch]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -66,6 +93,47 @@ export default function IssueDetailPage() {
     }
   };
 
+  const handleAutoAttach = async () => {
+    setAutoAttaching(true);
+    try {
+      const result = await api.post<{ attached: number }>(`/api/issues/${id}/auto-attach`, {});
+      if (result.attached === 0) {
+        toast('No unassigned posts found on this issue\'s publish date.');
+      } else {
+        toast.success(`Attached ${result.attached} post${result.attached !== 1 ? 's' : ''}`);
+        await load();
+      }
+    } catch (err: any) {
+      toast.error(err?.message || 'Auto-attach failed');
+    } finally {
+      setAutoAttaching(false);
+    }
+  };
+
+  const handleAttachSelected = async () => {
+    if (selected.size === 0) return;
+    setAttaching(true);
+    try {
+      const result = await api.post<{ attached: number }>(`/api/issues/${id}/attach-posts`, { postIds: [...selected] });
+      toast.success(`Attached ${result.attached} post${result.attached !== 1 ? 's' : ''}`);
+      setSelected(new Set());
+      setAttachSearch('');
+      setSearchResults([]);
+      await load();
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to attach');
+    } finally {
+      setAttaching(false);
+    }
+  };
+
+  const toggleSelect = (postId: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(postId) ? next.delete(postId) : next.add(postId);
+      return next;
+    });
+
   const bulkPublish = async (status: 'published' | 'draft') => {
     const toastId = toast.loading(`${status === 'published' ? 'Publishing' : 'Unpublishing'} all…`);
     try {
@@ -99,7 +167,7 @@ export default function IssueDetailPage() {
       {/* Bulk actions */}
       <div className="flex items-center gap-3">
         <Button onClick={() => bulkPublish('published')} className="gap-2">
-          <CheckCircle className="h-4 w-4" /> Publish All Articles
+          <CheckCircle className="h-4 w-4" /> Publish All
         </Button>
         <Button variant="outline" onClick={() => bulkPublish('draft')}>Revert to Draft</Button>
         <Button variant="outline" asChild>
@@ -107,14 +175,104 @@ export default function IssueDetailPage() {
         </Button>
       </div>
 
-      {/* Bulk ingestion */}
+      {/* Attach existing articles */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2"><Upload className="h-4 w-4" /> Bulk Ingest from ZIP</CardTitle>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Link2 className="h-4 w-4" /> Attach Existing Articles
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Auto-attach by date */}
+          <div className="flex items-start gap-3 p-3 rounded-md border bg-muted/30">
+            <Zap className="h-4 w-4 mt-0.5 shrink-0 text-primary" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium">Auto-attach by publish date</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Finds all unassigned posts whose publish date matches{' '}
+                <span className="font-medium">{formatDate(issue.publishDate)}</span> and adds them to this issue.
+              </p>
+            </div>
+            <Button size="sm" variant="outline" onClick={handleAutoAttach} disabled={autoAttaching} className="shrink-0 gap-1.5">
+              {autoAttaching ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
+              Auto-attach
+            </Button>
+          </div>
+
+          {/* Manual search */}
+          <div className="space-y-2">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
+              <Input
+                value={attachSearch}
+                onChange={(e) => setAttachSearch(e.target.value)}
+                placeholder="Search unassigned posts by title…"
+                className="pl-8 pr-8"
+              />
+              {attachSearch && (
+                <button onClick={() => { setAttachSearch(''); setSearchResults([]); setSelected(new Set()); }}
+                  className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground">
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+
+            {searching && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground px-1">
+                <Loader2 className="h-3 w-3 animate-spin" /> Searching…
+              </div>
+            )}
+
+            {searchResults.length > 0 && (
+              <div className="border rounded-md divide-y max-h-64 overflow-y-auto">
+                {searchResults.map((post: any) => (
+                  <label key={post.id} className="flex items-start gap-3 px-3 py-2 cursor-pointer hover:bg-muted/40">
+                    <input
+                      type="checkbox"
+                      checked={selected.has(post.id)}
+                      onChange={() => toggleSelect(post.id)}
+                      className="mt-0.5 rounded border-input"
+                    />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{post.title}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {post.authors?.[0]?.displayName || '—'}
+                        {post.publishedAt && ` · ${formatDate(post.publishedAt)}`}
+                        {` · ${post.status}`}
+                      </p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            )}
+
+            {attachSearch && !searching && searchResults.length === 0 && (
+              <p className="text-xs text-muted-foreground px-1">No unassigned posts match your search.</p>
+            )}
+
+            {selected.size > 0 && (
+              <div className="flex items-center gap-3">
+                <Button size="sm" onClick={handleAttachSelected} disabled={attaching} className="gap-1.5">
+                  {attaching ? <Loader2 className="h-3 w-3 animate-spin" /> : <Link2 className="h-3 w-3" />}
+                  Attach {selected.size} selected
+                </Button>
+                <button onClick={() => setSelected(new Set())} className="text-xs text-muted-foreground hover:text-foreground">
+                  Clear selection
+                </button>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ZIP ingest */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2"><Upload className="h-4 w-4" /> Ingest from ZIP</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Upload a ZIP containing numbered .docx files, Summary.docx, and optional images (1.jpg, 2.jpg…).
+            Upload a ZIP containing numbered .docx files, Summary.docx, and optional images.
           </p>
           <input ref={fileRef} type="file" accept=".zip" onChange={handleFileChange} className="text-sm" />
 
@@ -162,7 +320,7 @@ export default function IssueDetailPage() {
         </CardHeader>
         <CardContent>
           {posts.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No articles yet. Add manually or use bulk ingest.</p>
+            <p className="text-sm text-muted-foreground">No articles yet.</p>
           ) : (
             <div className="divide-y">
               {posts.map((post: any) => (

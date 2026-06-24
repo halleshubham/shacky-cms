@@ -40,6 +40,7 @@ const listQuerySchema = z.object({
   authorId: z.string().optional(),
   categoryId: z.string().optional(),
   issueId: z.string().optional(),
+  unassigned: z.coerce.boolean().optional(), // true → posts with no issueId
   search: z.string().optional(),
 });
 
@@ -106,6 +107,7 @@ const postsRoutes: FastifyPluginAsync = async (fastify) => {
     if (q.status) where.status = q.status;
     if (q.isFeatured !== undefined) where.isFeatured = q.isFeatured;
     if (q.issueId) where.issueId = q.issueId;
+    if (q.unassigned) where.issueId = null;
     if (q.categoryId) where.categories = { some: { categoryId: q.categoryId } };
     if (q.authorId) where.authors = { some: { authorId: q.authorId } };
     if (q.search) where.title = { contains: q.search, mode: 'insensitive' };
