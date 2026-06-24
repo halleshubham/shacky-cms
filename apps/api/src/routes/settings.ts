@@ -51,6 +51,77 @@ const settingsRoutes: FastifyPluginAsync = async (fastify) => {
     await prisma.setting.deleteMany({ where: { key } });
     return reply.send({ success: true });
   });
+
+  // GET /settings/counts — row counts for every purgeable entity
+  fastify.get('/counts', { preHandler: [authenticate, requireAdmin] }, async (_req, reply) => {
+    const [posts, issues, categories, tags, authors, media, subscribers] = await Promise.all([
+      prisma.post.count(),
+      prisma.issue.count(),
+      prisma.category.count(),
+      prisma.tag.count(),
+      prisma.author.count(),
+      prisma.media.count(),
+      prisma.subscriber.count(),
+    ]);
+    return reply.send({ posts, issues, categories, tags, authors, media, subscribers });
+  });
+
+  // POST /settings/purge — bulk delete all records of a given entity type
+  fastify.post('/purge', { preHandler: [authenticate, requireAdmin] }, async (req, reply) => {
+    const { entity } = z.object({
+      entity: z.enum(['posts', 'issues', 'categories', 'tags', 'authors', 'media', 'subscribers']),
+    }).parse(req.body);
+
+    let count = 0;
+
+    switch (entity) {
+      case 'posts': {
+        // PostAuthor / PostCategory / PostTag / Revision cascade from Post
+        const r = await prisma.post.deleteMany();
+        count = r.count;
+        break;
+      }
+      case 'issues': {
+        await prisma.post.updateMany({ data: { issueId: null } });
+        const r = await prisma.issue.deleteMany();
+        count = r.count;
+        break;
+      }
+      case 'categories': {
+        await prisma.postCategory.deleteMany();
+        const r = await prisma.category.deleteMany();
+        count = r.count;
+        break;
+      }
+      case 'tags': {
+        await prisma.postTag.deleteMany();
+        const r = await prisma.tag.deleteMany();
+        count = r.count;
+        break;
+      }
+      case 'authors': {
+        await prisma.postAuthor.deleteMany();
+        const r = await prisma.author.deleteMany();
+        count = r.count;
+        break;
+      }
+      case 'media': {
+        await prisma.post.updateMany({ data: { featuredMediaId: null } });
+        await prisma.page.updateMany({ data: { featuredMediaId: null } });
+        const r = await prisma.media.deleteMany();
+        count = r.count;
+        break;
+      }
+      case 'subscribers': {
+        await prisma.subscriberListMember.deleteMany();
+        const r = await prisma.subscriber.deleteMany();
+        count = r.count;
+        break;
+      }
+    }
+
+    return reply.send({ deleted: count });
+  });
 };
 
 export default settingsRoutes;

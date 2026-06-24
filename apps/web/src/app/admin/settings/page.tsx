@@ -1,11 +1,12 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { Save, Key, Copy, Check, Loader2, Globe, Webhook, Plus, Trash2, Camera, Sparkles, Upload, X, Image as ImageIcon } from 'lucide-react';
+import { Save, Key, Copy, Check, Loader2, Globe, Webhook, Plus, Trash2, Camera, Sparkles, Upload, X, Image as ImageIcon, AlertTriangle } from 'lucide-react';
 import { useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { api } from '@/lib/api';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/lib/auth';
@@ -18,6 +19,18 @@ const SECTIONS = [
   { id: 'webhooks', label: 'Webhooks' },
   { id: '2fa', label: 'Two-Factor Auth' },
   { id: 'app-passwords', label: 'App Passwords' },
+  { id: 'danger', label: 'Danger Zone' },
+];
+
+type PurgeEntity = 'posts' | 'issues' | 'categories' | 'tags' | 'authors' | 'media' | 'subscribers';
+const PURGEABLE: { entity: PurgeEntity; label: string; description: string }[] = [
+  { entity: 'posts',       label: 'All Posts',       description: 'Deletes every post, along with their authors, categories, tags and revisions.' },
+  { entity: 'issues',      label: 'All Issues',       description: 'Deletes every issue. Posts are kept but detached from their issue.' },
+  { entity: 'categories',  label: 'All Categories',   description: 'Deletes every category and removes category assignments from posts.' },
+  { entity: 'tags',        label: 'All Tags',         description: 'Deletes every tag and removes tag assignments from posts.' },
+  { entity: 'authors',     label: 'All Authors',      description: 'Deletes every author and removes author assignments from posts.' },
+  { entity: 'media',       label: 'All Media',        description: 'Deletes all media records. Files in object storage are not removed. Posts are detached from their featured image.' },
+  { entity: 'subscribers', label: 'All Subscribers',  description: 'Deletes all subscribers and list memberships.' },
 ];
 
 export default function SettingsPage() {
@@ -293,7 +306,36 @@ export default function SettingsPage() {
     }
   };
 
+  // Danger Zone
+  const [counts, setCounts] = useState<Record<PurgeEntity, number> | null>(null);
+  const [purgeTarget, setPurgeTarget] = useState<PurgeEntity | null>(null);
+  const [purgeConfirm, setPurgeConfirm] = useState('');
+  const [purging, setPurging] = useState(false);
+
+  useEffect(() => {
+    api.get<Record<PurgeEntity, number>>('/api/settings/counts').then(setCounts).catch(() => {});
+  }, []);
+
+  const openPurge = (entity: PurgeEntity) => { setPurgeTarget(entity); setPurgeConfirm(''); };
+  const closePurge = () => { if (!purging) { setPurgeTarget(null); setPurgeConfirm(''); } };
+
+  const confirmPurge = async () => {
+    if (!purgeTarget || purgeConfirm !== 'DELETE') return;
+    setPurging(true);
+    try {
+      const { deleted } = await api.post<{ deleted: number }>('/api/settings/purge', { entity: purgeTarget });
+      toast.success(`Deleted ${deleted} ${purgeTarget}`);
+      setCounts((prev) => prev ? { ...prev, [purgeTarget]: 0 } : prev);
+      closePurge();
+    } catch (err: any) {
+      toast.error(err?.message || 'Delete failed');
+    } finally {
+      setPurging(false);
+    }
+  };
+
   return (
+    <>
     <div className="flex gap-8 items-start">
       {/* Quick-nav sidebar */}
       <nav className="hidden lg:flex flex-col gap-0.5 w-44 shrink-0 sticky top-0">
@@ -810,7 +852,84 @@ export default function SettingsPage() {
           )}
         </CardContent>
       </Card>
+      {/* Danger Zone */}
+      <Card id="danger" className="border-destructive/40">
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2 text-destructive">
+            <AlertTriangle className="h-4 w-4" /> Danger Zone
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-1">
+          <p className="text-sm text-muted-foreground mb-4">
+            Permanently delete all records of a given type. These actions are irreversible.
+          </p>
+          <div className="divide-y border border-destructive/20 rounded-lg">
+            {PURGEABLE.map(({ entity, label, description }) => (
+              <div key={entity} className="flex items-center justify-between px-4 py-3 gap-4">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">{label}
+                    {counts && (
+                      <span className="ml-2 text-xs text-muted-foreground font-normal">
+                        ({counts[entity].toLocaleString()} records)
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => openPurge(entity)}
+                  className="shrink-0 text-destructive border-destructive/40 hover:bg-destructive hover:text-destructive-foreground"
+                  disabled={counts?.[entity] === 0}
+                >
+                  <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Delete All
+                </Button>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
       </div>
     </div>
+
+    {/* Purge confirmation dialog */}
+    <Dialog open={!!purgeTarget} onOpenChange={(open) => { if (!open) closePurge(); }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-destructive">
+            <AlertTriangle className="h-5 w-5" />
+            Delete {PURGEABLE.find((p) => p.entity === purgeTarget)?.label}?
+          </DialogTitle>
+          <DialogDescription>
+            {PURGEABLE.find((p) => p.entity === purgeTarget)?.description}
+            {' '}This cannot be undone.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2 py-2">
+          <Label className="text-sm">Type <span className="font-mono font-bold">DELETE</span> to confirm</Label>
+          <Input
+            value={purgeConfirm}
+            onChange={(e) => setPurgeConfirm(e.target.value)}
+            placeholder="DELETE"
+            autoComplete="off"
+            className="font-mono"
+          />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={closePurge} disabled={purging}>Cancel</Button>
+          <Button
+            variant="destructive"
+            onClick={confirmPurge}
+            disabled={purgeConfirm !== 'DELETE' || purging}
+            className="gap-2"
+          >
+            {purging ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+            {purging ? 'Deleting…' : 'Delete permanently'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
