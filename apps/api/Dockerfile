@@ -22,6 +22,12 @@ COPY apps/api ./apps/api
 RUN pnpm --filter @shacky/shared build
 # tsc + prisma generate
 RUN pnpm --filter @shacky/api build
+# Compile seed separately — it lives in prisma/ not src/, so rootDir=src excludes it
+RUN cd /monorepo/apps/api && \
+  node_modules/.bin/tsc --target ES2022 --module CommonJS \
+  --moduleResolution Node --esModuleInterop true --skipLibCheck true \
+  --outDir /tmp/seed-dist --rootDir . prisma/seed.ts && \
+  mv /tmp/seed-dist/prisma/seed.js dist/seed.js
 
 # Create self-contained deployment with only prod deps
 # prisma is a prod dep so pnpm deploy includes it; @prisma/client postinstall runs prisma generate
