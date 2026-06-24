@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   Download, PlayCircle, XCircle, CheckCircle2, AlertCircle,
-  Loader2, ChevronDown, ChevronUp, RefreshCw, FileText, Tag, Users, FolderOpen,
+  Loader2, ChevronDown, ChevronUp, RefreshCw, FileText, Tag, Users, FolderOpen, Save,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,13 +10,6 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { api } from '@/lib/api';
 import toast from 'react-hot-toast';
-
-// Pre-fill from JAP config (known credentials for janataweekly.org)
-const JAP_DEFAULTS = {
-  baseUrl: 'https://janataweekly.org',
-  username: 'halleshubham@gmail.com',
-  appPassword: 'REDACTED_WP_APP_PASSWORD',
-};
 
 interface TestResult {
   siteTitle: string;
@@ -42,10 +35,11 @@ interface Progress {
 }
 
 export default function MigrationPage() {
-  // Credentials
-  const [baseUrl, setBaseUrl] = useState(JAP_DEFAULTS.baseUrl);
-  const [username, setUsername] = useState(JAP_DEFAULTS.username);
-  const [appPassword, setAppPassword] = useState(JAP_DEFAULTS.appPassword);
+  // Credentials — loaded from and saved to the settings table
+  const [baseUrl, setBaseUrl] = useState('');
+  const [username, setUsername] = useState('');
+  const [appPassword, setAppPassword] = useState('');
+  const [savingCreds, setSavingCreds] = useState(false);
 
   // Connection test
   const [testing, setTesting] = useState(false);
@@ -72,6 +66,27 @@ export default function MigrationPage() {
   const [running, setRunning] = useState(false);
   const [showErrors, setShowErrors] = useState(false);
   const pollRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Load saved WP credentials from settings on mount
+  useEffect(() => {
+    api.get<Record<string, string>>('/api/settings').then((settings) => {
+      if (settings.wp_base_url)     setBaseUrl(settings.wp_base_url);
+      if (settings.wp_username)     setUsername(settings.wp_username);
+      if (settings.wp_app_password) setAppPassword(settings.wp_app_password);
+    }).catch(() => {});
+  }, []);
+
+  const saveCredentials = async () => {
+    setSavingCreds(true);
+    try {
+      await api.patch('/api/settings', { wp_base_url: baseUrl, wp_username: username, wp_app_password: appPassword });
+      toast.success('Credentials saved');
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to save credentials');
+    } finally {
+      setSavingCreds(false);
+    }
+  };
 
   // Poll progress while running
   useEffect(() => {
@@ -180,10 +195,16 @@ export default function MigrationPage() {
               <p className="text-xs text-muted-foreground">WP Admin → Users → Profile → Application Passwords</p>
             </div>
           </div>
-          <Button onClick={testConnection} disabled={testing || !baseUrl || !username || !appPassword} variant="outline" className="gap-2">
-            {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-            {testing ? 'Connecting…' : 'Test Connection'}
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={testConnection} disabled={testing || !baseUrl || !username || !appPassword} variant="outline" className="gap-2">
+              {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              {testing ? 'Connecting…' : 'Test Connection'}
+            </Button>
+            <Button onClick={saveCredentials} disabled={savingCreds || !baseUrl || !username || !appPassword} variant="secondary" className="gap-2">
+              {savingCreds ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              Save
+            </Button>
+          </div>
 
           {testResult && (
             <div className="border border-green-300 bg-green-50 dark:bg-green-950/30 rounded-md p-3 space-y-2">
