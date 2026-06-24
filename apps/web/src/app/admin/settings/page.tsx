@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { Save, Key, Copy, Check, Loader2, Globe, Webhook, Plus, Trash2, Camera, Sparkles, Upload, X, Image as ImageIcon, AlertTriangle, Mail } from 'lucide-react';
+import { Save, Key, Copy, Check, Loader2, Globe, Camera, Sparkles, Upload, X, Image as ImageIcon, AlertTriangle, Mail, Plug, Trash2 } from 'lucide-react';
 import { useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,7 +17,6 @@ const SECTIONS = [
   { id: 'profile', label: 'My Profile' },
   { id: 'stock', label: 'Stock Photos' },
   { id: 'ai', label: 'AI Configuration' },
-  { id: 'webhooks', label: 'Webhooks' },
   { id: '2fa', label: 'Two-Factor Auth' },
   { id: 'app-passwords', label: 'App Passwords' },
   { id: 'danger', label: 'Danger Zone' },
@@ -73,15 +72,6 @@ export default function SettingsPage() {
   const [stockPixabay, setStockPixabay] = useState('');
   const [savingStock, setSavingStock] = useState(false);
 
-  // Webhooks
-  const [webhooks, setWebhooks] = useState<any[]>([]);
-  const [webhookEvents, setWebhookEvents] = useState<string[]>([]);
-  const [newHookName, setNewHookName] = useState('');
-  const [newHookEvent, setNewHookEvent] = useState('');
-  const [newHookUrl, setNewHookUrl] = useState('');
-  const [newHookSecret, setNewHookSecret] = useState('');
-  const [savingHook, setSavingHook] = useState(false);
-
   // Newsletter / WhatsApp settings
   const [nlTagline, setNlTagline] = useState('');
   const [nlEditors, setNlEditors] = useState('');
@@ -128,8 +118,6 @@ export default function SettingsPage() {
       setNlWaGroups(s.newsletter_wa_groups || '');
       setNlWaChannels(s.newsletter_wa_channels || '');
     }).catch(() => {});
-    api.get<any[]>('/api/webhooks').then(setWebhooks).catch(() => {});
-    api.get<string[]>('/api/webhooks/events').then(setWebhookEvents).catch(() => {});
     api.get<any>('/api/ai/config').then((cfg) => {
       if (cfg.configured) {
         setAiConfigured(true);
@@ -221,28 +209,6 @@ export default function SettingsPage() {
       toast.success('Uploaded');
     } catch (err: any) { toast.error(err?.message || 'Upload failed'); }
     finally { setUploading(false); }
-  };
-
-  const createWebhook = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newHookName || !newHookEvent || !newHookUrl) return;
-    setSavingHook(true);
-    try {
-      const hook = await api.post<any>('/api/webhooks', {
-        name: newHookName, event: newHookEvent, targetUrl: newHookUrl,
-        secret: newHookSecret || undefined,
-      });
-      setWebhooks((prev) => [hook, ...prev]);
-      setNewHookName(''); setNewHookEvent(''); setNewHookUrl(''); setNewHookSecret('');
-      toast.success('Webhook created');
-    } catch (err: any) { toast.error(err?.message || 'Failed'); }
-    finally { setSavingHook(false); }
-  };
-
-  const deleteWebhook = async (id: string) => {
-    await api.delete(`/api/webhooks/${id}`);
-    setWebhooks((prev) => prev.filter((h) => h.id !== id));
-    toast.success('Webhook deleted');
   };
 
   const saveAIConfig = async (e: React.FormEvent) => {
@@ -385,6 +351,14 @@ export default function SettingsPage() {
             {s.label}
           </a>
         ))}
+        <div className="mt-3 pt-3 border-t border-border">
+          <a
+            href="/admin/integrations"
+            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground px-2 py-1.5 rounded hover:bg-muted transition-colors"
+          >
+            <Plug className="h-3.5 w-3.5" /> Integrations
+          </a>
+        </div>
       </nav>
 
       <div className="flex-1 max-w-2xl space-y-6">
@@ -791,62 +765,6 @@ export default function SettingsPage() {
               </div>
             )}
           </form>
-        </CardContent>
-      </Card>
-
-      {/* Webhooks */}
-      <Card id="webhooks">
-        <CardHeader><CardTitle className="text-base flex items-center gap-2"><Webhook className="h-4 w-4" /> Webhooks</CardTitle></CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground">Receive HTTP POST notifications when events happen in Shacky CMS.</p>
-          <form onSubmit={createWebhook} className="space-y-3 border border-border rounded-lg p-4">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Add Webhook</p>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs">Name</Label>
-                <Input value={newHookName} onChange={(e) => setNewHookName(e.target.value)} placeholder="My webhook" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Event</Label>
-                <select value={newHookEvent} onChange={(e) => setNewHookEvent(e.target.value)}
-                  className="w-full h-9 text-sm rounded-md border border-input bg-background px-3 focus:outline-none focus:ring-2 focus:ring-ring">
-                  <option value="">— select event —</option>
-                  {webhookEvents.map((ev) => <option key={ev} value={ev}>{ev}</option>)}
-                </select>
-              </div>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Target URL</Label>
-              <Input value={newHookUrl} onChange={(e) => setNewHookUrl(e.target.value)} placeholder="https://yourserver.com/hook" type="url" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Secret (optional — for HMAC signature)</Label>
-              <Input value={newHookSecret} onChange={(e) => setNewHookSecret(e.target.value)} placeholder="my-secret" type="password" />
-            </div>
-            <Button type="submit" size="sm" disabled={savingHook || !newHookName || !newHookEvent || !newHookUrl} className="gap-2">
-              {savingHook ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />} Add Webhook
-            </Button>
-          </form>
-
-          {webhooks.length > 0 && (
-            <div className="divide-y border rounded-lg">
-              {webhooks.map((h) => (
-                <div key={h.id} className="flex items-start justify-between px-3 py-3 gap-3">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium">{h.name}</p>
-                      <span className="text-xs bg-muted px-1.5 py-0.5 rounded">{h.event}</span>
-                      {!h.isActive && <span className="text-xs text-muted-foreground">(inactive)</span>}
-                    </div>
-                    <p className="text-xs text-muted-foreground truncate mt-0.5">{h.targetUrl}</p>
-                  </div>
-                  <button onClick={() => deleteWebhook(h.id)} className="text-destructive hover:text-destructive/80 shrink-0 p-1">
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
         </CardContent>
       </Card>
 

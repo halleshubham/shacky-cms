@@ -4,7 +4,7 @@ import NextImage from 'next/image';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, FileText, BookOpen, Users, Image, Tag, FolderOpen,
-  Mail, UserCheck, Settings, LogOut, ChevronRight, Newspaper, ExternalLink, Download, UploadCloud,
+  Mail, UserCheck, Settings, LogOut, ChevronRight, Newspaper, ExternalLink, Download, UploadCloud, Plug,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
@@ -31,6 +31,7 @@ const navItems: NavItem[] = [
   { label: 'Campaigns', href: '/admin/campaigns', icon: Mail, roles: ['superadmin', 'editor', 'subscriber_manager'] },
   { label: 'Users', href: '/admin/users', icon: Users, roles: ['superadmin'] },
   { label: 'Settings', href: '/admin/settings', icon: Settings, roles: ['superadmin'] },
+  { label: 'Integrations', href: '/admin/integrations', icon: Plug, roles: ['superadmin'] },
   { label: 'Migration', href: '/admin/migration', icon: Download, roles: ['superadmin'] },
 ];
 

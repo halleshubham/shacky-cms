@@ -8,6 +8,7 @@ import {
   generateWhatsAppChannelMessages,
 } from '../services/newsletter.js';
 import { sendMail } from '../services/email.js';
+import { sendMessagesToGroups } from '../services/botsab.js';
 import { audit } from '../utils/audit.js';
 
 const campaignBodySchema = z.object({
@@ -201,6 +202,39 @@ const campaignsRoutes: FastifyPluginAsync = async (fastify) => {
 
     await audit(req, 'campaign.sent', { entity: 'campaign', entityId: id, meta: { sent } });
     return reply.send({ success: true, sent });
+  });
+
+  // POST /campaigns/:id/botsab-send — send WA messages to groups via Botsab
+  fastify.post('/:id/botsab-send', { preHandler: [authenticate, canManage] }, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const { groupJids, mode, channelId } = z.object({
+      groupJids: z.array(z.string()).min(1),
+      mode: z.enum(['digest', 'channel']),
+      channelId: z.string().optional(),
+    }).parse(req.body);
+
+    const campaign = await prisma.campaign.findUnique({ where: { id } });
+    if (!campaign) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Not found' });
+
+    const issue = await fetchIssueWithPosts(campaign.issueId);
+    if (!issue) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Issue not found' });
+
+    let messages: string[];
+    if (mode === 'digest') {
+      messages = await generateWhatsAppDigest(issue);
+    } else {
+      const channels = await generateWhatsAppChannelMessages(issue);
+      const ch = channels.find((c) => c.id === channelId);
+      if (!ch) return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: `Channel '${channelId}' not found` });
+      messages = ch.messages;
+    }
+
+    try {
+      const result = await sendMessagesToGroups(groupJids, messages);
+      return reply.send(result);
+    } catch (err: any) {
+      return reply.status(502).send({ statusCode: 502, error: 'Bad Gateway', message: err.message || 'Botsab send failed' });
+    }
   });
 
   // DELETE /campaigns/:id

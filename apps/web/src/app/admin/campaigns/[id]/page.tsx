@@ -4,7 +4,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   ArrowLeft, Send, MessageSquare, Copy, Check,
-  FlaskConical, Mail, ChevronLeft, ChevronRight, Loader2,
+  FlaskConical, Mail, ChevronLeft, ChevronRight, Loader2, CheckCircle2, AlertCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,6 +16,12 @@ import toast from 'react-hot-toast';
 interface WhatsAppData {
   digest: string[];
   channels: Array<{ id: string; name: string; messages: string[] }>;
+}
+
+interface BotsabGroup {
+  id: string;
+  name: string | null;
+  participantCount: number;
 }
 
 export default function CampaignDetailPage() {
@@ -40,6 +46,15 @@ export default function CampaignDetailPage() {
   // Test email
   const [testEmail, setTestEmail] = useState('');
   const [sendingTest, setSendingTest] = useState(false);
+
+  // Botsab
+  const [botsabGroups, setBotsabGroups] = useState<BotsabGroup[] | null>(null);
+  const [loadingGroups, setLoadingGroups] = useState(false);
+  const [selectedGroups, setSelectedGroups] = useState<Set<string>>(new Set());
+  const [botsabMode, setBotsabMode] = useState<'digest' | 'channel'>('digest');
+  const [botsabChannelId, setBotsabChannelId] = useState('');
+  const [sending, setSending] = useState(false);
+  const [sendResult, setSendResult] = useState<{ sent: number; errors: string[] } | null>(null);
 
   const load = useCallback(async () => {
     const c = await api.get<any>(`/api/campaigns/${id}`);
@@ -118,6 +133,54 @@ export default function CampaignDetailPage() {
     setCopiedHtml(true);
     setTimeout(() => setCopiedHtml(false), 2000);
     toast.success('Newsletter copied — paste into Gmail or any email editor');
+  };
+
+  const loadGroups = async () => {
+    setLoadingGroups(true);
+    setSendResult(null);
+    try {
+      const groups = await api.get<BotsabGroup[]>('/api/integrations/botsab/groups');
+      setBotsabGroups(groups);
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to load groups — check Botsab settings');
+    } finally {
+      setLoadingGroups(false);
+    }
+  };
+
+  const toggleGroup = (jid: string) => {
+    setSelectedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(jid)) next.delete(jid); else next.add(jid);
+      return next;
+    });
+  };
+
+  const sendViaBotsab = async () => {
+    if (selectedGroups.size === 0) { toast.error('Select at least one group'); return; }
+    if (!waData) { toast.error('Generate WhatsApp messages first'); return; }
+    if (botsabMode === 'channel' && !botsabChannelId) { toast.error('Select a channel'); return; }
+
+    setSending(true);
+    setSendResult(null);
+    const toastId = toast.loading('Sending via Botsab…');
+    try {
+      const result = await api.post<{ sent: number; errors: string[] }>(`/api/campaigns/${id}/botsab-send`, {
+        groupJids: Array.from(selectedGroups),
+        mode: botsabMode,
+        channelId: botsabChannelId || undefined,
+      });
+      setSendResult(result);
+      if (result.errors.length > 0) {
+        toast.error(`${result.sent} sent, ${result.errors.length} error(s)`, { id: toastId, duration: 6000 });
+      } else {
+        toast.success(`${result.sent} message${result.sent !== 1 ? 's' : ''} sent`, { id: toastId });
+      }
+    } catch (err: any) {
+      toast.error(err?.message || 'Send failed', { id: toastId });
+    } finally {
+      setSending(false);
+    }
   };
 
   if (loading) return <div className="text-muted-foreground">Loading…</div>;
@@ -370,6 +433,158 @@ export default function CampaignDetailPage() {
                   <Link href="/admin/settings#newsletter" className="text-primary underline">Settings → Newsletter</Link>.
                 </div>
               )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── Send via Botsab ──────────────────────────────────────────────────── */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" className="h-5 w-5 shrink-0">
+                <defs>
+                  <linearGradient id="botsab-bg-c" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stopColor="#22c55e"/>
+                    <stop offset="100%" stopColor="#15803d"/>
+                  </linearGradient>
+                </defs>
+                <rect width="32" height="32" rx="8" fill="url(#botsab-bg-c)"/>
+                <path d="M7 8a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3h-4l-4 4v-4H10a3 3 0 0 1-3-3V8z" fill="white" opacity="0.95"/>
+                <path d="M17.5 9l-3.5 5h3l-3.5 5.5 7-6.5h-3.5z" fill="#15803d"/>
+              </svg>
+              Send via Botsab
+            </CardTitle>
+            {!botsabGroups && (
+              <Button variant="outline" size="sm" onClick={loadGroups} disabled={loadingGroups} className="gap-1.5">
+                {loadingGroups ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                Load Groups
+              </Button>
+            )}
+            {botsabGroups && (
+              <Button variant="ghost" size="sm" onClick={loadGroups} disabled={loadingGroups} className="text-xs text-muted-foreground gap-1">
+                {loadingGroups ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                Refresh
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {!botsabGroups && !loadingGroups && (
+            <p className="text-sm text-muted-foreground">
+              Click <strong>Load Groups</strong> to fetch your WhatsApp groups from Botsab and send messages directly.{' '}
+              <Link href="/admin/integrations" className="text-primary underline">Configure Botsab →</Link>
+            </p>
+          )}
+
+          {loadingGroups && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading groups…
+            </div>
+          )}
+
+          {botsabGroups && (
+            <div className="space-y-4">
+              {/* Group selection */}
+              <div className="space-y-1">
+                <p className="text-sm font-medium">Select groups to send to</p>
+                {botsabGroups.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No groups found for this instance.</p>
+                ) : (
+                  <div className="max-h-52 overflow-y-auto divide-y border rounded-lg">
+                    {botsabGroups.map((g) => (
+                      <label key={g.id} className="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-muted/50 transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={selectedGroups.has(g.id)}
+                          onChange={() => toggleGroup(g.id)}
+                          className="rounded border-input"
+                        />
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">{g.name || <span className="italic text-muted-foreground">Unnamed group</span>}</p>
+                          <p className="text-xs text-muted-foreground">{g.participantCount} members · {g.id.replace('@g.us', '')}</p>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                )}
+                {selectedGroups.size > 0 && (
+                  <p className="text-xs text-muted-foreground">{selectedGroups.size} group{selectedGroups.size !== 1 ? 's' : ''} selected</p>
+                )}
+              </div>
+
+              {/* Mode selection */}
+              {waData && (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Message format</p>
+                  <div className="flex gap-1 p-1 bg-muted rounded-lg w-fit">
+                    <button
+                      onClick={() => setBotsabMode('digest')}
+                      className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${botsabMode === 'digest' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                    >
+                      Digest ({waData.digest.length} parts)
+                    </button>
+                    {waData.channels.length > 0 && (
+                      <button
+                        onClick={() => { setBotsabMode('channel'); if (!botsabChannelId && waData.channels[0]) setBotsabChannelId(waData.channels[0].id); }}
+                        className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${botsabMode === 'channel' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                      >
+                        Per-Article
+                      </button>
+                    )}
+                  </div>
+
+                  {botsabMode === 'channel' && waData.channels.length > 1 && (
+                    <div className="flex gap-1 flex-wrap">
+                      {waData.channels.map((ch) => (
+                        <button key={ch.id} onClick={() => setBotsabChannelId(ch.id)}
+                          className={`px-3 py-1 rounded-md border text-sm transition-colors ${botsabChannelId === ch.id ? 'border-primary bg-primary/5 text-primary font-medium' : 'border-border text-muted-foreground hover:text-foreground'}`}>
+                          {ch.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  <p className="text-xs text-muted-foreground">
+                    {botsabMode === 'digest'
+                      ? `Will send ${waData.digest.length} messages (one per digest part) to each selected group.`
+                      : `Will send one message per article to each selected group.`}
+                  </p>
+                </div>
+              )}
+
+              {!waData && (
+                <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                  Generate WhatsApp messages first (click <strong>Generate</strong> in the WhatsApp section above) before sending.
+                </p>
+              )}
+
+              {/* Send button + results */}
+              <div className="space-y-3">
+                <Button
+                  onClick={sendViaBotsab}
+                  disabled={sending || selectedGroups.size === 0 || !waData}
+                  className="gap-2"
+                >
+                  {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  {sending ? 'Sending…' : `Send to ${selectedGroups.size || ''} Group${selectedGroups.size !== 1 ? 's' : ''}`}
+                </Button>
+
+                {sendResult && (
+                  <div className={`flex items-start gap-2 text-sm rounded-md px-3 py-2 ${sendResult.errors.length > 0 ? 'bg-amber-50 border border-amber-200 text-amber-800' : 'bg-green-50 border border-green-200 text-green-800'}`}>
+                    {sendResult.errors.length === 0
+                      ? <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" />
+                      : <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />}
+                    <div>
+                      <p className="font-medium">{sendResult.sent} message{sendResult.sent !== 1 ? 's' : ''} sent successfully</p>
+                      {sendResult.errors.map((e, i) => (
+                        <p key={i} className="text-xs mt-0.5">{e}</p>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </CardContent>
