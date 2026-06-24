@@ -230,6 +230,40 @@ Article content summary: ${text}`;
   };
 }
 
+// ─── Ingest-time AI helpers ──────────────────────────────────────────────────
+
+export async function classifyCategories(
+  title: string,
+  excerpt: string,
+  categories: { id: string; name: string }[],
+): Promise<string[]> {
+  const config = await getAIConfig();
+  if (!config || categories.length === 0) return [];
+  const catList = categories.map((c) => c.name).join(', ');
+  const prompt = `Given this article:
+Title: "${title}"${excerpt ? `\nExcerpt: "${excerpt}"` : ''}
+
+From this list of categories: ${catList}
+
+Select the most relevant 1–3 categories. Output ONLY a comma-separated list of category names exactly as they appear above. If none fit, output: none`;
+  const raw = await chatOnce(config, prompt, 60);
+  if (/^none$/i.test(raw.trim())) return [];
+  const selected = raw.split(',').map((s) => s.trim().toLowerCase());
+  return categories
+    .filter((c) => selected.includes(c.name.toLowerCase()))
+    .map((c) => c.id);
+}
+
+export async function generateArticleTags(title: string, excerpt: string): Promise<string[]> {
+  const config = await getAIConfig();
+  if (!config) return [];
+  const prompt = `Generate 3–6 short, specific tags for this news article:
+Title: "${title}"${excerpt ? `\nExcerpt: "${excerpt}"` : ''}
+Output ONLY a comma-separated list of tags (1–3 words each), no explanations.`;
+  const raw = await chatOnce(config, prompt, 80);
+  return raw.split(',').map((s) => s.trim()).filter((s) => s.length > 0 && s.length < 60);
+}
+
 export async function buildImagePrompt(title: string, excerpt?: string): Promise<string> {
   const config = await getAIConfig();
   if (!config) return title;

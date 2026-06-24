@@ -6,6 +6,7 @@ import { prisma } from '../plugins/prisma.js';
 import { uploadToS3 } from '../utils/s3.js';
 import { slugify, computePublishTimestamp } from '@shacky/shared';
 import type { IngestArticlePreview, IngestPreviewResult } from '@shacky/shared';
+import { getAIConfig, classifyCategories, generateArticleTags, buildImagePrompt, generateFeaturedImage } from './ai.js';
 
 interface ParsedArticle {
   number: number;
@@ -19,6 +20,11 @@ interface IngestOptions {
   categoryIds: string[];
   publishHour?: number;
   uploadedById: string;
+  aiOptions?: {
+    generateImage?: boolean;
+    mapCategories?: boolean;
+    generateTags?: boolean;
+  };
 }
 
 // Normalise an author line: strip leading "by " and clean up semicolons → commas
@@ -266,11 +272,51 @@ export async function ingestIssue(zipBuffer: Buffer, options: IngestOptions): Pr
           issueId: options.issueId,
           issueOrder: summary.number,
           authors: authorId ? { create: [{ authorId, order: 0 }] } : undefined,
-          categories: options.categoryIds.length > 0 ? {
-            create: options.categoryIds.slice(0, 3).map((categoryId) => ({ categoryId })),
-          } : undefined,
         },
       });
+
+      // AI post-processing — errors are non-fatal (logged as warnings)
+      if (options.aiOptions) {
+        const { generateImage, mapCategories, generateTags } = options.aiOptions;
+
+        if (generateImage && !featuredMediaId) {
+          try {
+            const imgPrompt = await buildImagePrompt(summary.title, summary.excerpt || undefined);
+            const img = await generateFeaturedImage({ prompt: imgPrompt }, options.uploadedById);
+            await prisma.post.update({ where: { id: post.id }, data: { featuredMediaId: img.mediaId } });
+          } catch (e: any) {
+            warnings.push(`AI image for article ${summary.number}: ${e.message}`);
+          }
+        }
+
+        if (mapCategories) {
+          try {
+            const allCats = await prisma.category.findMany({ select: { id: true, name: true } });
+            const catIds = await classifyCategories(summary.title, summary.excerpt || '', allCats);
+            if (catIds.length > 0) {
+              await prisma.postCategory.createMany({
+                data: catIds.slice(0, 3).map((categoryId) => ({ postId: post.id, categoryId })),
+                skipDuplicates: true,
+              });
+            }
+          } catch (e: any) {
+            warnings.push(`AI categories for article ${summary.number}: ${e.message}`);
+          }
+        }
+
+        if (generateTags) {
+          try {
+            const tagNames = await generateArticleTags(summary.title, summary.excerpt || '');
+            for (const name of tagNames) {
+              const tagSlug = slugify(name);
+              const tag = await prisma.tag.upsert({ where: { slug: tagSlug }, update: {}, create: { name, slug: tagSlug } });
+              await prisma.postTag.createMany({ data: [{ postId: post.id, tagId: tag.id }], skipDuplicates: true });
+            }
+          } catch (e: any) {
+            warnings.push(`AI tags for article ${summary.number}: ${e.message}`);
+          }
+        }
+      }
 
       created++;
     } catch (err) {

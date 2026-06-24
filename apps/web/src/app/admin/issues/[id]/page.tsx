@@ -6,7 +6,6 @@ import { ArrowLeft, Plus, Upload, Loader2, GripVertical, Trash2, Eye, CheckCircl
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { api } from '@/lib/api';
 import { formatDate, statusColor } from '@/lib/utils';
 import toast from 'react-hot-toast';
@@ -18,17 +17,11 @@ export default function IssueDetailPage() {
   const [loading, setLoading] = useState(true);
   const [ingesting, setIngesting] = useState(false);
   const [ingestPreview, setIngestPreview] = useState<any>(null);
-  const [categoryIds, setCategoryIds] = useState<string[]>([]);
-  const [categories, setCategories] = useState<any[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const load = async () => {
-    const [issueData, catData] = await Promise.all([
-      api.get<any>(`/api/issues/${id}`),
-      api.get<any>('/api/categories'),
-    ]);
+    const issueData = await api.get<any>(`/api/issues/${id}`);
     setIssue(issueData);
-    setCategories(catData);
     setLoading(false);
   };
 
@@ -56,7 +49,6 @@ export default function IssueDetailPage() {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('issueId', id);
-    formData.append('categoryIds', JSON.stringify(categoryIds));
     setIngesting(true);
     const toastId = toast.loading('Ingesting articles…');
     try {
@@ -125,28 +117,6 @@ export default function IssueDetailPage() {
             Upload a ZIP containing numbered .docx files, Summary.docx, and optional images (1.jpg, 2.jpg…).
           </p>
           <input ref={fileRef} type="file" accept=".zip" onChange={handleFileChange} className="text-sm" />
-
-          {categories.length > 0 && (
-            <div className="space-y-1">
-              <Label className="text-sm">Default categories (max 3)</Label>
-              <div className="flex flex-wrap gap-2">
-                {categories.map((cat: any) => (
-                  <button
-                    key={cat.id}
-                    type="button"
-                    onClick={() => setCategoryIds((prev) =>
-                      prev.includes(cat.id) ? prev.filter((c) => c !== cat.id) : prev.length < 3 ? [...prev, cat.id] : prev
-                    )}
-                    className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                      categoryIds.includes(cat.id) ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
-                    }`}
-                  >
-                    {cat.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
 
           {ingestPreview && (
             <div className="border rounded-md p-4 space-y-3">

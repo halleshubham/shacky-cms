@@ -1,7 +1,8 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Upload, Loader2, FileText, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import Link from 'next/link';
+import { Upload, Loader2, FileText, AlertTriangle, CheckCircle2, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -25,6 +26,8 @@ function saveNext(vol: number, no: number) {
   localStorage.setItem(LS_KEY, JSON.stringify({ vol, no }));
 }
 
+interface AiStatus { configured: boolean; supportsImages: boolean; }
+
 export default function IngestPage() {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -38,21 +41,25 @@ export default function IngestPage() {
   const [issueNumber, setIssueNumber] = useState('');
   const [publishDate, setPublishDate] = useState('');
   const [issueType, setIssueType] = useState<'combined' | 'print' | 'blog'>('combined');
-  const [categoryIds, setCategoryIds] = useState<string[]>([]);
-  const [categories, setCategories] = useState<any[]>([]);
+
+  // AI options
+  const [aiStatus, setAiStatus] = useState<AiStatus | null>(null);
+  const [aiGenerateImage, setAiGenerateImage] = useState(false);
+  const [aiMapCategories, setAiMapCategories] = useState(false);
+  const [aiGenerateTags, setAiGenerateTags] = useState(false);
 
   const [ingesting, setIngesting] = useState(false);
 
-  // On mount: load categories and pre-fill Vol/No from localStorage or latest issue
   useEffect(() => {
-    api.get<any>('/api/categories').then(setCategories).catch(() => {});
+    // Load categories list and AI status in parallel
+    api.get<AiStatus>('/api/ingest/ai-status').then(setAiStatus).catch(() => {});
 
+    // Pre-fill Vol/No from localStorage, then fall back to latest issue + 1
     const saved = readNext();
     if (saved) {
       setVolumeNumber(String(saved.vol));
       setIssueNumber(String(saved.no));
     } else {
-      // Fall back to latest issue + 1
       api.get<any>('/api/issues?pageSize=1').then((data) => {
         const latest = data?.data?.[0];
         if (latest) {
@@ -62,17 +69,12 @@ export default function IngestPage() {
           setVolumeNumber('1');
           setIssueNumber('1');
         }
-      }).catch(() => {
-        setVolumeNumber('1');
-        setIssueNumber('1');
-      });
+      }).catch(() => { setVolumeNumber('1'); setIssueNumber('1'); });
     }
 
-    // Default publish date to today
     setPublishDate(new Date().toISOString().slice(0, 10));
   }, []);
 
-  // When Vol or No changes manually, compute a preview title
   const vol = parseInt(volumeNumber) || 0;
   const no = parseInt(issueNumber) || 0;
 
@@ -118,13 +120,16 @@ export default function IngestPage() {
       fd.append('publishDate', publishDate);
       fd.append('type', issueType);
       fd.append('title', buildTitle());
-      fd.append('categoryIds', JSON.stringify(categoryIds));
+      fd.append('aiOptions', JSON.stringify({
+        generateImage: aiGenerateImage,
+        mapCategories: aiMapCategories,
+        generateTags: aiGenerateTags,
+      }));
 
       const result = await api.upload<any>('/api/ingest/issue', fd);
 
-      // Remember next values: increment issue number (roll vol if needed)
-      const nextNo = no + 1;
-      saveNext(vol, nextNo);
+      // Persist next suggested values
+      saveNext(vol, no + 1);
 
       toast.success(`Issue created — ${result.created} articles ingested`, { id: toastId });
       if (result.warnings?.length > 0) {
@@ -137,6 +142,9 @@ export default function IngestPage() {
     }
   };
 
+  const aiUnavailable = !aiStatus?.configured;
+  const imageUnavailable = !aiStatus?.supportsImages;
+
   return (
     <div className="max-w-2xl space-y-6">
       <div>
@@ -144,8 +152,7 @@ export default function IngestPage() {
           <Upload className="h-6 w-6" /> Ingest Issue from ZIP
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Upload a ZIP of numbered .docx articles + optional Summary.docx and images.
-          A new Issue will be created automatically.
+          Upload a ZIP of numbered .docx articles + optional Summary.docx and images. A new Issue will be created automatically.
         </p>
       </div>
 
@@ -153,13 +160,7 @@ export default function IngestPage() {
       <Card>
         <CardHeader><CardTitle className="text-base">ZIP File</CardTitle></CardHeader>
         <CardContent className="space-y-3">
-          <input
-            ref={fileRef}
-            type="file"
-            accept=".zip"
-            onChange={handleFileChange}
-            className="text-sm"
-          />
+          <input ref={fileRef} type="file" accept=".zip" onChange={handleFileChange} className="text-sm" />
           {previewing && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" /> Analysing ZIP…
@@ -201,29 +202,15 @@ export default function IngestPage() {
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1">
               <Label className="text-xs">Volume No.</Label>
-              <Input
-                type="number" min="1"
-                value={volumeNumber}
-                onChange={(e) => setVolumeNumber(e.target.value)}
-                placeholder="e.g. 80"
-              />
+              <Input type="number" min="1" value={volumeNumber} onChange={(e) => setVolumeNumber(e.target.value)} placeholder="e.g. 80" />
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Issue No.</Label>
-              <Input
-                type="number" min="1"
-                value={issueNumber}
-                onChange={(e) => setIssueNumber(e.target.value)}
-                placeholder="e.g. 9"
-              />
+              <Input type="number" min="1" value={issueNumber} onChange={(e) => setIssueNumber(e.target.value)} placeholder="e.g. 9" />
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Publish Date</Label>
-              <Input
-                type="date"
-                value={publishDate}
-                onChange={(e) => setPublishDate(e.target.value)}
-              />
+              <Input type="date" value={publishDate} onChange={(e) => setPublishDate(e.target.value)} />
             </div>
           </div>
 
@@ -237,43 +224,75 @@ export default function IngestPage() {
             <Label className="text-xs">Issue Type</Label>
             <div className="flex gap-2">
               {(['combined', 'print', 'blog'] as const).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setIssueType(t)}
-                  className={`px-3 py-1.5 rounded-md border text-sm capitalize transition-colors ${issueType === t ? 'border-primary bg-primary/5 text-primary font-medium' : 'border-border text-muted-foreground hover:text-foreground'}`}
-                >
+                <button key={t} type="button" onClick={() => setIssueType(t)}
+                  className={`px-3 py-1.5 rounded-md border text-sm capitalize transition-colors ${issueType === t ? 'border-primary bg-primary/5 text-primary font-medium' : 'border-border text-muted-foreground hover:text-foreground'}`}>
                   {t}
                 </button>
               ))}
             </div>
           </div>
+        </CardContent>
+      </Card>
 
-          {categories.length > 0 && (
-            <div className="space-y-1">
-              <Label className="text-xs">Default categories (max 3)</Label>
-              <div className="flex flex-wrap gap-2">
-                {categories.map((cat: any) => (
-                  <button
-                    key={cat.id}
-                    type="button"
-                    onClick={() =>
-                      setCategoryIds((prev) =>
-                        prev.includes(cat.id)
-                          ? prev.filter((c) => c !== cat.id)
-                          : prev.length < 3 ? [...prev, cat.id] : prev
-                      )
-                    }
-                    className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                      categoryIds.includes(cat.id)
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
-                    }`}
-                  >
-                    {cat.name}
-                  </button>
-                ))}
-              </div>
+      {/* AI enhancements */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Sparkles className="h-4 w-4" /> AI Enhancements
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {aiUnavailable ? (
+            <p className="text-sm text-muted-foreground">
+              AI is not configured.{' '}
+              <Link href="/admin/settings" className="text-primary underline underline-offset-2">
+                Go to Settings → AI
+              </Link>{' '}
+              to add an API key, then come back.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {[
+                {
+                  id: 'generateImage',
+                  label: 'Generate featured image',
+                  description: 'Use AI to generate a featured image for each article that has no photo in the ZIP.',
+                  value: aiGenerateImage,
+                  set: setAiGenerateImage,
+                  disabled: imageUnavailable,
+                  disabledNote: imageUnavailable ? 'Requires OpenAI or Gemini — current provider doesn\'t support image generation.' : undefined,
+                },
+                {
+                  id: 'mapCategories',
+                  label: 'Auto-assign categories',
+                  description: 'AI reads each article title and excerpt, then picks the best matching categories from your category list.',
+                  value: aiMapCategories,
+                  set: setAiMapCategories,
+                  disabled: false,
+                },
+                {
+                  id: 'generateTags',
+                  label: 'Generate & assign tags',
+                  description: 'AI generates 3–6 relevant tags per article and creates them if they don\'t exist.',
+                  value: aiGenerateTags,
+                  set: setAiGenerateTags,
+                  disabled: false,
+                },
+              ].map(({ id, label, description, value, set, disabled, disabledNote }) => (
+                <label key={id} className={`flex items-start gap-3 cursor-pointer ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                  <input
+                    type="checkbox"
+                    checked={value}
+                    onChange={(e) => !disabled && set(e.target.checked)}
+                    disabled={disabled}
+                    className="mt-0.5 rounded border-input"
+                  />
+                  <div>
+                    <p className="text-sm font-medium">{label}</p>
+                    <p className="text-xs text-muted-foreground">{disabledNote ?? description}</p>
+                  </div>
+                </label>
+              ))}
             </div>
           )}
         </CardContent>
@@ -287,10 +306,10 @@ export default function IngestPage() {
           className="gap-2"
         >
           {ingesting ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
-          {ingesting ? 'Creating issue…' : `Create Issue & Ingest ${preview ? preview.totalArticles + ' articles' : ''}`}
+          {ingesting ? 'Creating issue…' : `Create Issue & Ingest${preview ? ` ${preview.totalArticles} articles` : ''}`}
         </Button>
         {!preview && !previewing && (
-          <p className="text-sm text-muted-foreground">Upload a ZIP first to see the preview</p>
+          <p className="text-sm text-muted-foreground">Upload a ZIP first to enable ingestion</p>
         )}
       </div>
     </div>

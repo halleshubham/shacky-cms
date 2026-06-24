@@ -3,9 +3,30 @@ import { z } from 'zod';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
 import { previewIngestion, ingestIssue } from '../services/docxIngestion.js';
 import { prisma } from '../plugins/prisma.js';
+import { getAIConfig } from '../services/ai.js';
 import { audit } from '../utils/audit.js';
 
+function parseAiOptions(raw: string) {
+  try {
+    const v = JSON.parse(raw);
+    return {
+      generateImage: !!v.generateImage,
+      mapCategories: !!v.mapCategories,
+      generateTags: !!v.generateTags,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
 const ingestRoutes: FastifyPluginAsync = async (fastify) => {
+  // GET /ingest/ai-status — whether AI is configured and image-capable
+  fastify.get('/ai-status', { preHandler: [authenticate] }, async (_req, reply) => {
+    const config = await getAIConfig();
+    const supportsImages = config?.provider === 'openai' || config?.provider === 'gemini';
+    return reply.send({ configured: !!config, supportsImages });
+  });
+
   // POST /ingest/preview — upload ZIP and get article list preview
   fastify.post('/preview', { preHandler: [authenticate, requireAdmin] }, async (req, reply) => {
     const data = await req.file({ limits: { fileSize: 500 * 1024 * 1024 } });
@@ -19,23 +40,22 @@ const ingestRoutes: FastifyPluginAsync = async (fastify) => {
     return reply.send(preview);
   });
 
-  // POST /ingest — perform actual ingestion
+  // POST /ingest — perform actual ingestion into an existing issue
   fastify.post('/', { preHandler: [authenticate, requireAdmin] }, async (req, reply) => {
     const parts = req.parts();
     let zipBuffer: Buffer | null = null;
     let issueId = '';
-    let categoryIds: string[] = [];
     let publishHour = 1;
+    let aiOptions: ReturnType<typeof parseAiOptions>;
 
     for await (const part of parts) {
       if (part.type === 'file' && part.fieldname === 'file') {
         zipBuffer = await part.toBuffer();
       } else if (part.type === 'field') {
-        if (part.fieldname === 'issueId') issueId = part.value as string;
-        if (part.fieldname === 'categoryIds') {
-          try { categoryIds = JSON.parse(part.value as string); } catch {}
-        }
-        if (part.fieldname === 'publishHour') publishHour = parseInt(part.value as string) || 1;
+        const v = part.value as string;
+        if (part.fieldname === 'issueId') issueId = v;
+        if (part.fieldname === 'publishHour') publishHour = parseInt(v) || 1;
+        if (part.fieldname === 'aiOptions') aiOptions = parseAiOptions(v);
       }
     }
 
@@ -44,9 +64,10 @@ const ingestRoutes: FastifyPluginAsync = async (fastify) => {
 
     const result = await ingestIssue(zipBuffer, {
       issueId,
-      categoryIds,
+      categoryIds: [],
       publishHour,
       uploadedById: req.user!.id,
+      aiOptions,
     });
 
     await audit(req, 'ingest.completed', {
@@ -67,8 +88,8 @@ const ingestRoutes: FastifyPluginAsync = async (fastify) => {
     let title = '';
     let publishDate = '';
     let type: 'print' | 'blog' | 'combined' = 'combined';
-    let categoryIds: string[] = [];
     let publishHour = 1;
+    let aiOptions: ReturnType<typeof parseAiOptions>;
 
     for await (const part of parts) {
       if (part.type === 'file' && part.fieldname === 'file') {
@@ -80,8 +101,8 @@ const ingestRoutes: FastifyPluginAsync = async (fastify) => {
         if (part.fieldname === 'title') title = v;
         if (part.fieldname === 'publishDate') publishDate = v;
         if (part.fieldname === 'type') type = (v as any) || 'combined';
-        if (part.fieldname === 'categoryIds') { try { categoryIds = JSON.parse(v); } catch {} }
         if (part.fieldname === 'publishHour') publishHour = parseInt(v) || 1;
+        if (part.fieldname === 'aiOptions') aiOptions = parseAiOptions(v);
       }
     }
 
@@ -107,9 +128,10 @@ const ingestRoutes: FastifyPluginAsync = async (fastify) => {
 
     const result = await ingestIssue(zipBuffer, {
       issueId: issue.id,
-      categoryIds,
+      categoryIds: [],
       publishHour,
       uploadedById: req.user!.id,
+      aiOptions,
     });
 
     await audit(req, 'ingest.completed', {
