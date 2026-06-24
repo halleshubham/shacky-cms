@@ -40,6 +40,10 @@ const migrationRoutes: FastifyPluginAsync = async (fastify) => {
         skipExisting: z.boolean().default(false),
         dateFrom: z.string().optional(),
         dateTo: z.string().optional(),
+        groupByDate: z.boolean().default(false),
+        firstVolumeNumber: z.number().int().positive().optional(),
+        firstIssueNumber: z.number().int().positive().optional(),
+        issuesPerVolume: z.number().int().positive().default(52),
       }).default({}),
     }).parse(req.body);
 

@@ -19,6 +19,10 @@ export interface MigrationOptions {
   skipExisting: boolean;
   dateFrom?: string; // ISO 8601 date string, inclusive
   dateTo?: string;   // ISO 8601 date string, inclusive
+  groupByDate?: boolean;       // group posts published on same date into a shared Issue
+  firstVolumeNumber?: number;  // volume number for the earliest issue being imported
+  firstIssueNumber?: number;   // issue number (within the volume) for the earliest issue
+  issuesPerVolume?: number;    // how many issues per volume before rolling over (default 52)
 }
 
 export interface MigrationProgress {
@@ -399,6 +403,25 @@ export async function runMigration(
 
     setProgress(jobId, { phase: 'Importing posts…', total: totalPosts, done: 0, skipped: 0, errors: 0, errorLog });
 
+    // Issue grouping: one Issue per unique UTC publish date
+    const dateToIssueId = new Map<string, string>();
+    const dateToOrderCounter = new Map<string, number>();
+    let issuesCreated = 0;
+
+    // Vol/No numbering — user supplies the starting point; we increment chronologically
+    const useCustomNumbering = !!(options.firstVolumeNumber && options.firstIssueNumber);
+    const issuesPerVolume = options.issuesPerVolume ?? 52;
+    // 0-indexed offset within the first volume (e.g. firstIssueNumber=9 → offset=8)
+    const initialOffset = useCustomNumbering ? (options.firstIssueNumber! - 1) : 0;
+    let dateSequence = 0; // increments for every new unique date we encounter
+
+    // Fallback auto-increment (used when the user doesn't provide Vol/No)
+    let nextAutoIssueNumber = 1;
+    if (options.groupByDate && !useCustomNumbering) {
+      const agg = await prisma.issue.aggregate({ _max: { issueNumber: true } });
+      nextAutoIssueNumber = (agg._max.issueNumber ?? 0) + 1;
+    }
+
     let done = 0;
     let skipped = 0;
     let errors = 0;
@@ -484,7 +507,55 @@ export async function runMigration(
           }
 
           // Dates
-          const publishedAt = wp.date ? new Date(wp.date) : null;
+          const publishedAt = wp.date_gmt ? new Date(wp.date_gmt) : (wp.date ? new Date(wp.date) : null);
+
+          // Issue grouping — find or create one Issue per UTC publish date
+          let issueId: string | null = null;
+          let issueOrder: number | null = null;
+          if (options.groupByDate && publishedAt) {
+            const dateKey = publishedAt.toISOString().slice(0, 10); // YYYY-MM-DD UTC
+            if (!dateToIssueId.has(dateKey)) {
+              const dayStart = new Date(dateKey + 'T00:00:00.000Z');
+              const dayEnd = new Date(dateKey + 'T23:59:59.999Z');
+              let issue = await prisma.issue.findFirst({
+                where: { publishDate: { gte: dayStart, lte: dayEnd } },
+                select: { id: true },
+              });
+              if (!issue) {
+                let volumeNumber: number;
+                let issueNumber: number;
+
+                if (useCustomNumbering) {
+                  const absSeq = initialOffset + dateSequence;
+                  volumeNumber = options.firstVolumeNumber! + Math.floor(absSeq / issuesPerVolume);
+                  issueNumber = (absSeq % issuesPerVolume) + 1;
+                } else {
+                  volumeNumber = 1;
+                  issueNumber = nextAutoIssueNumber++;
+                }
+
+                const fmt = (d: Date) => d.toLocaleDateString('en-GB', {
+                  day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC',
+                });
+                const endDate = new Date(dayStart.getTime() + 7 * 24 * 60 * 60 * 1000);
+                const title = useCustomNumbering
+                  ? `Vol. ${volumeNumber}, No. ${issueNumber} | ${fmt(dayStart)} - ${fmt(endDate)}`
+                  : fmt(dayStart);
+
+                issue = await prisma.issue.create({
+                  data: { volumeNumber, issueNumber, title, publishDate: dayStart, type: 'combined' },
+                });
+                issuesCreated++;
+              }
+              dateToIssueId.set(dateKey, issue.id);
+              dateToOrderCounter.set(dateKey, 0);
+              dateSequence++;
+            }
+            const order = (dateToOrderCounter.get(dateKey) ?? 0) + 1;
+            dateToOrderCounter.set(dateKey, order);
+            issueId = dateToIssueId.get(dateKey)!;
+            issueOrder = order;
+          }
 
           // Map WP status → our status
           let status: 'published' | 'draft' | 'scheduled' = 'draft';
@@ -510,6 +581,7 @@ export async function runMigration(
             featuredMediaId,
             seoTitle: wp.yoast_head_json?.title || null,
             seoDescription: wp.yoast_head_json?.description || null,
+            ...(issueId != null ? { issueId, issueOrder } : {}),
           };
 
           const post = await prisma.post.upsert({
@@ -557,7 +629,7 @@ export async function runMigration(
 
     setProgress(jobId, {
       status: 'done',
-      phase: `Done — ${done} imported, ${skipped} skipped, ${errors} errors`,
+      phase: `Done — ${done} imported, ${skipped} skipped, ${errors} errors${issuesCreated > 0 ? `, ${issuesCreated} issues created` : ''}`,
       done,
       skipped,
       errors,

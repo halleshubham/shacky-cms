@@ -58,6 +58,10 @@ export default function MigrationPage() {
   const [importPosts, setImportPosts] = useState(true);
   const [postStatus, setPostStatus] = useState<'all' | 'publish' | 'draft'>('all');
   const [skipExisting, setSkipExisting] = useState(false);
+  const [groupByDate, setGroupByDate] = useState(true);
+  const [firstVolumeNumber, setFirstVolumeNumber] = useState('');
+  const [firstIssueNumber, setFirstIssueNumber] = useState('');
+  const [issuesPerVolume, setIssuesPerVolume] = useState('52');
   const [useDateRange, setUseDateRange] = useState(false);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -110,7 +114,12 @@ export default function MigrationPage() {
       const { jobId: id } = await api.post<{ jobId: string }>('/api/migration/wordpress/start', {
         baseUrl, username, appPassword,
         options: {
-          importCategories, importTags, importAuthors, importPosts, postStatus, skipExisting,
+          importCategories, importTags, importAuthors, importPosts, postStatus, skipExisting, groupByDate,
+          ...(groupByDate && firstVolumeNumber && firstIssueNumber ? {
+            firstVolumeNumber: parseInt(firstVolumeNumber),
+            firstIssueNumber: parseInt(firstIssueNumber),
+            issuesPerVolume: parseInt(issuesPerVolume) || 52,
+          } : {}),
           ...(useDateRange && dateFrom ? { dateFrom } : {}),
           ...(useDateRange && dateTo ? { dateTo } : {}),
         },
@@ -277,6 +286,56 @@ export default function MigrationPage() {
                   <p className="text-xs text-muted-foreground">If a post with the same slug is already in the DB, skip it rather than overwriting.</p>
                 </div>
               </label>
+
+              <label className="flex items-start gap-2.5 cursor-pointer">
+                <input type="checkbox" checked={groupByDate} onChange={(e) => setGroupByDate(e.target.checked)}
+                  className="mt-0.5 rounded border-input" />
+                <div>
+                  <p className="text-sm font-medium">Group posts into issues by publish date</p>
+                  <p className="text-xs text-muted-foreground">Posts published on the same date will be grouped into a shared Issue. Provide Vol/No to get proper numbering and date-range titles.</p>
+                </div>
+              </label>
+
+              {groupByDate && (
+                <div className="pl-6 space-y-3">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Issue numbering for the first date imported</p>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Volume No.</Label>
+                      <Input
+                        type="number" min="1" placeholder="e.g. 80"
+                        value={firstVolumeNumber}
+                        onChange={(e) => setFirstVolumeNumber(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Issue No.</Label>
+                      <Input
+                        type="number" min="1" placeholder="e.g. 9"
+                        value={firstIssueNumber}
+                        onChange={(e) => setFirstIssueNumber(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Issues / volume</Label>
+                      <Input
+                        type="number" min="1" placeholder="52"
+                        value={issuesPerVolume}
+                        onChange={(e) => setIssuesPerVolume(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  {firstVolumeNumber && firstIssueNumber && (
+                    <p className="text-xs text-muted-foreground">
+                      First issue → <span className="font-medium">Vol. {firstVolumeNumber}, No. {firstIssueNumber}</span>.
+                      Title format: <span className="font-medium italic">Vol. {firstVolumeNumber}, No. {firstIssueNumber} | DD Mon YYYY - DD Mon YYYY</span>
+                    </p>
+                  )}
+                  {(!firstVolumeNumber || !firstIssueNumber) && (
+                    <p className="text-xs text-amber-600">Leave blank to auto-assign numbers (Vol. 1, sequential).</p>
+                  )}
+                </div>
+              )}
             </>
           )}
         </CardContent>

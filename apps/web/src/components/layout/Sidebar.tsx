@@ -4,7 +4,7 @@ import NextImage from 'next/image';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, FileText, BookOpen, Users, Image, Tag, FolderOpen,
-  Mail, UserCheck, Settings, LogOut, ChevronRight, Newspaper, ExternalLink, Download,
+  Mail, UserCheck, Settings, LogOut, ChevronRight, Newspaper, ExternalLink, Download, UploadCloud,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
@@ -20,6 +20,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { label: 'Dashboard', href: '/admin', icon: LayoutDashboard },
   { label: 'Issues', href: '/admin/issues', icon: Newspaper },
+  { label: 'Ingest ZIP', href: '/admin/ingest', icon: UploadCloud },
   { label: 'Posts', href: '/admin/posts', icon: FileText },
   { label: 'Pages', href: '/admin/pages', icon: BookOpen },
   { label: 'Authors', href: '/admin/authors', icon: Users },
