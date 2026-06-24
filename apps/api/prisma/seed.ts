@@ -156,7 +156,7 @@ async function main() {
     await prisma.setting.upsert({
       where: { key: s.key },
       create: s,
-      update: { value: s.value },
+      update: {},
     });
   }
   console.log('Created default settings');
