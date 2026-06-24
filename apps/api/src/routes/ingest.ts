@@ -50,7 +50,7 @@ const ingestRoutes: FastifyPluginAsync = async (fastify) => {
 
     for await (const part of parts) {
       if (part.type === 'file' && part.fieldname === 'file') {
-        zipBuffer = await part.toBuffer();
+        zipBuffer = Buffer.from(await part.toBuffer());
       } else if (part.type === 'field') {
         const v = part.value as string;
         if (part.fieldname === 'issueId') issueId = v;
@@ -93,7 +93,8 @@ const ingestRoutes: FastifyPluginAsync = async (fastify) => {
 
     for await (const part of parts) {
       if (part.type === 'file' && part.fieldname === 'file') {
-        zipBuffer = await part.toBuffer();
+        // Copy the buffer so it's fully detached from the multipart stream lifecycle
+        zipBuffer = Buffer.from(await part.toBuffer());
       } else if (part.type === 'field') {
         const v = part.value as string;
         if (part.fieldname === 'volumeNumber') volumeNumber = parseInt(v) || 0;
@@ -115,6 +116,17 @@ const ingestRoutes: FastifyPluginAsync = async (fastify) => {
       issueNumber: z.number().int().positive(),
       type: z.enum(['print', 'blog', 'combined']),
     }).parse({ volumeNumber, issueNumber, type });
+
+    const existing = await prisma.issue.findFirst({
+      where: { volumeNumber: parsedSchema.volumeNumber, issueNumber: parsedSchema.issueNumber },
+    });
+    if (existing) {
+      return reply.status(409).send({
+        statusCode: 409,
+        error: 'Conflict',
+        message: `Vol. ${parsedSchema.volumeNumber}, No. ${parsedSchema.issueNumber} already exists (issue ID: ${existing.id}). Update the issue number or ingest into the existing issue from its detail page.`,
+      });
+    }
 
     const issue = await prisma.issue.create({
       data: {

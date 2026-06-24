@@ -189,6 +189,14 @@ export async function previewIngestion(zipBuffer: Buffer): Promise<IngestPreview
   };
 }
 
+interface PostForAI {
+  postId: string;
+  articleNumber: number;
+  title: string;
+  excerpt: string;
+  hasFeaturedMedia: boolean;
+}
+
 export async function ingestIssue(zipBuffer: Buffer, options: IngestOptions): Promise<{
   created: number;
   warnings: string[];
@@ -199,7 +207,6 @@ export async function ingestIssue(zipBuffer: Buffer, options: IngestOptions): Pr
   const issue = await prisma.issue.findUnique({ where: { id: options.issueId } });
   if (!issue) throw new Error('Issue not found');
 
-  // Parse summary
   const summaryFile = Object.keys(zip.files).find((f) =>
     f.toLowerCase().includes('summary') && f.endsWith('.docx'),
   );
@@ -210,10 +217,11 @@ export async function ingestIssue(zipBuffer: Buffer, options: IngestOptions): Pr
   const total = summaryArticles.length;
 
   let created = 0;
+  const postsForAI: PostForAI[] = [];
 
+  // Phase 1: create all posts sequentially (ZIP reading + DB writes must stay serial)
   for (const summary of summaryArticles) {
     try {
-      // Find matching .docx — supports "1.docx" and "1-Title_Author.docx" naming
       const docxKey = Object.keys(zip.files).find((f) => {
         const name = f.split('/').pop() || '';
         return name.match(new RegExp(`^${summary.number}[-.\\s]`)) && name.endsWith('.docx');
@@ -227,7 +235,6 @@ export async function ingestIssue(zipBuffer: Buffer, options: IngestOptions): Pr
         warnings.push(`No .docx found for article ${summary.number}`);
       }
 
-      // Process featured image
       let featuredMediaId: string | null = null;
       const imgExts = ['jpg', 'jpeg', 'png', 'webp'];
       for (const ext of imgExts) {
@@ -246,13 +253,9 @@ export async function ingestIssue(zipBuffer: Buffer, options: IngestOptions): Pr
         }
       }
 
-      // Resolve/create author
       const authorId = summary.authorName ? await resolveAuthor(summary.authorName) : null;
-
-      // Compute publish timestamp
       const publishedAt = computePublishTimestamp(issue.publishDate, summary.number, total, options.publishHour || 1);
 
-      // Create slug
       const baseSlug = slugify(summary.title);
       let slug = baseSlug;
       let attempt = 0;
@@ -275,53 +278,78 @@ export async function ingestIssue(zipBuffer: Buffer, options: IngestOptions): Pr
         },
       });
 
-      // AI post-processing — errors are non-fatal (logged as warnings)
       if (options.aiOptions) {
-        const { generateImage, mapCategories, generateTags } = options.aiOptions;
-
-        if (generateImage && !featuredMediaId) {
-          try {
-            const imgPrompt = await buildImagePrompt(summary.title, summary.excerpt || undefined);
-            const img = await generateFeaturedImage({ prompt: imgPrompt }, options.uploadedById);
-            await prisma.post.update({ where: { id: post.id }, data: { featuredMediaId: img.mediaId } });
-          } catch (e: any) {
-            warnings.push(`AI image for article ${summary.number}: ${e.message}`);
-          }
-        }
-
-        if (mapCategories) {
-          try {
-            const allCats = await prisma.category.findMany({ select: { id: true, name: true } });
-            const catIds = await classifyCategories(summary.title, summary.excerpt || '', allCats);
-            if (catIds.length > 0) {
-              await prisma.postCategory.createMany({
-                data: catIds.slice(0, 3).map((categoryId) => ({ postId: post.id, categoryId })),
-                skipDuplicates: true,
-              });
-            }
-          } catch (e: any) {
-            warnings.push(`AI categories for article ${summary.number}: ${e.message}`);
-          }
-        }
-
-        if (generateTags) {
-          try {
-            const tagNames = await generateArticleTags(summary.title, summary.excerpt || '');
-            for (const name of tagNames) {
-              const tagSlug = slugify(name);
-              const tag = await prisma.tag.upsert({ where: { slug: tagSlug }, update: {}, create: { name, slug: tagSlug } });
-              await prisma.postTag.createMany({ data: [{ postId: post.id, tagId: tag.id }], skipDuplicates: true });
-            }
-          } catch (e: any) {
-            warnings.push(`AI tags for article ${summary.number}: ${e.message}`);
-          }
-        }
+        postsForAI.push({
+          postId: post.id,
+          articleNumber: summary.number,
+          title: summary.title,
+          excerpt: summary.excerpt || '',
+          hasFeaturedMedia: !!featuredMediaId,
+        });
       }
 
       created++;
     } catch (err) {
       warnings.push(`Failed to process article ${summary.number}: ${(err as Error).message}`);
     }
+  }
+
+  // Phase 2: AI post-processing — all articles in parallel so total time ≈ one AI call
+  if (options.aiOptions && postsForAI.length > 0) {
+    const { generateImage, mapCategories, generateTags } = options.aiOptions;
+
+    // Fetch categories once shared across all articles
+    const allCats = mapCategories
+      ? await prisma.category.findMany({ select: { id: true, name: true } })
+      : [];
+
+    const perArticleWarnings = await Promise.all(
+      postsForAI.map(async ({ postId, articleNumber, title, excerpt, hasFeaturedMedia }) => {
+        const w: string[] = [];
+
+        if (generateImage && !hasFeaturedMedia) {
+          try {
+            const imgPrompt = await buildImagePrompt(title, excerpt || undefined);
+            const img = await generateFeaturedImage({ prompt: imgPrompt }, options.uploadedById);
+            await prisma.post.update({ where: { id: postId }, data: { featuredMediaId: img.mediaId } });
+          } catch (e: any) {
+            w.push(`AI image for article ${articleNumber}: ${e.message}`);
+          }
+        }
+
+        if (mapCategories) {
+          try {
+            const catIds = await classifyCategories(title, excerpt, allCats);
+            if (catIds.length > 0) {
+              await prisma.postCategory.createMany({
+                data: catIds.slice(0, 3).map((categoryId) => ({ postId, categoryId })),
+                skipDuplicates: true,
+              });
+            }
+          } catch (e: any) {
+            w.push(`AI categories for article ${articleNumber}: ${e.message}`);
+          }
+        }
+
+        if (generateTags) {
+          try {
+            const tagNames = await generateArticleTags(title, excerpt);
+            for (const name of tagNames) {
+              const tagSlug = slugify(name);
+              if (!tagSlug) continue;
+              const tag = await prisma.tag.upsert({ where: { slug: tagSlug }, update: {}, create: { name, slug: tagSlug } });
+              await prisma.postTag.createMany({ data: [{ postId, tagId: tag.id }], skipDuplicates: true });
+            }
+          } catch (e: any) {
+            w.push(`AI tags for article ${articleNumber}: ${e.message}`);
+          }
+        }
+
+        return w;
+      }),
+    );
+
+    warnings.push(...perArticleWarnings.flat());
   }
 
   return { created, warnings };

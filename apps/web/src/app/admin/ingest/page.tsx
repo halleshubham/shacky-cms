@@ -10,22 +10,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { api } from '@/lib/api';
 import toast from 'react-hot-toast';
 
-const LS_KEY = 'shacky_ingest_next_vol_no';
-
-function readNext(): { vol: number; no: number } | null {
-  try {
-    const raw = localStorage.getItem(LS_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (typeof parsed.vol === 'number' && typeof parsed.no === 'number') return parsed;
-  } catch {}
-  return null;
-}
-
-function saveNext(vol: number, no: number) {
-  localStorage.setItem(LS_KEY, JSON.stringify({ vol, no }));
-}
-
 interface AiStatus { configured: boolean; supportsImages: boolean; }
 
 export default function IngestPage() {
@@ -54,23 +38,17 @@ export default function IngestPage() {
     // Load categories list and AI status in parallel
     api.get<AiStatus>('/api/ingest/ai-status').then(setAiStatus).catch(() => {});
 
-    // Pre-fill Vol/No from localStorage, then fall back to latest issue + 1
-    const saved = readNext();
-    if (saved) {
-      setVolumeNumber(String(saved.vol));
-      setIssueNumber(String(saved.no));
-    } else {
-      api.get<any>('/api/issues?pageSize=1').then((data) => {
-        const latest = data?.data?.[0];
-        if (latest) {
-          setVolumeNumber(String(latest.volumeNumber));
-          setIssueNumber(String(latest.issueNumber + 1));
-        } else {
-          setVolumeNumber('1');
-          setIssueNumber('1');
-        }
-      }).catch(() => { setVolumeNumber('1'); setIssueNumber('1'); });
-    }
+    // Always derive vol/no from the latest issue in the DB
+    api.get<any>('/api/issues?pageSize=1').then((data) => {
+      const latest = data?.data?.[0];
+      if (latest) {
+        setVolumeNumber(String(latest.volumeNumber));
+        setIssueNumber(String(latest.issueNumber + 1));
+      } else {
+        setVolumeNumber('1');
+        setIssueNumber('1');
+      }
+    }).catch(() => { setVolumeNumber('1'); setIssueNumber('1'); });
 
     setPublishDate(new Date().toISOString().slice(0, 10));
   }, []);
@@ -127,9 +105,6 @@ export default function IngestPage() {
       }));
 
       const result = await api.upload<any>('/api/ingest/issue', fd);
-
-      // Persist next suggested values
-      saveNext(vol, no + 1);
 
       toast.success(`Issue created — ${result.created} articles ingested`, { id: toastId });
       if (result.warnings?.length > 0) {

@@ -36,6 +36,7 @@ const fastify = Fastify({
     transport: env.NODE_ENV !== 'production' ? { target: 'pino-pretty' } : undefined,
   },
   trustProxy: true,
+  maxParamLength: 500,
 });
 
 async function main() {
