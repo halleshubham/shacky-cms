@@ -34,6 +34,18 @@ export interface MigrationProgress {
   finishedAt?: string;
 }
 
+// Decode numeric and common named HTML entities (WP REST API returns rendered HTML)
+function decodeEntities(str: string): string {
+  return str
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code, 10)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCharCode(parseInt(code, 16)))
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&nbsp;/g, ' ')
+    .replace(/&ndash;/g, '–').replace(/&mdash;/g, '—')
+    .replace(/&lsquo;/g, '‘').replace(/&rsquo;/g, '’')
+    .replace(/&ldquo;/g, '“').replace(/&rdquo;/g, '”');
+}
+
 // In-memory job store — fine for single-server; jobs are short-lived
 const jobs = new Map<string, MigrationProgress>();
 const cancelled = new Set<string>();
@@ -450,7 +462,26 @@ export async function runMigration(
           const tagIds = (wp.tags || [])
             .map((id: number) => wpTagToLocal.get(id))
             .filter(Boolean) as string[];
-          const authorId = wpAuthorToLocal.get(wp.author);
+          let authorId = wpAuthorToLocal.get(wp.author);
+          if (!authorId) {
+            // Fall back to embedded author (available even when /users endpoint is blocked)
+            const emb = wp._embedded?.author?.[0];
+            if (emb?.name) {
+              const aSlug = emb.slug || slugify(emb.name);
+              const author = await prisma.author.upsert({
+                where: { slug: aSlug },
+                update: {},
+                create: {
+                  slug: aSlug,
+                  displayName: emb.name,
+                  bio: emb.description || null,
+                  avatarUrl: emb.avatar_urls?.['96'] || null,
+                },
+              });
+              authorId = author.id;
+              wpAuthorToLocal.set(wp.author, author.id);
+            }
+          }
 
           // Dates
           const publishedAt = wp.date ? new Date(wp.date) : null;
@@ -468,10 +499,12 @@ export async function runMigration(
 
           // Upsert post (update if slug exists and skipExisting is false)
           const postData = {
-            title: wp.title?.rendered || 'Untitled',
+            title: decodeEntities(wp.title?.rendered || 'Untitled'),
             slug,
             content,
-            excerpt: wp.excerpt?.rendered?.replace(/<[^>]+>/g, '').trim() || null,
+            excerpt: wp.excerpt?.rendered
+              ? decodeEntities(wp.excerpt.rendered.replace(/<[^>]+>/g, '').trim())
+              : null,
             status,
             publishedAt,
             featuredMediaId,
