@@ -1,6 +1,7 @@
 'use client';
-import { useState, useCallback, useMemo } from 'react';
-import { ChevronDown, ChevronRight, ExternalLink, Copy, Check, Search, X } from 'lucide-react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
+import { ChevronDown, ChevronRight, ExternalLink, Copy, Check, Search, X, ArrowLeft } from 'lucide-react';
+import Link from 'next/link';
 import { cn } from '@/lib/utils';
 
 type Method = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
@@ -563,8 +564,14 @@ const GROUPS: Group[] = [
 
 export default function ApiDocsPage() {
   const total = GROUPS.reduce((s, g) => s + g.endpoints.length, 0);
-  const [baseUrl, setBaseUrl] = useState('http://localhost:4000');
+  const [baseUrl, setBaseUrl] = useState('');
   const [token, setToken] = useState('');
+
+  // Derive base URL from the current origin — the Next.js proxy forwards /api/* to the API,
+  // so curl commands should target the same host the admin is running on.
+  useEffect(() => {
+    setBaseUrl(process.env.NEXT_PUBLIC_API_URL || window.location.origin);
+  }, []);
   const [query, setQuery] = useState('');
 
   const filteredGroups = useMemo(() => {
@@ -593,11 +600,16 @@ export default function ApiDocsPage() {
     <div className="max-w-5xl mx-auto space-y-5">
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">API Reference</h1>
-          <p className="text-muted-foreground mt-1 text-sm">
-            {total} endpoints across {GROUPS.length} resource groups. Click any endpoint to expand its curl command.
-          </p>
+        <div className="flex items-start gap-3">
+          <Link href="/admin/integrations" className="mt-1 p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0">
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
+          <div>
+            <h1 className="text-2xl font-bold">API Reference</h1>
+            <p className="text-muted-foreground mt-1 text-sm">
+              {total} endpoints across {GROUPS.length} resource groups. Click any endpoint to expand its curl command.
+            </p>
+          </div>
         </div>
         <a
           href="/docs"

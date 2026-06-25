@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { Save, Loader2, Plus, Trash2, Webhook, CheckCircle2, AlertCircle, ExternalLink } from 'lucide-react';
+import Link from 'next/link';
+import { Save, Loader2, Plus, Trash2, Webhook, CheckCircle2, AlertCircle, ExternalLink, Key, Copy, Check, BookOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -26,6 +27,13 @@ export default function IntegrationsPage() {
   const [newHookSecret, setNewHookSecret] = useState('');
   const [savingHook, setSavingHook] = useState(false);
 
+  // Application Passwords
+  const [appPasswords, setAppPasswords] = useState<any[]>([]);
+  const [newPassName, setNewPassName] = useState('');
+  const [newToken, setNewToken] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [creatingPass, setCreatingPass] = useState(false);
+
   useEffect(() => {
     api.get<any>('/api/settings').then((s) => {
       if (s.botsab_base_url) setBotsabBaseUrl(s.botsab_base_url);
@@ -34,7 +42,39 @@ export default function IntegrationsPage() {
     }).catch(() => {});
     api.get<any[]>('/api/webhooks').then(setWebhooks).catch(() => {});
     api.get<string[]>('/api/webhooks/events').then(setWebhookEvents).catch(() => {});
+    api.get<any[]>('/api/auth/application-passwords').then(setAppPasswords).catch(() => {});
   }, []);
+
+  const createAppPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPassName.trim()) return;
+    setCreatingPass(true);
+    try {
+      const result = await api.post<any>('/api/auth/application-passwords', { name: newPassName.trim() });
+      setAppPasswords((prev) => [...prev, { id: result.id, name: result.name, createdAt: result.createdAt }]);
+      setNewToken(result.token);
+      setNewPassName('');
+      toast.success("Application password created — copy it now, it won't be shown again");
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed');
+    } finally {
+      setCreatingPass(false);
+    }
+  };
+
+  const deleteAppPassword = async (id: string) => {
+    await api.delete(`/api/auth/application-passwords/${id}`);
+    setAppPasswords((prev) => prev.filter((p) => p.id !== id));
+    toast.success('Revoked');
+  };
+
+  const copyToken = () => {
+    if (newToken) {
+      navigator.clipboard.writeText(newToken);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
   const saveBotsab = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -273,6 +313,79 @@ export default function IntegrationsPage() {
           )}
         </CardContent>
       </Card>
+      {/* ── Application Passwords ───────────────────────────────────────────── */}
+      <Card id="app-passwords">
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Key className="h-4 w-4" /> Application Passwords
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Create named API tokens for programmatic access. Tokens are shown only once on creation.
+          </p>
+
+          {newToken && (
+            <div className="border border-green-300 bg-green-50 dark:bg-green-950 rounded-md p-3 space-y-2">
+              <p className="text-sm font-medium text-green-800 dark:text-green-200">New application password — copy it now!</p>
+              <div className="flex items-center gap-2">
+                <Input readOnly value={newToken} className="font-mono text-xs" />
+                <Button size="sm" variant="outline" onClick={copyToken}>
+                  {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+                </Button>
+              </div>
+              <Button size="sm" variant="ghost" onClick={() => setNewToken(null)} className="text-xs">Dismiss</Button>
+            </div>
+          )}
+
+          <form onSubmit={createAppPassword} className="flex gap-2">
+            <Input
+              placeholder="Token name (e.g. CLI script)"
+              value={newPassName}
+              onChange={(e) => setNewPassName(e.target.value)}
+              className="max-w-xs"
+            />
+            <Button type="submit" disabled={creatingPass || !newPassName.trim()} className="gap-2">
+              <Key className="h-4 w-4" /> {creatingPass ? 'Creating…' : 'Create'}
+            </Button>
+          </form>
+
+          {appPasswords.length > 0 && (
+            <div className="divide-y border rounded-lg">
+              {appPasswords.map((ap) => (
+                <div key={ap.id} className="flex items-center justify-between px-3 py-2">
+                  <div>
+                    <p className="text-sm font-medium">{ap.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Created {new Date(ap.createdAt).toLocaleDateString()}
+                      {ap.lastUsed && ` · Last used ${new Date(ap.lastUsed).toLocaleDateString()}`}
+                    </p>
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={() => deleteAppPassword(ap.id)} className="text-destructive hover:text-destructive">
+                    Revoke
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── API Reference ────────────────────────────────────────────────────── */}
+      <Link href="/admin/integrations/api-docs">
+        <Card className="hover:bg-muted/30 transition-colors cursor-pointer">
+          <CardContent className="py-4 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <BookOpen className="h-5 w-5 text-muted-foreground shrink-0" />
+              <div>
+                <p className="text-sm font-semibold">API Reference</p>
+                <p className="text-xs text-muted-foreground">Browse all endpoints with copy-pastable curl commands</p>
+              </div>
+            </div>
+            <ExternalLink className="h-4 w-4 text-muted-foreground shrink-0" />
+          </CardContent>
+        </Card>
+      </Link>
     </div>
   );
 }

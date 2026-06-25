@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, FileText, BookOpen, Users, Image, Tag, FolderOpen,
   Mail, UserCheck, Settings, LogOut, ChevronRight, Newspaper, ExternalLink,
-  Download, UploadCloud, Plug, Code2, X, ClipboardList,
+  Download, UploadCloud, Plug, X, ClipboardList,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
@@ -35,7 +35,6 @@ const navItems: NavItem[] = [
   { label: 'Settings', href: '/admin/settings', icon: Settings, roles: ['superadmin'] },
   { label: 'Integrations', href: '/admin/integrations', icon: Plug, roles: ['superadmin'] },
   { label: 'Migration', href: '/admin/migration', icon: Download, roles: ['superadmin'] },
-  { label: 'API Docs', href: '/admin/api-docs', icon: Code2 },
 ];
 
 interface SidebarProps {

@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { Save, Key, Copy, Check, Loader2, Globe, Camera, Sparkles, Upload, X, Image as ImageIcon, AlertTriangle, Mail, Plug, Trash2 } from 'lucide-react';
+import { Save, Key, Loader2, Globe, Camera, Sparkles, Upload, X, Image as ImageIcon, AlertTriangle, Mail, Plug, Trash2 } from 'lucide-react';
 import { useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,7 +18,6 @@ const SECTIONS = [
   { id: 'stock', label: 'Stock Photos' },
   { id: 'ai', label: 'AI Configuration' },
   { id: '2fa', label: 'Two-Factor Auth' },
-  { id: 'app-passwords', label: 'App Passwords' },
   { id: 'danger', label: 'Danger Zone' },
 ];
 
@@ -35,11 +34,6 @@ const PURGEABLE: { entity: PurgeEntity; label: string; description: string }[] =
 
 export default function SettingsPage() {
   const { user } = useAuth();
-  const [appPasswords, setAppPasswords] = useState<any[]>([]);
-  const [newPassName, setNewPassName] = useState('');
-  const [newToken, setNewToken] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [totpSecret, setTotpSecret] = useState('');
   const [totpCode, setTotpCode] = useState('');
@@ -98,7 +92,6 @@ export default function SettingsPage() {
 
   useEffect(() => {
     api.get<any>('/api/auth/me').then((me) => setProfileName(me.name || '')).catch(() => {});
-    api.get<any[]>('/api/auth/application-passwords').then(setAppPasswords);
     api.get<any>('/api/settings').then((s) => {
       setSiteTitle(s.site_title || '');
       setSiteDescription(s.site_description || '');
@@ -255,28 +248,6 @@ export default function SettingsPage() {
     finally { setFetchingOllamaModels(false); }
   };
 
-  const createAppPassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newPassName.trim()) return;
-    setLoading(true);
-    try {
-      const result = await api.post<any>('/api/auth/application-passwords', { name: newPassName.trim() });
-      setAppPasswords((prev) => [...prev, { id: result.id, name: result.name, createdAt: result.createdAt }]);
-      setNewToken(result.token);
-      setNewPassName('');
-      toast.success('Application password created — copy it now, it won\'t be shown again');
-    } catch (err: any) {
-      toast.error(err?.message || 'Failed');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const deleteAppPassword = async (id: string) => {
-    await api.delete(`/api/auth/application-passwords/${id}`);
-    setAppPasswords((prev) => prev.filter((p) => p.id !== id));
-    toast.success('Deleted');
-  };
 
   const setupTotp = async () => {
     const data = await api.post<any>('/api/auth/totp/setup');
@@ -300,13 +271,6 @@ export default function SettingsPage() {
     }
   };
 
-  const copyToken = () => {
-    if (newToken) {
-      navigator.clipboard.writeText(newToken);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
 
   // Danger Zone
   const [counts, setCounts] = useState<Record<PurgeEntity, number> | null>(null);
@@ -809,61 +773,6 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Application Passwords */}
-      <Card id="app-passwords">
-        <CardHeader>
-          <CardTitle className="text-base">Application Passwords</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Create named API tokens for programmatic access. Tokens are shown only once on creation.
-          </p>
-
-          {newToken && (
-            <div className="border border-green-300 bg-green-50 dark:bg-green-950 rounded-md p-3 space-y-2">
-              <p className="text-sm font-medium text-green-800 dark:text-green-200">New application password — copy it now!</p>
-              <div className="flex items-center gap-2">
-                <Input readOnly value={newToken} className="font-mono text-xs" />
-                <Button size="sm" variant="outline" onClick={copyToken}>
-                  {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
-                </Button>
-              </div>
-              <Button size="sm" variant="ghost" onClick={() => setNewToken(null)} className="text-xs">Dismiss</Button>
-            </div>
-          )}
-
-          <form onSubmit={createAppPassword} className="flex gap-2">
-            <Input
-              placeholder="Token name (e.g. CLI script)"
-              value={newPassName}
-              onChange={(e) => setNewPassName(e.target.value)}
-              className="max-w-xs"
-            />
-            <Button type="submit" disabled={loading || !newPassName.trim()} className="gap-2">
-              <Key className="h-4 w-4" /> {loading ? 'Creating…' : 'Create'}
-            </Button>
-          </form>
-
-          {appPasswords.length > 0 && (
-            <div className="divide-y border rounded-lg">
-              {appPasswords.map((ap) => (
-                <div key={ap.id} className="flex items-center justify-between px-3 py-2">
-                  <div>
-                    <p className="text-sm font-medium">{ap.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      Created {new Date(ap.createdAt).toLocaleDateString()}
-                      {ap.lastUsed && ` · Last used ${new Date(ap.lastUsed).toLocaleDateString()}`}
-                    </p>
-                  </div>
-                  <Button variant="ghost" size="sm" onClick={() => deleteAppPassword(ap.id)} className="text-destructive hover:text-destructive">
-                    Revoke
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
       {/* Danger Zone */}
       <Card id="danger" className="border-destructive/40">
         <CardHeader>
