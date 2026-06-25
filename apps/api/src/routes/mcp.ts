@@ -3,7 +3,8 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { env } from '../utils/env.js';
 import { createMcpServer } from '../services/mcpServer.js';
 
-const RESOURCE_METADATA_URL = `${env.API_URL}/.well-known/oauth-protected-resource`;
+// Must use APP_URL (public Next.js domain) — API_URL may be internal-only
+const RESOURCE_METADATA_URL = `${env.APP_URL}/.well-known/oauth-protected-resource`;
 
 async function validateToken(fastify: FastifyInstance, authHeader: string | undefined) {
   if (!authHeader?.startsWith('Bearer ')) return null;

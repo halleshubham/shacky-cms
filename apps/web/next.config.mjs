@@ -30,6 +30,19 @@ const nextConfig = {
         source: '/s3/:path*',
         destination: `${minioUrl}/shacky-media/:path*`,
       },
+      // OAuth2 + MCP endpoints — proxied so the public domain serves them
+      {
+        source: '/mcp',
+        destination: `${apiUrl}/mcp`,
+      },
+      {
+        source: '/oauth/:path*',
+        destination: `${apiUrl}/oauth/:path*`,
+      },
+      {
+        source: '/.well-known/:path*',
+        destination: `${apiUrl}/.well-known/:path*`,
+      },
     ];
   },
   images: {

@@ -21,13 +21,15 @@ function verifyPkce(verifier: string, challenge: string, method: string): boolea
 export default async function oauthRoutes(fastify: FastifyInstance) {
   // ── Discovery ─────────────────────────────────────────────────────────────
 
+  // All public-facing URLs use APP_URL (the Next.js public domain).
+  // API_URL may be an internal address only reachable within the container network.
   fastify.get('/.well-known/oauth-authorization-server', async (_req, reply) => {
     reply.send({
-      issuer: env.API_URL,
+      issuer: env.APP_URL,
       authorization_endpoint: `${env.APP_URL}/oauth/authorize`,
-      token_endpoint: `${env.API_URL}/oauth/token`,
-      registration_endpoint: `${env.API_URL}/oauth/register`,
-      revocation_endpoint: `${env.API_URL}/oauth/revoke`,
+      token_endpoint: `${env.APP_URL}/oauth/token`,
+      registration_endpoint: `${env.APP_URL}/oauth/register`,
+      revocation_endpoint: `${env.APP_URL}/oauth/revoke`,
       scopes_supported: SCOPES_SUPPORTED,
       response_types_supported: ['code'],
       grant_types_supported: ['authorization_code'],
@@ -38,8 +40,8 @@ export default async function oauthRoutes(fastify: FastifyInstance) {
 
   fastify.get('/.well-known/oauth-protected-resource', async (_req, reply) => {
     reply.send({
-      resource: `${env.API_URL}/mcp`,
-      authorization_servers: [env.API_URL],
+      resource: `${env.APP_URL}/mcp`,
+      authorization_servers: [env.APP_URL],
       scopes_supported: SCOPES_SUPPORTED,
       bearer_methods_supported: ['header'],
     });
