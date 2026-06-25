@@ -145,7 +145,16 @@ Claude and other MCP-compatible agents can connect to your CMS directly.
 
 The server implements full OAuth2 with PKCE and dynamic client registration (RFC 7591 / 8414 / 9728). In Claude's connector settings, paste your domain's MCP URL — the authorization flow handles the rest.
 
-**Available tools:** `get_site_info` · `list_posts` · `get_post` · `create_post` · `update_post` · `list_categories` · `list_tags` · `list_media` · `list_subscribers`
+**Available tools:**
+
+| Scope | Tools |
+|---|---|
+| `posts:read` | `get_site_info` · `list_posts` · `get_post` · `list_categories` · `list_tags` · `get_stats` · `list_authors` · `list_issues` · `get_issue` · `list_pages` |
+| `posts:write` | `create_post` · `update_post` · `create_issue` · `assign_posts_to_issue` · `publish_issue` · `create_category` · `create_tag` · `create_page` · `update_page` |
+| `media:read` | `list_media` · `search_stock_images` · `set_post_featured_image_from_stock` |
+| `subscribers:read` | `list_subscribers` · `list_subscriber_lists` |
+| `campaigns:read` | `list_campaigns` |
+| `campaigns:write` | `create_campaign` · `send_campaign_test` · `send_campaign` |
 
 Manage active tokens at **Admin → Integrations → MCP Access**.
 

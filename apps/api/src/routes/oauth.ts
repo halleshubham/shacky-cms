@@ -3,7 +3,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { env } from '../utils/env.js';
 import { authenticate } from '../middleware/auth.js';
 
-const SCOPES_SUPPORTED = ['posts:read', 'posts:write', 'media:read', 'subscribers:read'];
+const SCOPES_SUPPORTED = ['posts:read', 'posts:write', 'media:read', 'subscribers:read', 'campaigns:read', 'campaigns:write'];
 const TOKEN_TTL_SECONDS = 3600; // 1 hour
 
 function genSecret(bytes = 32): string {
