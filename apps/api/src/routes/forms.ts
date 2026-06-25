@@ -159,6 +159,18 @@ const formsRoutes: FastifyPluginAsync = async (fastify) => {
     return reply.send(csv);
   });
 
+  // --- Public form definition (for rendering the form) ---
+
+  fastify.get('/public/:slug', async (req, reply) => {
+    const { slug } = req.params as { slug: string };
+    const form = await prisma.form.findUnique({
+      where: { slug },
+      select: { name: true, slug: true, fields: true, isActive: true, successMessage: true },
+    });
+    if (!form || !form.isActive) return reply.status(404).send({ message: 'Form not found' });
+    reply.send(form);
+  });
+
   // --- Public submit ---
 
   fastify.post('/public/:slug', async (req, reply) => {

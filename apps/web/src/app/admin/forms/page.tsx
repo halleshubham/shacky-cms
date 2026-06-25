@@ -74,7 +74,7 @@ export default function FormsPage() {
                   )}
                 </div>
                 <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground flex-wrap">
-                  <span className="font-mono">/public/forms/{form.slug}</span>
+                  <span className="font-mono">/forms/{form.slug}</span>
                   <span>·</span>
                   <span>{(form.fields as any[])?.length || 0} field{(form.fields as any[])?.length !== 1 ? 's' : ''}</span>
                   <span>·</span>
@@ -88,7 +88,12 @@ export default function FormsPage() {
                   <Link href={`/admin/forms/${form.id}/entries`}>Entries</Link>
                 </Button>
                 <Button variant="outline" size="sm" asChild>
-                  <Link href={`/admin/forms/${form.id}`}><ExternalLink className="h-3 w-3" /></Link>
+                  <Link href={`/admin/forms/${form.id}`}>Edit</Link>
+                </Button>
+                <Button variant="outline" size="sm" asChild title="View public form">
+                  <a href={`/forms/${form.slug}`} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
                 </Button>
                 <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => handleDelete(form.id, form.name)}>
                   <Trash2 className="h-3.5 w-3.5" />
