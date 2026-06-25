@@ -18,12 +18,7 @@ Write → Ingest → Publish → Send — all in one place.
 
 ## Demo
 
-> **Replace this block with a screen recording of the app running locally.**  
-> Recommended: record a 30–60 s clip with [Kap](https://getkap.co/) (macOS) or [Peek](https://github.com/phw/peek) (Linux), export as GIF, drop it here.
-
-```
-[ 🎬  demo.gif — add yours here ]
-```
+![Shacky CMS demo](demo.gif)
 
 ---
 
