@@ -1,6 +1,6 @@
 'use client';
-import { useState, useCallback } from 'react';
-import { ChevronDown, ChevronRight, ExternalLink, Copy, Check } from 'lucide-react';
+import { useState, useCallback, useMemo } from 'react';
+import { ChevronDown, ChevronRight, ExternalLink, Copy, Check, Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 type Method = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
@@ -262,8 +262,9 @@ function EndpointRow({
   );
 }
 
-function GroupCard({ group, baseUrl, token }: { group: Group; baseUrl: string; token: string }) {
+function GroupCard({ group, baseUrl, token, forceOpen }: { group: Group; baseUrl: string; token: string; forceOpen?: boolean }) {
   const [open, setOpen] = useState(true);
+  const isOpen = forceOpen ?? open;
 
   return (
     <div className="border border-border rounded-lg overflow-hidden">
@@ -272,13 +273,13 @@ function GroupCard({ group, baseUrl, token }: { group: Group; baseUrl: string; t
         onClick={() => setOpen((o) => !o)}
       >
         <div className="flex items-center gap-3">
-          {open ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+          {isOpen ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
           <span className="font-semibold text-foreground">{group.title}</span>
           <code className="text-xs text-muted-foreground font-mono hidden sm:inline">{group.prefix}</code>
         </div>
         <span className="text-xs text-muted-foreground">{group.endpoints.length} endpoint{group.endpoints.length !== 1 ? 's' : ''}</span>
       </button>
-      {open && (
+      {isOpen && (
         <div>
           {group.endpoints.map((ep) => (
             <EndpointRow key={`${ep.method}-${ep.path}`} ep={ep} prefix={group.prefix} baseUrl={baseUrl} token={token} />
@@ -564,6 +565,29 @@ export default function ApiDocsPage() {
   const total = GROUPS.reduce((s, g) => s + g.endpoints.length, 0);
   const [baseUrl, setBaseUrl] = useState('http://localhost:4000');
   const [token, setToken] = useState('');
+  const [query, setQuery] = useState('');
+
+  const filteredGroups = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return GROUPS.map((g) => ({ ...g, endpoints: g.endpoints }));
+    return GROUPS.flatMap((g) => {
+      // Group title match — show all endpoints in the group
+      if (g.title.toLowerCase().includes(q) || g.prefix.toLowerCase().includes(q)) {
+        return [g];
+      }
+      const endpoints = g.endpoints.filter((ep) =>
+        ep.method.toLowerCase().includes(q) ||
+        ep.path.toLowerCase().includes(q) ||
+        ep.desc.toLowerCase().includes(q) ||
+        (ep.notes?.toLowerCase().includes(q)) ||
+        (ep.params?.some((p) => p.toLowerCase().includes(q))) ||
+        (ep.body?.some((b) => b.toLowerCase().includes(q)))
+      );
+      return endpoints.length ? [{ ...g, endpoints }] : [];
+    });
+  }, [query]);
+
+  const matchCount = filteredGroups.reduce((s, g) => s + g.endpoints.length, 0);
 
   return (
     <div className="max-w-5xl mx-auto space-y-5">
@@ -610,20 +634,50 @@ export default function ApiDocsPage() {
         </div>
       </div>
 
-      {/* Legend */}
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Filter by method, path, description, param… (e.g. GET, /posts, slug)"
+          className="w-full text-sm bg-background border border-border rounded-lg pl-9 pr-9 py-2 focus:outline-none focus:ring-2 focus:ring-ring"
+        />
+        {query && (
+          <button
+            onClick={() => setQuery('')}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-muted-foreground hover:text-foreground transition-colors"
+            aria-label="Clear search"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+
+      {/* Legend / result count */}
       <div className="flex flex-wrap gap-3 items-center text-sm px-1">
         <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Auth:</span>
         {(Object.entries(AUTH_LABEL) as [Auth, string][]).map(([k, v]) => (
           <span key={k} className={cn('px-2 py-0.5 rounded text-xs font-medium', AUTH_STYLE[k])}>{v}</span>
         ))}
         <span className="text-muted-foreground text-xs">Admin = superadmin or editor</span>
+        {query && (
+          <span className="ml-auto text-xs text-muted-foreground">
+            {matchCount} result{matchCount !== 1 ? 's' : ''} in {filteredGroups.length} group{filteredGroups.length !== 1 ? 's' : ''}
+          </span>
+        )}
       </div>
 
       {/* Groups */}
       <div className="space-y-3">
-        {GROUPS.map((g) => (
-          <GroupCard key={g.prefix} group={g} baseUrl={baseUrl} token={token} />
-        ))}
+        {filteredGroups.length === 0 ? (
+          <div className="py-12 text-center text-muted-foreground text-sm">No endpoints match "{query}"</div>
+        ) : (
+          filteredGroups.map((g) => (
+            <GroupCard key={g.prefix} group={g} baseUrl={baseUrl} token={token} forceOpen={!!query} />
+          ))
+        )}
       </div>
 
       {/* Health check */}
