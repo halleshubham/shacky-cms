@@ -1,6 +1,6 @@
 'use client';
-import { useState } from 'react';
-import { ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
+import { useState, useCallback } from 'react';
+import { ChevronDown, ChevronRight, ExternalLink, Copy, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 type Method = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
@@ -45,6 +45,247 @@ const AUTH_LABEL: Record<Auth, string> = {
   superadmin:            'Superadmin',
   'subscriber_manager+': 'Sub. Manager+',
 };
+
+// ─── Curl generation ──────────────────────────────────────────────────────────
+
+function fieldExample(name: string): unknown {
+  if (name.includes('email'))       return 'user@example.com';
+  if (name.includes('password'))    return 'YourPassword123';
+  if (name.includes('Url') || name.includes('url') || name === 'targetUrl' || name === 'baseUrl') return 'https://example.com';
+  if (name === 'name' || name.endsWith('Name')) return 'Example Name';
+  if (name === 'displayName')       return 'Author Name';
+  if (name === 'title')             return 'My Title';
+  if (name === 'content')           return '<p>Article content here.</p>';
+  if (name === 'excerpt' || name === 'bio' || name === 'description') return 'Short description.';
+  if (name === 'slug')              return 'my-slug';
+  if (name === 'prompt')            return 'A photorealistic news image about politics';
+  if (name === 'secret')            return 'your-webhook-secret';
+  if (name === 'code')              return '123456';
+  if (name === 'html')              return '<p>HTML content</p>';
+  if (name === 'brief')             return 'Brief context for the article';
+  if (name === 'instruction')       return 'Rewrite in a formal tone';
+  if (name.endsWith('Id'))          return 'CUID_HERE';
+  if (name === 'appPassword')       return 'xxxx xxxx xxxx xxxx xxxx xxxx';
+  if (name === 'username')          return 'wp_admin';
+  if (name.includes('Number') || name.includes('count') || name === 'limit' || name === 'page' || name === 'pageSize' || name === 'wordCount' || name === 'publishHour') return 1;
+  if (name.includes('At') || name.includes('date') || name.includes('Date')) return new Date().toISOString();
+  if (name.includes('enabled') || name.includes('Active') || name.includes('Featured')) return true;
+  return '...';
+}
+
+function buildBodyJson(fields: string[]): Record<string, unknown> {
+  const obj: Record<string, unknown> = {};
+  for (const field of fields) {
+    const clean = field.replace(/\?$/, '').trim();
+
+    // Skip meta-only entries like '{ [key]: value }'
+    if (clean.startsWith('{')) continue;
+
+    // 'options: { importCategories, ... }' → nested object
+    const nestedObjMatch = clean.match(/^(\w+):\s*\{(.+)\}/);
+    if (nestedObjMatch) {
+      const [, name, inner] = nestedObjMatch;
+      const nested: Record<string, unknown> = {};
+      inner.split(',').forEach((f) => { nested[f.trim()] = '...'; });
+      obj[name] = nested;
+      continue;
+    }
+
+    // 'action: opt1 | opt2 | opt3' → pick first option
+    const enumMatch = clean.match(/^(\w+):\s*(.+)/);
+    if (enumMatch) {
+      const [, name, opts] = enumMatch;
+      obj[name] = opts.split('|')[0].trim();
+      continue;
+    }
+
+    // 'postIds[]' or 'subscriberIds[]' → array
+    if (clean.includes('[]')) {
+      const name = clean.replace(/\[\].*$/, '').split(' ')[0];
+      obj[name] = ['ID_1'];
+      continue;
+    }
+
+    // 'email? | phone?' — pick first alternative
+    if (clean.includes(' | ')) {
+      const name = clean.split(/[?| ]/)[0];
+      obj[name] = fieldExample(name);
+      continue;
+    }
+
+    // 'title', 'name (note)', 'content?', etc.
+    const name = clean.split(/[\s(]/)[0];
+    if (!name || name.startsWith('.') || name.startsWith('[')) continue;
+    obj[name] = fieldExample(name);
+  }
+  return obj;
+}
+
+function buildCurl(ep: Endpoint, prefix: string, baseUrl: string, token: string): string {
+  const pathWithExample = ep.path.replace(/:(\w+)/g, (_, p) =>
+    p === 'id' ? 'CUID_HERE' : p === 'token' ? 'UNSUBSCRIBE_TOKEN' : `${p.toUpperCase()}_HERE`
+  );
+  const url = `${baseUrl}${prefix}${pathWithExample}`;
+  const lines: string[] = [`curl '${url}'`];
+
+  if (ep.method !== 'GET') lines.push(`  -X ${ep.method}`);
+  if (ep.auth !== 'none')  lines.push(`  -H 'Authorization: Bearer ${token || 'YOUR_TOKEN'}'`);
+
+  const isMultipart = ep.notes?.toLowerCase().includes('multipart');
+
+  if (isMultipart) {
+    lines.push(`  -F 'file=@/path/to/file'`);
+    // Add extra text fields hinted in notes
+    if (ep.notes?.includes('issueId'))     lines.push(`  -F 'issueId=CUID_HERE'`);
+    if (ep.notes?.includes('publishHour')) lines.push(`  -F 'publishHour=9'`);
+    if (ep.notes?.includes('aiOptions'))   lines.push(`  -F 'aiOptions={"generateTags":true,"searchStockImage":true}'`);
+  } else if (ep.body && ['POST', 'PATCH', 'PUT'].includes(ep.method)) {
+    const bodyObj = buildBodyJson(ep.body);
+    lines.push(`  -H 'Content-Type: application/json'`);
+    lines.push(`  -d '${JSON.stringify(bodyObj, null, 2).replace(/'/g, "\\'")}'`);
+  }
+
+  return lines.join(' \\\n');
+}
+
+// ─── Components ───────────────────────────────────────────────────────────────
+
+function MethodBadge({ method }: { method: Method }) {
+  return (
+    <span className={cn('inline-block px-2 py-0.5 rounded text-xs font-bold font-mono w-16 text-center flex-shrink-0', METHOD_STYLE[method])}>
+      {method}
+    </span>
+  );
+}
+
+function AuthBadge({ auth }: { auth: Auth }) {
+  return (
+    <span className={cn('inline-block px-2 py-0.5 rounded text-[11px] font-medium flex-shrink-0', AUTH_STYLE[auth])}>
+      {AUTH_LABEL[auth]}
+    </span>
+  );
+}
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = useCallback(() => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }, [text]);
+  return (
+    <button
+      onClick={copy}
+      title="Copy curl command"
+      className="flex items-center gap-1 px-2 py-1 rounded text-xs text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors flex-shrink-0"
+    >
+      {copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
+      {copied ? 'Copied' : 'Copy'}
+    </button>
+  );
+}
+
+function EndpointRow({
+  ep, prefix, baseUrl, token,
+}: {
+  ep: Endpoint; prefix: string; baseUrl: string; token: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const curl = buildCurl(ep, prefix, baseUrl, token);
+
+  return (
+    <div className="border-b border-border last:border-0">
+      <button
+        className={cn('w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-muted/40 transition-colors', open && 'bg-muted/40')}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <MethodBadge method={ep.method} />
+        <code className="text-sm font-mono text-foreground/80 flex-shrink-0 hidden sm:block">
+          {prefix}{ep.path}
+        </code>
+        <span className="text-sm text-muted-foreground flex-1 min-w-0 text-left">{ep.desc}</span>
+        <div className="flex items-center gap-2 ml-2 flex-shrink-0">
+          <AuthBadge auth={ep.auth} />
+          {open
+            ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+        </div>
+      </button>
+
+      {open && (
+        <div className="bg-muted/20 border-t border-border/50 text-sm divide-y divide-border/40">
+          {/* Full path (mobile) */}
+          <div className="px-4 py-2 sm:hidden">
+            <code className="text-xs font-mono text-foreground/80">{prefix}{ep.path}</code>
+          </div>
+
+          {ep.notes && (
+            <div className="px-4 py-2 text-muted-foreground italic">{ep.notes}</div>
+          )}
+
+          {ep.params && (
+            <div className="px-4 py-2 flex flex-wrap gap-1 items-center">
+              <span className="text-xs font-semibold text-foreground/60 uppercase tracking-wide mr-1">Params:</span>
+              {ep.params.map((p) => (
+                <code key={p} className="text-xs bg-muted px-1.5 py-0.5 rounded text-foreground/80">{p}</code>
+              ))}
+            </div>
+          )}
+
+          {ep.body && (
+            <div className="px-4 py-2 flex flex-wrap gap-1 items-center">
+              <span className="text-xs font-semibold text-foreground/60 uppercase tracking-wide mr-1">Body:</span>
+              {ep.body.map((b) => (
+                <code key={b} className="text-xs bg-muted px-1.5 py-0.5 rounded text-foreground/80">{b}</code>
+              ))}
+            </div>
+          )}
+
+          {/* cURL */}
+          <div className="px-4 py-3">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-xs font-semibold text-foreground/60 uppercase tracking-wide">cURL</span>
+              <CopyButton text={curl} />
+            </div>
+            <pre className="text-xs font-mono bg-[#0F172A] text-green-300 rounded-md p-3 overflow-x-auto whitespace-pre leading-relaxed">
+              {curl}
+            </pre>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function GroupCard({ group, baseUrl, token }: { group: Group; baseUrl: string; token: string }) {
+  const [open, setOpen] = useState(true);
+
+  return (
+    <div className="border border-border rounded-lg overflow-hidden">
+      <button
+        className="w-full flex items-center justify-between px-5 py-3 bg-muted/50 hover:bg-muted/80 transition-colors"
+        onClick={() => setOpen((o) => !o)}
+      >
+        <div className="flex items-center gap-3">
+          {open ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+          <span className="font-semibold text-foreground">{group.title}</span>
+          <code className="text-xs text-muted-foreground font-mono hidden sm:inline">{group.prefix}</code>
+        </div>
+        <span className="text-xs text-muted-foreground">{group.endpoints.length} endpoint{group.endpoints.length !== 1 ? 's' : ''}</span>
+      </button>
+      {open && (
+        <div>
+          {group.endpoints.map((ep) => (
+            <EndpointRow key={`${ep.method}-${ep.path}`} ep={ep} prefix={group.prefix} baseUrl={baseUrl} token={token} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Data ─────────────────────────────────────────────────────────────────────
 
 const GROUPS: Group[] = [
   {
@@ -147,9 +388,9 @@ const GROUPS: Group[] = [
     endpoints: [
       { method: 'GET',  path: '/', auth: 'any', desc: 'List media files.', params: ['page', 'pageSize (default 40)', 'search?', 'mimeType? (prefix, e.g. image/)'] },
       { method: 'GET',  path: '/:id', auth: 'any', desc: 'Single media record.' },
-      { method: 'POST', path: '/upload', auth: 'any', desc: 'Upload a file (multipart/form-data). Images are auto-converted to JPEG ≤1920px, thumbnails generated at 150/300/1024px.', notes: 'Field name: file' },
+      { method: 'POST', path: '/upload', auth: 'any', desc: 'Upload a file (multipart/form-data). Images are auto-converted to JPEG ≤1920px, thumbnails generated at 150/300/1024px.', notes: 'Multipart upload — field name: file' },
       { method: 'PATCH', path: '/:id', auth: 'any', desc: 'Update alt text.', body: ['altText?'] },
-      { method: 'PUT',  path: '/:id/replace', auth: 'admin', desc: 'Swap the file behind a media ID (deletes old file from S3).', notes: 'Multipart upload, field name: file' },
+      { method: 'PUT',  path: '/:id/replace', auth: 'admin', desc: 'Swap the file behind a media ID (deletes old file from S3).', notes: 'Multipart upload — field name: file' },
       { method: 'DELETE', path: '/:id', auth: 'admin', desc: 'Delete media. Returns 409 if in use unless ?force=true.', params: ['force?=true'] },
     ],
   },
@@ -166,7 +407,7 @@ const GROUPS: Group[] = [
       { method: 'PATCH', path: '/lists/:id', auth: 'subscriber_manager+', desc: 'Update a list.' },
       { method: 'DELETE', path: '/lists/:id', auth: 'subscriber_manager+', desc: 'Delete a list.' },
       { method: 'POST', path: '/lists/:id/members', auth: 'subscriber_manager+', desc: 'Add subscribers to a list.', body: ['subscriberIds[]'] },
-      { method: 'POST', path: '/import', auth: 'subscriber_manager+', desc: 'Import subscribers from CSV (email, phone, name, channels columns). Upserts on email/phone.', notes: 'Multipart upload, field name: file' },
+      { method: 'POST', path: '/import', auth: 'subscriber_manager+', desc: 'Import subscribers from CSV (email, phone, name, channels columns). Upserts on email/phone.', notes: 'Multipart upload — field name: file' },
     ],
   },
   {
@@ -191,8 +432,8 @@ const GROUPS: Group[] = [
     prefix: '/api/ingest',
     endpoints: [
       { method: 'GET',  path: '/ai-status', auth: 'any', desc: 'Check whether AI is configured and whether image generation is available.' },
-      { method: 'POST', path: '/preview', auth: 'admin', desc: 'Upload a ZIP of DOCX articles and get a preview list without creating anything.', notes: 'Multipart, field: file (.zip)' },
-      { method: 'POST', path: '/', auth: 'admin', desc: 'Ingest a ZIP into an existing issue. Creates posts synchronously; AI enhancements are queued async.', notes: 'Multipart fields: file (.zip), issueId, publishHour?, aiOptions? (JSON)' },
+      { method: 'POST', path: '/preview', auth: 'admin', desc: 'Upload a ZIP of DOCX articles and get a preview list without creating anything.', notes: 'Multipart upload — field: file (.zip)' },
+      { method: 'POST', path: '/', auth: 'admin', desc: 'Ingest a ZIP into an existing issue. Creates posts synchronously; AI enhancements are queued async.', notes: 'Multipart upload — fields: file (.zip), issueId, publishHour?, aiOptions? (JSON)' },
       { method: 'GET',  path: '/jobs/:jobId', auth: 'any', desc: 'Poll the status of a BullMQ AI-enhancement job returned by the ingest endpoint.' },
     ],
   },
@@ -287,7 +528,7 @@ const GROUPS: Group[] = [
       { method: 'GET', path: '/issues/:id', auth: 'none', desc: 'Single issue with published posts in order.' },
       { method: 'GET', path: '/categories', auth: 'none', desc: 'All root categories with published post counts and children.' },
       { method: 'GET', path: '/authors', auth: 'none', desc: 'All authors with published post count.' },
-      { method: 'GET', path: '/authors/:slug', auth: 'none', desc: "Author profile and their published posts.", params: ['page', 'pageSize'] },
+      { method: 'GET', path: '/authors/:slug', auth: 'none', desc: 'Author profile and their published posts.', params: ['page', 'pageSize'] },
       { method: 'GET', path: '/tags', auth: 'none', desc: 'All tags with published post count.' },
       { method: 'GET', path: '/tags/:slug', auth: 'none', desc: 'Tag profile and published posts.', params: ['page', 'pageSize'] },
       { method: 'GET', path: '/featured', auth: 'none', desc: 'Featured published posts.', params: ['limit? (default 6)'] },
@@ -297,139 +538,71 @@ const GROUPS: Group[] = [
   },
 ];
 
-function MethodBadge({ method }: { method: Method }) {
-  return (
-    <span className={cn('inline-block px-2 py-0.5 rounded text-xs font-bold font-mono w-16 text-center flex-shrink-0', METHOD_STYLE[method])}>
-      {method}
-    </span>
-  );
-}
-
-function AuthBadge({ auth }: { auth: Auth }) {
-  return (
-    <span className={cn('inline-block px-2 py-0.5 rounded text-[11px] font-medium flex-shrink-0', AUTH_STYLE[auth])}>
-      {AUTH_LABEL[auth]}
-    </span>
-  );
-}
-
-function EndpointRow({ ep, prefix }: { ep: Endpoint; prefix: string }) {
-  const [open, setOpen] = useState(false);
-  const hasDetail = ep.params || ep.body || ep.notes;
-
-  return (
-    <div className="border-b border-border last:border-0">
-      <button
-        className={cn('w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-muted/40 transition-colors', open && 'bg-muted/40')}
-        onClick={() => hasDetail && setOpen((o) => !o)}
-      >
-        <MethodBadge method={ep.method} />
-        <code className="text-sm font-mono text-foreground/80 flex-shrink-0">
-          {prefix}{ep.path}
-        </code>
-        <span className="text-sm text-muted-foreground flex-1 min-w-0 text-left">{ep.desc}</span>
-        <div className="flex items-center gap-2 ml-2 flex-shrink-0">
-          <AuthBadge auth={ep.auth} />
-          {hasDetail && (
-            open
-              ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
-              : <ChevronRight className="h-4 w-4 text-muted-foreground" />
-          )}
-        </div>
-      </button>
-      {open && hasDetail && (
-        <div className="px-4 pb-3 pt-1 grid gap-2 bg-muted/20 text-sm">
-          {ep.notes && (
-            <p className="text-muted-foreground italic">{ep.notes}</p>
-          )}
-          {ep.params && (
-            <div>
-              <span className="font-semibold text-foreground/70 text-xs uppercase tracking-wide">Query params</span>
-              <div className="flex flex-wrap gap-1 mt-1">
-                {ep.params.map((p) => (
-                  <code key={p} className="text-xs bg-muted px-1.5 py-0.5 rounded text-foreground/80">{p}</code>
-                ))}
-              </div>
-            </div>
-          )}
-          {ep.body && (
-            <div>
-              <span className="font-semibold text-foreground/70 text-xs uppercase tracking-wide">Request body</span>
-              <div className="flex flex-wrap gap-1 mt-1">
-                {ep.body.map((b) => (
-                  <code key={b} className="text-xs bg-muted px-1.5 py-0.5 rounded text-foreground/80">{b}</code>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function GroupCard({ group }: { group: Group }) {
-  const [open, setOpen] = useState(true);
-
-  return (
-    <div className="border border-border rounded-lg overflow-hidden">
-      <button
-        className="w-full flex items-center justify-between px-5 py-3 bg-muted/50 hover:bg-muted/80 transition-colors"
-        onClick={() => setOpen((o) => !o)}
-      >
-        <div className="flex items-center gap-3">
-          {open ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
-          <span className="font-semibold text-foreground">{group.title}</span>
-          <code className="text-xs text-muted-foreground font-mono">{group.prefix}</code>
-        </div>
-        <span className="text-xs text-muted-foreground">{group.endpoints.length} endpoint{group.endpoints.length !== 1 ? 's' : ''}</span>
-      </button>
-      {open && (
-        <div>
-          {group.endpoints.map((ep) => (
-            <EndpointRow key={`${ep.method}-${ep.path}`} ep={ep} prefix={group.prefix} />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ApiDocsPage() {
   const total = GROUPS.reduce((s, g) => s + g.endpoints.length, 0);
+  const [baseUrl, setBaseUrl] = useState('http://localhost:4000');
+  const [token, setToken] = useState('');
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
+    <div className="max-w-5xl mx-auto space-y-5">
+      {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">API Reference</h1>
-          <p className="text-muted-foreground mt-1">
-            {total} endpoints across {GROUPS.length} resource groups. All requests to <code className="text-xs bg-muted px-1 rounded">/api/*</code> are proxied through Next.js — use relative paths from the browser.
+          <p className="text-muted-foreground mt-1 text-sm">
+            {total} endpoints across {GROUPS.length} resource groups. Click any endpoint to expand its curl command.
           </p>
         </div>
         <a
           href="/docs"
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-2 px-4 py-2 rounded-md border border-border text-sm hover:bg-muted transition-colors flex-shrink-0"
+          className="flex items-center gap-2 px-3 py-2 rounded-md border border-border text-sm hover:bg-muted transition-colors flex-shrink-0"
         >
           <ExternalLink className="h-4 w-4" />
           Swagger UI
         </a>
       </div>
 
+      {/* Config bar */}
+      <div className="flex flex-col sm:flex-row gap-3 p-4 bg-muted/30 rounded-lg border border-border">
+        <div className="flex-1">
+          <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Base URL</label>
+          <input
+            type="text"
+            value={baseUrl}
+            onChange={(e) => setBaseUrl(e.target.value)}
+            placeholder="http://localhost:4000"
+            className="w-full text-sm font-mono bg-background border border-border rounded px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+        </div>
+        <div className="flex-1">
+          <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Bearer Token (optional)</label>
+          <input
+            type="password"
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            placeholder="Paste your JWT or application password"
+            className="w-full text-sm font-mono bg-background border border-border rounded px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+        </div>
+      </div>
+
       {/* Legend */}
-      <div className="flex flex-wrap gap-4 text-sm p-4 bg-muted/30 rounded-lg border border-border">
-        <div className="font-medium text-muted-foreground text-xs uppercase tracking-wide self-center">Auth levels:</div>
+      <div className="flex flex-wrap gap-3 items-center text-sm px-1">
+        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Auth:</span>
         {(Object.entries(AUTH_LABEL) as [Auth, string][]).map(([k, v]) => (
           <span key={k} className={cn('px-2 py-0.5 rounded text-xs font-medium', AUTH_STYLE[k])}>{v}</span>
         ))}
-        <span className="text-muted-foreground text-xs self-center">Admin = superadmin or editor &nbsp;|&nbsp; Sub. Manager+ = superadmin, editor, or subscriber_manager</span>
+        <span className="text-muted-foreground text-xs">Admin = superadmin or editor</span>
       </div>
 
+      {/* Groups */}
       <div className="space-y-3">
         {GROUPS.map((g) => (
-          <GroupCard key={g.prefix} group={g} />
+          <GroupCard key={g.prefix} group={g} baseUrl={baseUrl} token={token} />
         ))}
       </div>
 
@@ -438,7 +611,9 @@ export default function ApiDocsPage() {
         <div className="flex items-center gap-3 px-4 py-3">
           <MethodBadge method="GET" />
           <code className="text-sm font-mono text-foreground/80">/health</code>
-          <span className="text-sm text-muted-foreground flex-1">Health check — returns <code className="text-xs">{'{ status: "ok", timestamp }'}</code>. No auth required.</span>
+          <span className="text-sm text-muted-foreground flex-1">
+            Health check — returns <code className="text-xs">{'{ status: "ok", timestamp }'}</code>. No auth required.
+          </span>
           <AuthBadge auth="none" />
         </div>
       </div>
