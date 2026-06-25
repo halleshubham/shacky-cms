@@ -29,6 +29,7 @@ import stockRoutes from './routes/stock.js';
 import statsRoutes from './routes/stats.js';
 import migrationRoutes from './routes/migration.js';
 import integrationsRoutes from './routes/integrations.js';
+import formsRoutes from './routes/forms.js';
 import { startScheduler } from './workers/scheduler.js';
 import { startIngestWorker } from './workers/ingestWorker.js';
 
@@ -130,6 +131,7 @@ async function main() {
   fastify.register(statsRoutes, { prefix: '/api/stats' });
   fastify.register(migrationRoutes, { prefix: '/api/migration' });
   fastify.register(integrationsRoutes, { prefix: '/api/integrations' });
+  fastify.register(formsRoutes, { prefix: '/api/forms' });
 
   // Global error handler
   fastify.setErrorHandler((error, req, reply) => {

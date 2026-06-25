@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, FileText, BookOpen, Users, Image, Tag, FolderOpen,
   Mail, UserCheck, Settings, LogOut, ChevronRight, Newspaper, ExternalLink,
-  Download, UploadCloud, Plug, Code2, X,
+  Download, UploadCloud, Plug, Code2, X, ClipboardList,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
@@ -26,6 +26,7 @@ const navItems: NavItem[] = [
   { label: 'Pages', href: '/admin/pages', icon: BookOpen },
   { label: 'Authors', href: '/admin/authors', icon: Users },
   { label: 'Media', href: '/admin/media', icon: Image },
+  { label: 'Forms', href: '/admin/forms', icon: ClipboardList },
   { label: 'Categories', href: '/admin/categories', icon: FolderOpen },
   { label: 'Tags', href: '/admin/tags', icon: Tag },
   { label: 'Subscribers', href: '/admin/subscribers', icon: UserCheck, roles: ['superadmin', 'editor', 'subscriber_manager'] },

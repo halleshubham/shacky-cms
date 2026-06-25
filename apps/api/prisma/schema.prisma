@@ -366,3 +366,35 @@ enum CampaignStatus {
   sent
   failed
 }
+
+model Form {
+  id               String      @id @default(cuid())
+  name             String
+  slug             String      @unique
+  fields           Json        @default("[]")
+  isActive         Boolean     @default(true)
+  successMessage   String?
+  notifyEmail      String?
+  notifyDigest     String?
+  webhookUrl       String?
+  lastDigestSentAt DateTime?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  entries          FormEntry[]
+
+  @@map("forms")
+}
+
+model FormEntry {
+  id        String   @id @default(cuid())
+  formId    String
+  data      Json
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  form      Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
+
+  @@index([formId])
+  @@index([createdAt])
+  @@map("form_entries")
+}
