@@ -63,9 +63,13 @@ export default function IntegrationsPage() {
   };
 
   const deleteAppPassword = async (id: string) => {
-    await api.delete(`/api/auth/application-passwords/${id}`);
-    setAppPasswords((prev) => prev.filter((p) => p.id !== id));
-    toast.success('Revoked');
+    try {
+      await api.delete(`/api/auth/application-passwords/${id}`);
+      setAppPasswords((prev) => prev.filter((p) => p.id !== id));
+      toast.success('Revoked');
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to revoke');
+    }
   };
 
   const copyToken = () => {

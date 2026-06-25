@@ -566,13 +566,13 @@ export default function ApiDocsPage() {
   const total = GROUPS.reduce((s, g) => s + g.endpoints.length, 0);
   const [baseUrl, setBaseUrl] = useState('');
   const [token, setToken] = useState('');
-
-  // Derive base URL from the current origin — the Next.js proxy forwards /api/* to the API,
-  // so curl commands should target the same host the admin is running on.
-  useEffect(() => {
-    setBaseUrl(process.env.NEXT_PUBLIC_API_URL || window.location.origin);
-  }, []);
   const [query, setQuery] = useState('');
+
+  // Use window.location.origin: Next.js proxies /api/* to the backend,
+  // so curl commands should target the same host the browser is on, not the raw API port.
+  useEffect(() => {
+    setBaseUrl(window.location.origin);
+  }, []);
 
   const filteredGroups = useMemo(() => {
     const q = query.trim().toLowerCase();
