@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../plugins/prisma.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
 import { sendMail } from '../services/email.js';
+import { createId } from '@paralleldrive/cuid2';
 
 const fieldSchema = z.object({
   name: z.string().min(1),
@@ -148,15 +149,99 @@ const formsRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.get('/:id/entries/export', { preHandler: [authenticate] }, async (req, reply) => {
     const { id } = req.params as { id: string };
+    const query = req.query as { ids?: string };
     const form = await prisma.form.findUnique({ where: { id } });
     if (!form) return reply.status(404).send({ message: 'Not found' });
-    const entries = await prisma.formEntry.findMany({ where: { formId: id }, orderBy: { createdAt: 'desc' } });
+    const ids = query.ids ? query.ids.split(',').filter(Boolean) : undefined;
+    const entries = await prisma.formEntry.findMany({
+      where: { formId: id, ...(ids ? { id: { in: ids } } : {}) },
+      orderBy: { createdAt: 'desc' },
+    });
     const fields = (form.fields as unknown as FormField[]) ?? [];
     const csv = entriesToCsv(fields, entries.map((e) => ({ data: e.data, createdAt: e.createdAt, ip: e.ip })));
     const filename = `form-${form.slug}-entries.csv`;
     reply.header('Content-Type', 'text/csv');
     reply.header('Content-Disposition', `attachment; filename="${filename}"`);
     return reply.send(csv);
+  });
+
+  // Bulk delete selected entries
+  fastify.post('/:id/entries/bulk-delete', { preHandler: [authenticate, requireAdmin] }, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const { ids } = req.body as { ids: string[] };
+    if (!Array.isArray(ids) || ids.length === 0) return reply.status(400).send({ message: 'ids required' });
+    const { count } = await prisma.formEntry.deleteMany({ where: { formId: id, id: { in: ids } } });
+    return reply.send({ deleted: count });
+  });
+
+  // Add selected entries as subscribers to a list
+  fastify.post('/:id/entries/to-list', { preHandler: [authenticate, requireAdmin] }, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const body = req.body as {
+      entryIds: string[];
+      emailField?: string;
+      phoneField?: string;
+      nameField?: string;
+      channel: 'email' | 'whatsapp' | 'both';
+      listId?: string;
+      newListName?: string;
+    };
+
+    if (!body.emailField && !body.phoneField) {
+      return reply.status(400).send({ message: 'At least one of emailField or phoneField is required' });
+    }
+    if (!body.listId && !body.newListName?.trim()) {
+      return reply.status(400).send({ message: 'Provide listId or newListName' });
+    }
+
+    const entries = await prisma.formEntry.findMany({
+      where: { formId: id, id: { in: body.entryIds } },
+    });
+
+    // Resolve or create the list
+    let list: { id: string; name: string };
+    if (body.listId) {
+      const found = await prisma.subscriberList.findUnique({ where: { id: body.listId } });
+      if (!found) return reply.status(404).send({ message: 'List not found' });
+      list = found;
+    } else {
+      list = await prisma.subscriberList.create({ data: { name: body.newListName!.trim() } });
+    }
+
+    let added = 0;
+    let skipped = 0;
+
+    for (const entry of entries) {
+      const data = entry.data as Record<string, unknown>;
+      const email = body.emailField ? String(data[body.emailField] || '').trim() || null : null;
+      const phone = body.phoneField ? String(data[body.phoneField] || '').trim() || null : null;
+      const name = body.nameField ? String(data[body.nameField] || '').trim() || null : null;
+
+      if (!email && !phone) { skipped++; continue; }
+
+      try {
+        const subscriber = await prisma.subscriber.upsert({
+          where: email ? { email } : { phone: phone! },
+          create: {
+            email,
+            phone,
+            name,
+            channels: body.channel,
+            source: 'web_form',
+            unsubscribeToken: createId(),
+          },
+          update: { name: name ?? undefined },
+        });
+        await prisma.subscriberListMember.upsert({
+          where: { subscriberId_listId: { subscriberId: subscriber.id, listId: list.id } },
+          create: { subscriberId: subscriber.id, listId: list.id },
+          update: {},
+        });
+        added++;
+      } catch { skipped++; }
+    }
+
+    return reply.send({ added, skipped, listId: list.id, listName: list.name });
   });
 
   // --- Public form definition (for rendering the form) ---
