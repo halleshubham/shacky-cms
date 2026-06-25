@@ -60,6 +60,10 @@ function fieldExample(name: string): unknown {
   if (name === 'slug')              return 'my-slug';
   if (name === 'prompt')            return 'A photorealistic news image about politics';
   if (name === 'secret')            return 'your-webhook-secret';
+  if (name === 'notifyEmail')       return 'admin@example.com';
+  if (name === 'notifyDigest')      return 'per_entry';
+  if (name === 'successMessage')    return 'Thank you for your submission.';
+  if (name === 'fields')            return [{ name: 'email', label: 'Email', type: 'email', required: true }];
   if (name === 'code')              return '123456';
   if (name === 'html')              return '<p>HTML content</p>';
   if (name === 'brief')             return 'Brief context for the article';
@@ -477,6 +481,22 @@ const GROUPS: Group[] = [
       { method: 'PATCH', path: '/', auth: 'admin', desc: 'Upsert one or more settings.', body: ['{ [key]: value }'] },
       { method: 'DELETE', path: '/:key', auth: 'admin', desc: 'Remove a setting.' },
       { method: 'GET',  path: '/counts', auth: 'admin', desc: 'Row counts for every purgeable entity (posts, issues, categories, etc.).' },
+    ],
+  },
+  {
+    title: 'Forms',
+    prefix: '/api/forms',
+    endpoints: [
+      { method: 'GET',  path: '/', auth: 'any', desc: 'List all forms with entry counts.' },
+      { method: 'POST', path: '/', auth: 'admin', desc: 'Create a form.', body: ['name', 'slug', 'fields (array)', 'isActive?', 'successMessage?', 'notifyEmail?', 'notifyDigest? (per_entry|daily|weekly|monthly)', 'webhookUrl?'] },
+      { method: 'GET',  path: '/:id', auth: 'any', desc: 'Get a single form with entry count.' },
+      { method: 'PATCH', path: '/:id', auth: 'admin', desc: 'Update form settings or fields.' },
+      { method: 'DELETE', path: '/:id', auth: 'admin', desc: 'Delete a form and all its entries.' },
+      { method: 'GET',  path: '/:id/entries', auth: 'any', desc: 'Paginated list of form entries.', params: ['page', 'pageSize (max 100)'] },
+      { method: 'DELETE', path: '/:id/entries', auth: 'admin', desc: 'Delete all entries for a form.' },
+      { method: 'DELETE', path: '/:id/entries/:entryId', auth: 'admin', desc: 'Delete a single entry.' },
+      { method: 'GET',  path: '/:id/entries/export', auth: 'any', desc: 'Download all entries as a CSV file.' },
+      { method: 'POST', path: '/public/:slug', auth: 'none', desc: 'Submit a form entry (public endpoint, no auth required). Validates required fields and fires webhook/email notification.', body: ['...field values keyed by field name'] },
     ],
   },
   {
