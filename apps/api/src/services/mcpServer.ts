@@ -1,6 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
+import { env } from '../utils/env.js';
 
 export function createMcpServer(prisma: PrismaClient, userId: string, scopes: string[]): McpServer {
   const server = new McpServer({
@@ -66,6 +67,7 @@ export function createMcpServer(prisma: PrismaClient, userId: string, scopes: st
           id: p.id,
           title: p.title,
           slug: p.slug,
+          url: `${env.APP_URL}/articles/${p.slug}`,
           status: p.status,
           publishedAt: p.publishedAt,
           excerpt: p.excerpt,
@@ -98,7 +100,7 @@ export function createMcpServer(prisma: PrismaClient, userId: string, scopes: st
           },
         });
         if (!post) return { content: [{ type: 'text' as const, text: 'Post not found.' }], isError: true };
-        return { content: [{ type: 'text' as const, text: JSON.stringify(post, null, 2) }] };
+        return { content: [{ type: 'text' as const, text: JSON.stringify({ ...post, url: `${env.APP_URL}/articles/${post.slug}` }, null, 2) }] };
       },
     );
 
@@ -156,7 +158,7 @@ export function createMcpServer(prisma: PrismaClient, userId: string, scopes: st
           },
           select: { id: true, title: true, slug: true, status: true },
         });
-        return { content: [{ type: 'text' as const, text: JSON.stringify(post, null, 2) }] };
+        return { content: [{ type: 'text' as const, text: JSON.stringify({ ...post, url: `${env.APP_URL}/articles/${post.slug}` }, null, 2) }] };
       },
     );
 
@@ -184,7 +186,7 @@ export function createMcpServer(prisma: PrismaClient, userId: string, scopes: st
           data,
           select: { id: true, title: true, slug: true, status: true, publishedAt: true },
         });
-        return { content: [{ type: 'text' as const, text: JSON.stringify(post, null, 2) }] };
+        return { content: [{ type: 'text' as const, text: JSON.stringify({ ...post, url: `${env.APP_URL}/articles/${post.slug}` }, null, 2) }] };
       },
     );
   }
