@@ -26,6 +26,9 @@ pnpm db:seed        # seed initial data
 pnpm db:studio      # open Prisma Studio
 ```
 
+**Migration rule — always use `pnpm db:migrate`, never `prisma db push`.**
+`db push` bypasses the migration files in `prisma/migrations/`. The Docker entrypoint runs `prisma migrate deploy`, so any schema change not represented as a migration file will silently be missing on production and cause 500 errors. Use `pnpm db:migrate --name <description>` for every schema change, including in development.
+
 ### Build & type-check
 ```bash
 pnpm build          # builds shared → api → web in dependency order
