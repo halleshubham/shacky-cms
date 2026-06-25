@@ -22,11 +22,14 @@ async function request<T>(
   options: RequestInit = {},
 ): Promise<T> {
   const url = `${API_URL}${path}`;
+  // Only set Content-Type when there is a body — Fastify rejects bodyless DELETE/GET
+  // requests that carry Content-Type: application/json.
+  const hasBody = options.body != null;
   const response = await fetch(url, {
     ...options,
     credentials: 'include',
     headers: {
-      'Content-Type': 'application/json',
+      ...(hasBody && { 'Content-Type': 'application/json' }),
       ...options.headers,
     },
   });
