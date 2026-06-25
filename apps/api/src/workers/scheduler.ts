@@ -89,7 +89,8 @@ export async function sendFormDigests(): Promise<void> {
 }
 
 export function startScheduler(): NodeJS.Timeout {
-  let digestTick = 0;
+  // Start at 9 so the first digest check fires after 1 minute, not 10
+  let digestTick = 9;
   return setInterval(async () => {
     await publishScheduledPosts().catch((err) => console.error('[scheduler] post publish error:', err));
     // Run digest check every 10 minutes (every 10th 60-second tick)

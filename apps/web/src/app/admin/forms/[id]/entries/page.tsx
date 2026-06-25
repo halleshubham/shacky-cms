@@ -33,8 +33,7 @@ export default function FormEntriesPage({ params }: { params: { id: string } }) 
   useEffect(() => { loadEntries(); }, [params.id, page]);
 
   const handleExport = () => {
-    // Use direct link to trigger download — auth cookie is sent automatically
-    window.location.href = `/api/forms/${params.id}/entries/export`;
+    window.open(`/api/forms/${params.id}/entries/export`, '_blank');
   };
 
   const handleDeleteEntry = async (entryId: string) => {

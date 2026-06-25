@@ -42,7 +42,7 @@ export default function EditFormPage({ params }: { params: { id: string } }) {
           isActive: form.isActive,
           successMessage: form.successMessage || '',
           notifyEmail: form.notifyEmail || '',
-          notifyDigest: form.notifyDigest || '',
+          notifyDigest: form.notifyDigest || 'none',
           webhookUrl: form.webhookUrl || '',
         }}
       />

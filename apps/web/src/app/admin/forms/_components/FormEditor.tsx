@@ -11,6 +11,7 @@ import { api } from '@/lib/api';
 import toast from 'react-hot-toast';
 
 export interface FormField {
+  _key?: string;
   name: string;
   label: string;
   type: 'text' | 'email' | 'phone' | 'number' | 'textarea' | 'select' | 'checkbox' | 'radio' | 'date';
@@ -43,7 +44,7 @@ const FIELD_TYPES = [
 ];
 
 const DIGEST_OPTIONS = [
-  { value: '', label: 'No email notifications' },
+  { value: 'none', label: 'No email notifications' },
   { value: 'per_entry', label: 'Immediately (per entry)' },
   { value: 'daily', label: 'Daily digest' },
   { value: 'weekly', label: 'Weekly digest' },
@@ -55,7 +56,7 @@ function slugify(s: string): string {
 }
 
 function newField(): FormField {
-  return { name: '', label: '', type: 'text', required: false, placeholder: '' };
+  return { _key: `${Date.now()}-${Math.random().toString(36).slice(2)}`, name: '', label: '', type: 'text', required: false, placeholder: '' };
 }
 
 interface FieldEditorProps {
@@ -165,11 +166,11 @@ export default function FormEditor({ initialData, formId }: Props) {
   const [data, setData] = useState<FormData>({
     name: initialData?.name || '',
     slug: initialData?.slug || '',
-    fields: initialData?.fields || [],
+    fields: (initialData?.fields || []).map((f, i) => ({ ...f, _key: f._key || `existing-${i}` })),
     isActive: initialData?.isActive ?? true,
     successMessage: initialData?.successMessage || '',
     notifyEmail: initialData?.notifyEmail || '',
-    notifyDigest: initialData?.notifyDigest || '',
+    notifyDigest: initialData?.notifyDigest || 'none',
     webhookUrl: initialData?.webhookUrl || '',
   });
 
@@ -203,7 +204,8 @@ export default function FormEditor({ initialData, formId }: Props) {
     try {
       const payload = {
         ...data,
-        notifyDigest: data.notifyDigest || null,
+        fields: data.fields.map(({ _key, ...f }) => f),
+        notifyDigest: (data.notifyDigest && data.notifyDigest !== 'none') ? data.notifyDigest : null,
         webhookUrl: data.webhookUrl || null,
         notifyEmail: data.notifyEmail || null,
         successMessage: data.successMessage || null,
@@ -276,7 +278,7 @@ export default function FormEditor({ initialData, formId }: Props) {
           ) : (
             data.fields.map((field, i) => (
               <FieldEditor
-                key={i}
+                key={field._key || i}
                 field={field}
                 index={i}
                 onChange={updateField}

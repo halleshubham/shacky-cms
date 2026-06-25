@@ -3,7 +3,6 @@ import { z } from 'zod';
 import { prisma } from '../plugins/prisma.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
 import { sendMail } from '../services/email.js';
-import crypto from 'crypto';
 
 const fieldSchema = z.object({
   name: z.string().min(1),
@@ -27,8 +26,12 @@ const formSchema = z.object({
 
 type FormField = z.infer<typeof fieldSchema>;
 
-function slugifyHeader(s: string): string {
-  return s.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+function escHtml(s: unknown): string {
+  return String(s ?? '—')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 function entriesToCsv(fields: FormField[], entries: { data: unknown; createdAt: Date; ip: string | null }[]): string {
@@ -46,20 +49,20 @@ function entriesToCsv(fields: FormField[], entries: { data: unknown; createdAt: 
 
 function entryEmailHtml(formName: string, fields: FormField[], data: Record<string, unknown>): string {
   const rows = fields
-    .map((f) => `<tr><td style="padding:4px 8px;font-weight:600;color:#555">${f.label}</td><td style="padding:4px 8px">${data[f.name] ?? '—'}</td></tr>`)
+    .map((f) => `<tr><td style="padding:4px 8px;font-weight:600;color:#555">${escHtml(f.label)}</td><td style="padding:4px 8px">${escHtml(data[f.name])}</td></tr>`)
     .join('');
-  return `<p>New entry for <strong>${formName}</strong>:</p><table border="0" cellspacing="0" cellpadding="0" style="border-collapse:collapse;width:100%">${rows}</table>`;
+  return `<p>New entry for <strong>${escHtml(formName)}</strong>:</p><table border="0" cellspacing="0" cellpadding="0" style="border-collapse:collapse;width:100%">${rows}</table>`;
 }
 
 function digestEmailHtml(formName: string, fields: FormField[], entries: { data: unknown; createdAt: Date }[]): string {
   if (entries.length === 0) return '';
   const rows = entries.map((e) => {
     const data = e.data as Record<string, unknown>;
-    const cols = fields.map((f) => `<td style="padding:4px 8px;border-bottom:1px solid #eee">${data[f.name] ?? '—'}</td>`).join('');
-    return `<tr>${cols}<td style="padding:4px 8px;border-bottom:1px solid #eee;color:#888;font-size:12px">${e.createdAt.toLocaleString()}</td></tr>`;
+    const cols = fields.map((f) => `<td style="padding:4px 8px;border-bottom:1px solid #eee">${escHtml(data[f.name])}</td>`).join('');
+    return `<tr>${cols}<td style="padding:4px 8px;border-bottom:1px solid #eee;color:#888;font-size:12px">${escHtml(e.createdAt.toLocaleString())}</td></tr>`;
   }).join('');
-  const heads = [...fields.map((f) => `<th style="padding:4px 8px;text-align:left;background:#f5f5f5">${f.label}</th>`), '<th style="padding:4px 8px;text-align:left;background:#f5f5f5">Submitted</th>'].join('');
-  return `<p><strong>${entries.length}</strong> new entr${entries.length === 1 ? 'y' : 'ies'} for <strong>${formName}</strong>:</p><table border="0" cellspacing="0" style="border-collapse:collapse;width:100%"><thead><tr>${heads}</tr></thead><tbody>${rows}</tbody></table>`;
+  const heads = [...fields.map((f) => `<th style="padding:4px 8px;text-align:left;background:#f5f5f5">${escHtml(f.label)}</th>`), '<th style="padding:4px 8px;text-align:left;background:#f5f5f5">Submitted</th>'].join('');
+  return `<p><strong>${entries.length}</strong> new entr${entries.length === 1 ? 'y' : 'ies'} for <strong>${escHtml(formName)}</strong>:</p><table border="0" cellspacing="0" style="border-collapse:collapse;width:100%"><thead><tr>${heads}</tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 async function fireFormWebhook(webhookUrl: string, formSlug: string, data: Record<string, unknown>): Promise<void> {
