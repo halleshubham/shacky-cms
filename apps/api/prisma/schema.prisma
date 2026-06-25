@@ -23,6 +23,8 @@ model User {
   uploadedMedia        Media[]
   posts                PostAuthor[]
   revisions            Revision[]
+  oauthAuthCodes       OAuthAuthCode[]
+  oauthAccessTokens    OAuthAccessToken[]
 
   @@map("users")
 }
@@ -397,4 +399,53 @@ model FormEntry {
   @@index([formId])
   @@index([createdAt])
   @@map("form_entries")
+}
+
+model OAuthClient {
+  id                      String             @id @default(cuid())
+  clientId                String             @unique
+  clientSecret            String?
+  name                    String
+  redirectUris            String[]
+  scopes                  String[]
+  grantTypes              String[]
+  tokenEndpointAuthMethod String             @default("none")
+  createdAt               DateTime           @default(now())
+  authCodes               OAuthAuthCode[]
+  accessTokens            OAuthAccessToken[]
+
+  @@map("oauth_clients")
+}
+
+model OAuthAuthCode {
+  id                  String      @id @default(cuid())
+  code                String      @unique
+  client              OAuthClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId            String
+  user                User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId              String
+  scopes              String[]
+  redirectUri         String
+  codeChallenge       String?
+  codeChallengeMethod String?
+  expiresAt           DateTime
+  createdAt           DateTime    @default(now())
+
+  @@index([code])
+  @@map("oauth_auth_codes")
+}
+
+model OAuthAccessToken {
+  id        String      @id @default(cuid())
+  token     String      @unique
+  client    OAuthClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId  String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  scopes    String[]
+  expiresAt DateTime
+  createdAt DateTime    @default(now())
+
+  @@index([token])
+  @@map("oauth_access_tokens")
 }

@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Save, Loader2, Plus, Trash2, Webhook, CheckCircle2, AlertCircle, ExternalLink, Key, Copy, Check, BookOpen } from 'lucide-react';
+import { Save, Loader2, Plus, Trash2, Webhook, CheckCircle2, AlertCircle, ExternalLink, Key, Copy, Check, BookOpen, Bot } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -34,6 +34,10 @@ export default function IntegrationsPage() {
   const [copied, setCopied] = useState(false);
   const [creatingPass, setCreatingPass] = useState(false);
 
+  // MCP / OAuth connections
+  const [oauthTokens, setOauthTokens] = useState<any[]>([]);
+  const [mcpBaseUrl, setMcpBaseUrl] = useState('');
+
   useEffect(() => {
     api.get<any>('/api/settings').then((s) => {
       if (s.botsab_base_url) setBotsabBaseUrl(s.botsab_base_url);
@@ -43,6 +47,10 @@ export default function IntegrationsPage() {
     api.get<any[]>('/api/webhooks').then(setWebhooks).catch(() => {});
     api.get<string[]>('/api/webhooks/events').then(setWebhookEvents).catch(() => {});
     api.get<any[]>('/api/auth/application-passwords').then(setAppPasswords).catch(() => {});
+    api.get<any[]>('/api/oauth/tokens').then(setOauthTokens).catch(() => {});
+    // API URL is the same origin in dev (next.js rewrites /api/*) but MCP connects directly
+    // Show the API URL for the MCP server field in Claude.ai settings
+    fetch('/api/oauth/mcp-info').then((r) => r.ok ? r.json() : null).then((d) => { if (d?.apiUrl) setMcpBaseUrl(d.apiUrl); }).catch(() => {});
   }, []);
 
   const createAppPassword = async (e: React.FormEvent) => {
@@ -67,6 +75,16 @@ export default function IntegrationsPage() {
       await api.delete(`/api/auth/application-passwords/${id}`);
       setAppPasswords((prev) => prev.filter((p) => p.id !== id));
       toast.success('Revoked');
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to revoke');
+    }
+  };
+
+  const revokeOauthToken = async (id: string) => {
+    try {
+      await api.delete(`/api/oauth/tokens/${id}`);
+      setOauthTokens((prev) => prev.filter((t) => t.id !== id));
+      toast.success('Connection revoked');
     } catch (err: any) {
       toast.error(err?.message || 'Failed to revoke');
     }
@@ -317,6 +335,98 @@ export default function IntegrationsPage() {
           )}
         </CardContent>
       </Card>
+      {/* ── MCP (Claude AI) ─────────────────────────────────────────────────── */}
+      <Card id="mcp">
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Bot className="h-4 w-4" /> MCP — Claude AI Integration
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Connect Claude.ai (or any MCP client) to your CMS using the Model Context Protocol.
+            Claude can list, search, and create posts; browse media; and more — directly from the chat.
+          </p>
+
+          {/* Setup instructions */}
+          <div className="rounded-lg border bg-muted/40 p-4 space-y-3 text-sm">
+            <p className="font-medium">How to connect</p>
+            <ol className="list-decimal list-inside space-y-1.5 text-muted-foreground">
+              <li>Open <strong className="text-foreground">Claude.ai → Settings → Integrations</strong> (or Claude desktop MCP settings)</li>
+              <li>Add a new MCP server with the URL below</li>
+              <li>Claude will open the authorization page — log in and click <strong className="text-foreground">Allow Access</strong></li>
+            </ol>
+            <div className="space-y-1">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">MCP Server URL</p>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 text-xs bg-background border rounded px-3 py-2 font-mono break-all">
+                  {mcpBaseUrl ? `${mcpBaseUrl}/mcp` : 'Loading…'}
+                </code>
+                {mcpBaseUrl && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => { navigator.clipboard.writeText(`${mcpBaseUrl}/mcp`); toast.success('Copied!'); }}
+                    className="shrink-0"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Available scopes */}
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Available permissions</p>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              {[
+                { scope: 'posts:read', label: 'Read posts & taxonomy' },
+                { scope: 'posts:write', label: 'Create & update posts' },
+                { scope: 'media:read', label: 'Browse media library' },
+                { scope: 'subscribers:read', label: 'View subscribers' },
+              ].map(({ scope, label }) => (
+                <div key={scope} className="flex items-center gap-1.5 text-muted-foreground">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />
+                  <span><span className="font-mono text-foreground">{scope}</span> — {label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Active connections */}
+          {oauthTokens.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Active connections</p>
+              <div className="divide-y border rounded-lg">
+                {oauthTokens.map((t) => (
+                  <div key={t.id} className="flex items-center justify-between px-3 py-2 gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium">{t.clientName}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Scopes: {t.scopes.join(', ')} · Expires {new Date(t.expiresAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => revokeOauthToken(t.id)}
+                      className="text-destructive hover:text-destructive shrink-0"
+                    >
+                      Revoke
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {oauthTokens.length === 0 && (
+            <p className="text-xs text-muted-foreground">No active MCP connections yet.</p>
+          )}
+        </CardContent>
+      </Card>
+
       {/* ── Application Passwords ───────────────────────────────────────────── */}
       <Card id="app-passwords">
         <CardHeader>

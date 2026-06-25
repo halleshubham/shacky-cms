@@ -21,6 +21,7 @@
     "@fastify/swagger": "^8.14.0",
     "@fastify/swagger-ui": "^4.0.1",
     "@google/generative-ai": "^0.24.1",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@paralleldrive/cuid2": "^2.2.2",
     "@prisma/client": "^5.16.1",
     "@shacky/shared": "workspace:*",

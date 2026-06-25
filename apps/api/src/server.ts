@@ -30,6 +30,8 @@ import statsRoutes from './routes/stats.js';
 import migrationRoutes from './routes/migration.js';
 import integrationsRoutes from './routes/integrations.js';
 import formsRoutes from './routes/forms.js';
+import oauthRoutes from './routes/oauth.js';
+import mcpRoutes from './routes/mcp.js';
 import { startScheduler } from './workers/scheduler.js';
 import { startIngestWorker } from './workers/ingestWorker.js';
 
@@ -132,6 +134,8 @@ async function main() {
   fastify.register(migrationRoutes, { prefix: '/api/migration' });
   fastify.register(integrationsRoutes, { prefix: '/api/integrations' });
   fastify.register(formsRoutes, { prefix: '/api/forms' });
+  fastify.register(oauthRoutes);  // /.well-known/*, /oauth/*, /api/oauth/*
+  fastify.register(mcpRoutes);    // /mcp
 
   // Global error handler
   fastify.setErrorHandler((error, req, reply) => {
