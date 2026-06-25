@@ -18,8 +18,8 @@ const formSchema = z.object({
   slug: z.string().min(1).regex(/^[a-z0-9-]+$/),
   fields: z.array(fieldSchema).default([]),
   isActive: z.boolean().optional(),
-  successMessage: z.string().optional(),
-  notifyEmail: z.string().optional(),
+  successMessage: z.string().nullable().optional(),
+  notifyEmail: z.string().nullable().optional(),
   notifyDigest: z.enum(['per_entry', 'daily', 'weekly', 'monthly']).nullable().optional(),
   webhookUrl: z.string().url().nullable().optional(),
 });
