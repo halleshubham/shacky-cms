@@ -9,6 +9,7 @@ import { hashPassword, verifyPassword, generateApplicationSecret, buildApplicati
 import { authenticate, requireSuperAdmin } from '../middleware/auth.js';
 import { audit } from '../utils/audit.js';
 import { env } from '../utils/env.js';
+import { sendMail } from '../services/email.js';
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -156,6 +157,26 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     });
 
     await audit(req, 'user.created', { entity: 'user', entityId: user.id });
+
+    const siteName = await prisma.setting.findUnique({ where: { key: 'site_title' } })
+      .then((r) => r?.value || 'Shacky CMS');
+
+    sendMail({
+      to: user.email,
+      subject: `Your ${siteName} account has been created`,
+      html: `
+        <p>Hi ${user.name},</p>
+        <p>A <strong>${siteName}</strong> account has been created for you by an administrator.</p>
+        <table>
+          <tr><td><strong>Email:</strong></td><td>${user.email}</td></tr>
+          <tr><td><strong>Password:</strong></td><td>${body.password}</td></tr>
+          <tr><td><strong>Role:</strong></td><td>${user.role}</td></tr>
+        </table>
+        <p><a href="${env.APP_URL}/login">Log in now</a> and change your password after your first sign-in.</p>
+      `,
+      text: `Hi ${user.name},\n\nA ${siteName} account has been created for you.\n\nEmail: ${user.email}\nPassword: ${body.password}\nRole: ${user.role}\n\nLogin: ${env.APP_URL}/login\n\nPlease change your password after your first sign-in.`,
+    }).catch((err) => fastify.log.warn({ err }, 'Failed to send welcome email'));
+
     return reply.status(201).send({
       id: user.id,
       email: user.email,

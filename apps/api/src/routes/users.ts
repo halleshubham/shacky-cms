@@ -4,6 +4,8 @@ import { prisma } from '../plugins/prisma.js';
 import { authenticate, requireSuperAdmin } from '../middleware/auth.js';
 import { hashPassword } from '../utils/password.js';
 import { audit } from '../utils/audit.js';
+import { sendMail } from '../services/email.js';
+import { env } from '../utils/env.js';
 
 const updateUserSchema = z.object({
   name: z.string().min(1).optional(),
@@ -36,6 +38,25 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
       select: { id: true, email: true, name: true, role: true, totpEnabled: true, createdAt: true },
     });
     await audit(req, 'user.updated', { entity: 'user', entityId: id });
+
+    if (body.password) {
+      const siteName = await prisma.setting.findUnique({ where: { key: 'site_title' } })
+        .then((r) => r?.value || 'Shacky CMS');
+
+      sendMail({
+        to: user.email,
+        subject: `Your ${siteName} password has been reset`,
+        html: `
+          <p>Hi ${user.name},</p>
+          <p>An administrator has reset your <strong>${siteName}</strong> password.</p>
+          <p><strong>New password:</strong> ${body.password}</p>
+          <p><a href="${env.APP_URL}/login">Log in now</a> and change your password from your profile settings.</p>
+          <p>If you did not expect this change, please contact your administrator.</p>
+        `,
+        text: `Hi ${user.name},\n\nAn administrator has reset your ${siteName} password.\n\nNew password: ${body.password}\n\nLogin: ${env.APP_URL}/login\n\nIf you did not expect this change, please contact your administrator.`,
+      }).catch((err) => fastify.log.warn({ err }, 'Failed to send password-reset notification'));
+    }
+
     return reply.send(user);
   });
 
