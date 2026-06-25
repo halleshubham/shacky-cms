@@ -4,7 +4,8 @@ import NextImage from 'next/image';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, FileText, BookOpen, Users, Image, Tag, FolderOpen,
-  Mail, UserCheck, Settings, LogOut, ChevronRight, Newspaper, ExternalLink, Download, UploadCloud, Plug, Code2,
+  Mail, UserCheck, Settings, LogOut, ChevronRight, Newspaper, ExternalLink,
+  Download, UploadCloud, Plug, Code2, X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
@@ -36,7 +37,12 @@ const navItems: NavItem[] = [
   { label: 'API Docs', href: '/admin/api-docs', icon: Code2 },
 ];
 
-export function Sidebar() {
+interface SidebarProps {
+  open: boolean;
+  onClose: () => void;
+}
+
+export function Sidebar({ open, onClose }: SidebarProps) {
   const pathname = usePathname();
   const { user, logout } = useAuth();
   const siteSettings = useSiteSettings();
@@ -49,25 +55,35 @@ export function Sidebar() {
     return item.roles.includes(user.role);
   });
 
-  return (
+  const inner = (
     <aside className="flex flex-col w-64 h-full overflow-y-auto flex-shrink-0 bg-[#0F172A] text-slate-300">
       {/* Logo */}
-      <div className="px-5 py-5 border-b border-white/10">
-        {siteLogo ? (
-          <NextImage
-            src={siteLogo}
-            alt={siteName}
-            width={160}
-            height={48}
-            className="h-9 w-auto object-contain brightness-0 invert"
-            priority
-          />
-        ) : (
-          <h1 className="text-lg font-bold text-white tracking-wide" style={{ fontFamily: 'var(--font-playfair), Georgia, serif' }}>
-            {siteName}
-          </h1>
-        )}
-        <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-widest font-medium">Editorial Platform</p>
+      <div className="px-5 py-5 border-b border-white/10 flex items-center justify-between">
+        <div>
+          {siteLogo ? (
+            <NextImage
+              src={siteLogo}
+              alt={siteName}
+              width={160}
+              height={48}
+              className="h-9 w-auto object-contain brightness-0 invert"
+              priority
+            />
+          ) : (
+            <h1 className="text-lg font-bold text-white tracking-wide" style={{ fontFamily: 'var(--font-playfair), Georgia, serif' }}>
+              {siteName}
+            </h1>
+          )}
+          <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-widest font-medium">Editorial Platform</p>
+        </div>
+        {/* Close button — mobile only */}
+        <button
+          onClick={onClose}
+          className="lg:hidden p-1 rounded text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+          aria-label="Close menu"
+        >
+          <X className="h-5 w-5" />
+        </button>
       </div>
 
       {/* Nav */}
@@ -79,6 +95,7 @@ export function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
+              onClick={onClose}
               className={cn(
                 'flex items-center gap-3 px-3 py-2 rounded text-sm font-medium transition-all duration-150',
                 isActive
@@ -127,5 +144,34 @@ export function Sidebar() {
         </button>
       </div>
     </aside>
+  );
+
+  return (
+    <>
+      {/* Desktop: always visible static sidebar */}
+      <div className="hidden lg:flex flex-shrink-0">
+        {inner}
+      </div>
+
+      {/* Mobile: overlay drawer */}
+      {/* Backdrop */}
+      <div
+        className={cn(
+          'lg:hidden fixed inset-0 z-40 bg-black/50 transition-opacity duration-200',
+          open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none',
+        )}
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      {/* Drawer */}
+      <div
+        className={cn(
+          'lg:hidden fixed inset-y-0 left-0 z-50 flex transition-transform duration-200 ease-in-out',
+          open ? 'translate-x-0' : '-translate-x-full',
+        )}
+      >
+        {inner}
+      </div>
+    </>
   );
 }

@@ -74,7 +74,7 @@ export default function SubscribersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">Subscribers</h1>
           <p className="text-muted-foreground">{total} subscriber{total !== 1 ? 's' : ''}</p>
@@ -120,7 +120,7 @@ export default function SubscribersPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex gap-3">
+      <div className="flex flex-wrap gap-3">
         <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v === 'all' ? '' : v); setPage(1); }}>
           <SelectTrigger className="w-40"><SelectValue placeholder="All statuses" /></SelectTrigger>
           <SelectContent>
@@ -141,16 +141,16 @@ export default function SubscribersPage() {
       {loading ? (
         <div className="text-muted-foreground">Loading…</div>
       ) : (
-        <div className="border rounded-lg bg-card overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="border rounded-lg bg-card overflow-x-auto">
+          <table className="w-full text-sm min-w-[600px]">
             <thead className="bg-muted/50 text-muted-foreground text-xs uppercase tracking-wider">
               <tr>
                 <th className="text-left px-4 py-3">Name</th>
                 <th className="text-left px-4 py-3">Email</th>
-                <th className="text-left px-4 py-3">Phone</th>
-                <th className="text-left px-4 py-3">Channels</th>
+                <th className="text-left px-4 py-3 hidden sm:table-cell">Phone</th>
+                <th className="text-left px-4 py-3 hidden sm:table-cell">Channels</th>
                 <th className="text-left px-4 py-3">Status</th>
-                <th className="text-left px-4 py-3">Subscribed</th>
+                <th className="text-left px-4 py-3 hidden md:table-cell">Subscribed</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -158,12 +158,12 @@ export default function SubscribersPage() {
                 <tr key={s.id} className="hover:bg-muted/20 transition-colors">
                   <td className="px-4 py-2">{s.name || '—'}</td>
                   <td className="px-4 py-2 font-mono text-xs">{s.email || '—'}</td>
-                  <td className="px-4 py-2 font-mono text-xs">{s.phone || '—'}</td>
-                  <td className="px-4 py-2 capitalize">{s.channels}</td>
+                  <td className="px-4 py-2 font-mono text-xs hidden sm:table-cell">{s.phone || '—'}</td>
+                  <td className="px-4 py-2 capitalize hidden sm:table-cell">{s.channels}</td>
                   <td className="px-4 py-2">
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor(s.status)}`}>{s.status}</span>
                   </td>
-                  <td className="px-4 py-2 text-muted-foreground">{formatDate(s.subscribedAt)}</td>
+                  <td className="px-4 py-2 text-muted-foreground hidden md:table-cell">{formatDate(s.subscribedAt)}</td>
                 </tr>
               ))}
               {subscribers.length === 0 && (

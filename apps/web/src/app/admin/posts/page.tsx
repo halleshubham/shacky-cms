@@ -93,13 +93,13 @@ export default function PostsPage() {
         </Button>
       </div>
 
-      <div className="flex gap-3 flex-wrap">
+      <div className="flex flex-col sm:flex-row gap-3">
         <form onSubmit={handleSearch} className="flex gap-2 flex-1 min-w-0">
-          <Input placeholder="Search posts…" value={search} onChange={(e) => setSearch(e.target.value)} className="max-w-xs" />
+          <Input placeholder="Search posts…" value={search} onChange={(e) => setSearch(e.target.value)} className="flex-1" />
           <Button type="submit" variant="outline" size="icon"><Search className="h-4 w-4" /></Button>
         </form>
         <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v === 'all' ? '' : v); setPage(1); }}>
-          <SelectTrigger className="w-40"><SelectValue placeholder="All statuses" /></SelectTrigger>
+          <SelectTrigger className="w-full sm:w-40"><SelectValue placeholder="All statuses" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All statuses</SelectItem>
             <SelectItem value="draft">Draft</SelectItem>
@@ -160,15 +160,15 @@ export default function PostsPage() {
                     {post.viewCount > 0 && <><span>·</span><span>{post.viewCount} views</span></>}
                   </div>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-1 sm:gap-2 shrink-0">
                   <button
                     onClick={() => toggleFeatured(post)}
                     title={post.isFeatured ? 'Unfeature' : 'Feature'}
-                    className={`p-1.5 rounded hover:bg-muted transition-colors ${post.isFeatured ? 'text-amber-500' : 'text-muted-foreground'}`}
+                    className={`hidden sm:flex p-1.5 rounded hover:bg-muted transition-colors ${post.isFeatured ? 'text-amber-500' : 'text-muted-foreground'}`}
                   >
                     <Star className={`h-3.5 w-3.5 ${post.isFeatured ? 'fill-current' : ''}`} />
                   </button>
-                  <button onClick={() => duplicate(post.id)} title="Duplicate" className="p-1.5 rounded hover:bg-muted text-muted-foreground transition-colors">
+                  <button onClick={() => duplicate(post.id)} title="Duplicate" className="hidden sm:flex p-1.5 rounded hover:bg-muted text-muted-foreground transition-colors">
                     <Copy className="h-3.5 w-3.5" />
                   </button>
                   <button

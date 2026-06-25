@@ -86,9 +86,9 @@ export default function UsersPage() {
                   <p className="text-xs text-muted-foreground">{u.email}</p>
                 </div>
               </div>
-              <div className="flex items-center gap-3 shrink-0">
+              <div className="flex items-center gap-2 shrink-0">
                 <span className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${roleColor[u.role] || ''}`}>{u.role.replace('_', ' ')}</span>
-                <span className="text-xs text-muted-foreground">{formatDate(u.createdAt)}</span>
+                <span className="text-xs text-muted-foreground hidden sm:inline">{formatDate(u.createdAt)}</span>
                 {u.id !== currentUser?.id && (
                   <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDelete(u.id, u.name)}>
                     <Trash2 className="h-3 w-3" />

@@ -1,18 +1,26 @@
 'use client';
-import { Moon, Sun, Bell } from 'lucide-react';
+import { Moon, Sun, Menu } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { Button } from '@/components/ui/button';
 
 interface HeaderProps {
-  title?: string;
+  onMenuOpen: () => void;
 }
 
-export function Header({ title }: HeaderProps) {
+export function Header({ onMenuOpen }: HeaderProps) {
   const { theme, setTheme } = useTheme();
 
   return (
-    <header className="h-14 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 flex items-center justify-between px-6">
-      {title && <h2 className="text-base font-semibold">{title}</h2>}
+    <header className="h-14 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 flex items-center justify-between px-4 gap-3">
+      {/* Hamburger — mobile only */}
+      <button
+        onClick={onMenuOpen}
+        className="lg:hidden p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+        aria-label="Open menu"
+      >
+        <Menu className="h-5 w-5" />
+      </button>
+
       <div className="ml-auto flex items-center gap-2">
         <Button
           variant="ghost"

@@ -76,14 +76,14 @@ export default function CampaignsPage() {
                   </div>
                 )}
               </div>
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
                 <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor(c.status)}`}>{c.status}</span>
                 <Button variant="outline" size="sm" onClick={() => openPreview(c.id)} className="gap-1">
-                  <Eye className="h-3 w-3" /> Preview
+                  <Eye className="h-3 w-3" /> <span className="hidden sm:inline">Preview</span>
                 </Button>
                 {c.status !== 'sent' && (
                   <Button size="sm" onClick={() => sendCampaign(c.id)} className="gap-1">
-                    <Send className="h-3 w-3" /> Send
+                    <Send className="h-3 w-3" /> <span className="hidden sm:inline">Send</span>
                   </Button>
                 )}
                 <Button variant="ghost" size="sm" asChild>

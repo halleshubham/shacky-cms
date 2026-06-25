@@ -59,9 +59,9 @@ export default function IssuesPage() {
           {issues.map((issue) => (
             <Card key={issue.id}>
               <CardContent className="py-4">
-                <div className="flex items-center justify-between gap-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <Link href={`/admin/issues/${issue.id}`} className="text-base font-semibold hover:underline">
                         {issue.title}
                       </Link>
@@ -72,7 +72,7 @@ export default function IssuesPage() {
                       {issue._count?.posts !== undefined && ` · ${issue._count.posts} article${issue._count.posts !== 1 ? 's' : ''}`}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-2 shrink-0 flex-wrap">
                     <Button variant="outline" size="sm" asChild>
                       <Link href={`/admin/issues/${issue.id}`}><Settings className="h-3 w-3" /> Manage</Link>
                     </Button>
