@@ -1,0 +1,507 @@
+{
+  "name": "Janata Weekly Mail Publishing",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyHour"
+            }
+          ]
+        },
+        "simple": false,
+        "filters": {
+          "labelIds": [
+            "INBOX"
+          ],
+          "q": "subject: articles",
+          "readStatus": "unread"
+        },
+        "options": {
+          "downloadAttachments": true
+        }
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        0
+      ],
+      "id": "948eb881-3664-4cfb-a315-dda4cf09c56a",
+      "name": "Gmail Trigger",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "YOUR_GMAIL_CREDENTIAL_ID",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "compress",
+        "binaryPropertyName": "={{ $json.attachmentNames }}",
+        "fileName": "data.zip"
+      },
+      "type": "n8n-nodes-base.compression",
+      "typeVersion": 1.1,
+      "position": [
+        448,
+        0
+      ],
+      "id": "c58149cc-6885-4c0c-a00a-f7b0a6297973",
+      "name": "Compression"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nreturn items.map(item => {\n  const binary = item.binary || {};\n\n  const attachmentKeys = Object.keys(binary)\n    .filter(key => key.startsWith(\"attachment_\"))\n    .sort((a, b) => {\n      const numA = parseInt(a.split(\"_\")[1], 10);\n      const numB = parseInt(b.split(\"_\")[1], 10);\n      return numA - numB;\n    });\n\n  return {\n    json: {\n      ...item.json,\n      attachmentCount: attachmentKeys.length,\n      attachmentNames: attachmentKeys.join(\", \"),\n    },\n    binary: binary, // Preserve binary data\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        0
+      ],
+      "id": "f6093323-de8e-439d-9425-1d63c280ee7e",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://YOUR_CMS_DOMAIN/api/ingest/preview",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_APPLICATION_PASSWORD"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        816,
+        -208
+      ],
+      "id": "84f7c075-2b83-4309-9aa8-528e451512e0",
+      "name": "SHACKY CMS Issue - Preview"
+    },
+    {
+      "parameters": {
+        "url": "https://YOUR_CMS_DOMAIN/api/issues",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_APPLICATION_PASSWORD"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1008,
+        -208
+      ],
+      "id": "786f092f-0bfc40e8-9360-e0e9201ef54d",
+      "name": "GETLatest Issue",
+      "retryOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://YOUR_CMS_DOMAIN/api/issues",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_APPLICATION_PASSWORD"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "volumeNumber",
+              "value": "={{ $json.data[0].volumeNumber }}"
+            },
+            {
+              "name": "issueNumber",
+              "value": "={{ $json.data[0].issueNumber+1 }}"
+            },
+            {
+              "name": "title",
+              "value": "={{\"Janata Weekly — Vol.\"+$json.data[0].volumeNumber+ \", No.\"}}{{ $json.data[0].issueNumber+1 }}"
+            },
+            {
+              "name": "publishDate",
+              "value": "={{ new Date().toISOString() }}"
+            },
+            {
+              "name": "type",
+              "value": "blog"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1200,
+        -208
+      ],
+      "id": "c0536860-0f94-4fb7-bc1e-0df4a7714a8f",
+      "name": "POST Create New Issue"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://YOUR_CMS_DOMAIN/api/ingest",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_APPLICATION_PASSWORD"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "issueId",
+              "value": "={{ $json.id }}"
+            },
+            {
+              "name": "publishHour",
+              "value": "9"
+            },
+            {
+              "name": "aiOptions",
+              "value": "{\"generateTags\":false,\"searchStockImage\":true}"
+            },
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1664,
+        0
+      ],
+      "id": "0ac7d87d-7f37-4698-b54a-718ec15fdff0",
+      "name": "Ingest Articles to New Issue"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Grab binary from Compression output, JSON from POST Create New Issue\nconst compressedItem = $('Compression').first();\nconst newIssueItem = $('POST Create New Issue').first();\n\nreturn [{\n  json: {\n    ...newIssueItem.json,\n  },\n  binary: {\n    data: compressedItem.binary.data, // the zip binary\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1488,
+        0
+      ],
+      "id": "715c9386-0a41-4a2f-8570-20385c4225ce",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://YOUR_CMS_DOMAIN/api/issues/{{ $('Merge').item.json.id }}/bulk-publish",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_APPLICATION_PASSWORD"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "status",
+              "value": "published"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 3000000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1872,
+        0
+      ],
+      "id": "40f65b6a-fb49-4829-b096-1a90c05596fb",
+      "name": "Publish all articles in issue",
+      "retryOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://YOUR_CMS_DOMAIN/api/campaigns/{{ $('Create Campaign').item.json.id }}/test-send",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_APPLICATION_PASSWORD"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "email",
+              "value": "YOUR_TEST_EMAIL"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 100000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        2288,
+        0
+      ],
+      "id": "1936c2c4-f419-4256-ab34-7f3418dbf8e2",
+      "name": "Send Issue Mail",
+      "retryOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "markAsRead",
+        "messageId": "={{ $('Gmail Trigger').item.json.id }}"
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        2496,
+        0
+      ],
+      "id": "932de0a6-8770-4b5b-bd30-5b8d0bfb4efc",
+      "name": "Mark a message as read",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "YOUR_GMAIL_CREDENTIAL_ID",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://YOUR_CMS_DOMAIN/api/campaigns",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_APPLICATION_PASSWORD"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "name",
+              "value": "={{\"Weekly Mail \"}}{{ new Date().toISOString() }}"
+            },
+            {
+              "name": "issueId",
+              "value": "={{ $('Merge').item.json.id }}"
+            },
+            {
+              "name": "subscriberListId",
+              "value": "YOUR_SUBSCRIBER_LIST_ID"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        2080,
+        0
+      ],
+      "id": "e8be6c1a-6792-47c8-b784-52d3a73c2bba",
+      "name": "Create Campaign",
+      "retryOnFail": true
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compression": {
+      "main": [
+        [
+          {
+            "node": "SHACKY CMS Issue - Preview",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Compression",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SHACKY CMS Issue - Preview": {
+      "main": [
+        [
+          {
+            "node": "GETLatest Issue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GETLatest Issue": {
+      "main": [
+        [
+          {
+            "node": "POST Create New Issue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POST Create New Issue": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Ingest Articles to New Issue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ingest Articles to New Issue": {
+      "main": [
+        [
+          {
+            "node": "Publish all articles in issue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Publish all articles in issue": {
+      "main": [
+        [
+          {
+            "node": "Create Campaign",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Issue Mail": {
+      "main": [
+        [
+          {
+            "node": "Mark a message as read",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Campaign": {
+      "main": [
+        [
+          {
+            "node": "Send Issue Mail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": []
+}
