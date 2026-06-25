@@ -2,6 +2,8 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { env } from '../utils/env.js';
+import { searchAllStock, downloadAndStoreStockImage } from './stockSearch.js';
+import type { StockPhoto } from './stockSearch.js';
 
 export function createMcpServer(prisma: PrismaClient, userId: string, scopes: string[]): McpServer {
   const server = new McpServer({
@@ -210,6 +212,82 @@ export function createMcpServer(prisma: PrismaClient, userId: string, scopes: st
           take: limit,
         });
         return { content: [{ type: 'text' as const, text: JSON.stringify(media, null, 2) }] };
+      },
+    );
+
+    server.tool(
+      'search_stock_images',
+      'Search copyright-free stock photos from Unsplash, Pexels, Pixabay, and Wikimedia Commons. Returns image options you can then set as a post\'s featured image.',
+      {
+        query: z.string().min(1).describe('Search query, e.g. "budget finance economy"'),
+        limit: z.number().int().min(1).max(20).optional().describe('Max results to return (default 5)'),
+      },
+      async ({ query, limit = 5 }) => {
+        const results = await searchAllStock(query);
+        const photos = results.slice(0, limit).map((p) => ({
+          imageUrl: p.fullUrl,
+          downloadUrl: p.downloadUrl,
+          thumbnailUrl: p.thumbnailUrl,
+          alt: p.alt,
+          credit: p.credit,
+          creditUrl: p.creditUrl,
+          source: p.source,
+        }));
+        if (photos.length === 0) {
+          return { content: [{ type: 'text' as const, text: 'No stock images found for that query. Try different keywords.' }] };
+        }
+        return { content: [{ type: 'text' as const, text: JSON.stringify(photos, null, 2) }] };
+      },
+    );
+
+    server.tool(
+      'set_post_featured_image_from_stock',
+      'Download a stock photo and set it as the featured image of a post. Use search_stock_images first to find a photo, then pass the imageUrl, downloadUrl, alt, credit, creditUrl, and source fields from that result along with the postId.',
+      {
+        postId: z.string().describe('ID of the post to update'),
+        imageUrl: z.string().url().describe('Full-size image URL from search_stock_images result'),
+        downloadUrl: z.string().url().describe('Download URL from search_stock_images result (same as imageUrl for most sources)'),
+        alt: z.string().describe('Alt text / description of the image'),
+        credit: z.string().describe('Attribution credit string, e.g. "Photo by Jane on Unsplash"'),
+        creditUrl: z.string().url().optional().describe('URL to the photographer or source page'),
+        source: z.enum(['unsplash', 'pexels', 'pixabay', 'wikimedia']).describe('Stock photo source'),
+      },
+      async ({ postId, imageUrl, downloadUrl, alt, credit, creditUrl, source }) => {
+        const post = await prisma.post.findUnique({ where: { id: postId }, select: { id: true, slug: true } });
+        if (!post) return { content: [{ type: 'text' as const, text: 'Post not found.' }], isError: true };
+
+        const photo: StockPhoto = {
+          id: `${source}-mcp`,
+          thumbnailUrl: imageUrl,
+          fullUrl: imageUrl,
+          downloadUrl,
+          alt,
+          credit,
+          creditUrl,
+          source,
+        };
+
+        const result = await downloadAndStoreStockImage(photo, userId, source);
+        if (!result) {
+          return { content: [{ type: 'text' as const, text: 'Failed to download or store the image. The URL may be invalid or the source rate-limited.' }], isError: true };
+        }
+
+        await prisma.post.update({
+          where: { id: postId },
+          data: { featuredMediaId: result.mediaId },
+        });
+
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({
+              success: true,
+              mediaId: result.mediaId,
+              imageUrl: result.url,
+              postUrl: `${env.APP_URL}/articles/${post.slug}`,
+            }, null, 2),
+          }],
+        };
       },
     );
   }
