@@ -1,7 +1,6 @@
 import Fastify from 'fastify';
 import cookie from '@fastify/cookie';
 import cors from '@fastify/cors';
-import formbody from '@fastify/formbody';
 import helmet from '@fastify/helmet';
 import multipart from '@fastify/multipart';
 import rateLimit from '@fastify/rate-limit';
@@ -78,8 +77,15 @@ async function main() {
   // Cookies
   await fastify.register(cookie, { secret: env.JWT_ACCESS_SECRET });
 
-  // application/x-www-form-urlencoded — required for OAuth2 token endpoint (RFC 6749)
-  await fastify.register(formbody);
+  // application/x-www-form-urlencoded — required for OAuth2 token endpoint (RFC 6749).
+  // Uses Node's built-in URLSearchParams to avoid a plugin version dependency.
+  fastify.addContentTypeParser('application/x-www-form-urlencoded', { parseAs: 'string' }, (_req, body, done) => {
+    try {
+      done(null, Object.fromEntries(new URLSearchParams(body as string)));
+    } catch (err) {
+      done(err as Error, undefined);
+    }
+  });
 
   // Multipart (file upload)
   await fastify.register(multipart, {
