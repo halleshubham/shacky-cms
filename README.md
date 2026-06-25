@@ -30,12 +30,16 @@ Write → Ingest → Publish → Send — all in one place.
 | **DOCX ingest** | Upload a ZIP of `.docx` files — articles are parsed, images extracted, and AI enhancements queued automatically |
 | **AI pipeline** | Provider-agnostic: OpenAI, Gemini, Ollama, or Groq — auto-categorisation, tag generation, featured image creation / stock image search |
 | **Issues & campaigns** | Group posts into magazine-style issues, then send them as email or WhatsApp campaigns to subscriber lists |
-| **Subscribers & forms** | Embeddable forms that feed entries directly into subscriber lists; email + WhatsApp channels |
+| **Subscribers & forms** | Embeddable subscription forms with entries inbox, CSV export, and bulk actions; email + WhatsApp channels |
 | **MCP server** | Expose your CMS to AI agents via the [Model Context Protocol](https://modelcontextprotocol.io/) with full OAuth2 + PKCE |
 | **n8n automation** | Ready-made workflow: Gmail → ingest → publish → campaign, zero manual steps |
-| **WordPress sync** | Publish posts to a WordPress site from the same CMS |
+| **WordPress import** | One-click import from an existing WordPress site; publish posts back to WordPress |
+| **Application Passwords** | Stateless bearer tokens for headless/API access — create and revoke from Admin → Integrations |
+| **Built-in API docs** | Interactive API reference at `/admin/integrations/api-docs` with copy-paste curl commands |
 | **Webhooks** | Outbound events on post publish, configurable per integration |
-| **Media library** | All uploads in MinIO/S3; stock photo search built in |
+| **Media library** | All uploads in MinIO/S3; stock photo search (Unsplash, Pexels, Pixabay, Wikimedia) built in |
+| **TOTP 2FA** | Optional per-user two-factor authentication via any TOTP app |
+| **Mobile-responsive admin** | Full admin UI works on phone and tablet |
 
 ---
 
