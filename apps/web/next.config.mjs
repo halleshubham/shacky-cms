@@ -30,14 +30,23 @@ const nextConfig = {
         source: '/s3/:path*',
         destination: `${minioUrl}/shacky-media/:path*`,
       },
-      // OAuth2 + MCP endpoints — proxied so the public domain serves them
+      // MCP + OAuth2 token endpoints proxied to the API.
+      // /oauth/authorize is intentionally excluded — that's the Next.js consent page.
       {
         source: '/mcp',
         destination: `${apiUrl}/mcp`,
       },
       {
-        source: '/oauth/:path*',
-        destination: `${apiUrl}/oauth/:path*`,
+        source: '/oauth/token',
+        destination: `${apiUrl}/oauth/token`,
+      },
+      {
+        source: '/oauth/register',
+        destination: `${apiUrl}/oauth/register`,
+      },
+      {
+        source: '/oauth/revoke',
+        destination: `${apiUrl}/oauth/revoke`,
       },
       {
         source: '/.well-known/:path*',

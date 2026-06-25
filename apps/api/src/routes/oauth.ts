@@ -230,7 +230,7 @@ export default async function oauthRoutes(fastify: FastifyInstance) {
 
   // ── MCP info (public — lets the web UI show the correct MCP server URL) ──
   fastify.get('/api/oauth/mcp-info', async (_req, reply) => {
-    reply.send({ apiUrl: env.API_URL, mcpUrl: `${env.API_URL}/mcp` });
+    reply.send({ apiUrl: env.APP_URL, mcpUrl: `${env.APP_URL}/mcp` });
   });
 
   // ── Public client info (used by the consent page) ─────────────────────────
