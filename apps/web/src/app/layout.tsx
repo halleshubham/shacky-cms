@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Playfair_Display, EB_Garamond, Montserrat } from 'next/font/google';
+import { Playfair_Display, EB_Garamond, Montserrat, Inter } from 'next/font/google';
 import { ThemeProvider } from 'next-themes';
 import { Toaster } from 'react-hot-toast';
 import '@/styles/globals.css';
@@ -29,6 +29,13 @@ const montserrat = Montserrat({
   display: 'swap',
 });
 
+const inter = Inter({
+  subsets: ['latin'],
+  variable: '--font-inter',
+  weight: ['300', '400', '500', '600', '700', '800'],
+  display: 'swap',
+});
+
 export async function generateMetadata(): Promise<Metadata> {
   const s = await getSiteSettings();
   const title = s.site_title || 'Shacky CMS';
@@ -42,7 +49,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${playfair.variable} ${garamond.variable} ${montserrat.variable} font-sans antialiased`}>
+      <body className={`${playfair.variable} ${garamond.variable} ${montserrat.variable} ${inter.variable} font-sans antialiased`}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <AuthProvider>
             {children}

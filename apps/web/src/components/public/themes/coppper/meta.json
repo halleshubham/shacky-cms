@@ -1,0 +1,15 @@
+{
+  "id": "coppper",
+  "label": "Coppper",
+  "description": "A premium digital magazine theme inspired by the warm elegance of copper.",
+  "dataTheme": "coppper",
+  "wrapperClass": "min-h-screen flex flex-col bg-[#FAF8F5] text-[#4A4A4A]",
+  "mainClass": "max-w-7xl mx-auto flex-1 p-6",
+  "css": "[data-theme='coppper'] { --background: 34 33% 98%; --foreground: 30 10% 29%; --card: 0 0% 100%; --card-foreground: 0 0% 29%; --popover: 33 10% 94%; --popover-foreground: 0 0% 20%; --primary: 29 68% 45%; --primary-foreground: 0 0% 100%; --secondary: 0 0% 87%; --secondary-foreground: 0 0% 20%; --muted: 0 0% 85%; --muted-foreground: 0 0% 48%; --accent: 24 58% 61%; --accent-foreground: 0 0% 100%; --destructive: 0 61% 36%; --destructive-foreground: 0 0% 100%; --border: 30 15% 91%; --input: 30 15% 91%; --ring: 29 68% 45%; --radius: 12px; }",
+  "adminPreview": {
+    "background": "#FAF8F5",
+    "primaryBar": "#B87333",
+    "secondaryBar": "#F3EEE8",
+    "accentBar": "#D49A6A"
+  }
+}

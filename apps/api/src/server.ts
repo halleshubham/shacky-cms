@@ -32,6 +32,7 @@ import integrationsRoutes from './routes/integrations.js';
 import formsRoutes from './routes/forms.js';
 import oauthRoutes from './routes/oauth.js';
 import mcpRoutes from './routes/mcp.js';
+import themesRoutes from './routes/themes.js';
 import { startScheduler } from './workers/scheduler.js';
 import { startIngestWorker } from './workers/ingestWorker.js';
 
@@ -146,6 +147,7 @@ async function main() {
   fastify.register(formsRoutes, { prefix: '/api/forms' });
   fastify.register(oauthRoutes);  // /.well-known/*, /oauth/*, /api/oauth/*
   fastify.register(mcpRoutes);    // /mcp
+  fastify.register(themesRoutes); // /api/themes
 
   // Global error handler
   fastify.setErrorHandler((error, req, reply) => {

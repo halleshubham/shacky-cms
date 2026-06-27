@@ -115,6 +115,34 @@ prisma/       — Schema lives at apps/api/prisma/schema.prisma
 - Outbound only. Events fired on post.published etc. via `src/utils/webhooks.ts`
 - Config stored in `Webhook` table; managed via `/admin/integrations`
 
+### Public theme system
+The public-facing site supports swappable UI themes selected from the admin Settings → Appearance panel. The active theme is stored in the `Setting` table under key `public_theme` (string, default `"classic"`).
+
+**Registry files (the only places that need changing when adding a theme):**
+- `src/lib/theme-meta.ts` — lightweight metadata (id, label, description, admin preview colors). **Client-safe** — imported by the admin settings page.
+- `src/lib/theme-registry.tsx` — full config: the above + `Header`, `Footer`, `HomePage` component refs + Tailwind wrapper/main class strings. **Server-only** (imported only by RSC layout/page).
+
+**Component layout:**
+```
+src/components/public/themes/
+  classic/
+    Header.tsx    — re-exports PublicHeader as ClassicHeader
+    Footer.tsx    — classic 2-column editorial footer
+    HomePage.tsx  — original magazine grid (issue banner + hero + 4-col strip)
+  medusa/
+    Header.tsx    — sticky transparent header, blur on scroll, center nav
+    Footer.tsx    — 4-column brand + links footer
+    HomePage.tsx  — large hero + premium card grid
+```
+The top-level `components/public/MedusaHeader.tsx` etc. are thin re-exports kept for backward compatibility.
+
+**Adding a third theme — exactly 3 steps:**
+1. Create `src/components/public/themes/<id>/{Header,Footer,HomePage}.tsx`
+2. Add a `[data-theme="<id>"]` CSS block in `src/styles/globals.css`
+3. Add one entry to `THEME_META` in `theme-meta.ts` **and** one entry to `THEME_REGISTRY` in `theme-registry.tsx`
+
+The public layout (`app/(public)/layout.tsx`) and homepage (`app/(public)/page.tsx`) are thin shells — they call `getTheme(settings.public_theme)` and render whatever the registry returns. No `if/else` branching needed.
+
 ## Environment variables
 
 Copy `.env.example` to `apps/api/.env` and `apps/web/.env.local`.

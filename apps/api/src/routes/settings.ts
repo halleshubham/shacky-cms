@@ -7,7 +7,7 @@ import { authenticate, requireAdmin } from '../middleware/auth.js';
 const PUBLIC_KEYS = [
   'site_title', 'site_description', 'site_logo', 'site_icon',
   'site_cover', 'site_lang', 'nav_primary', 'nav_secondary',
-  'code_injection_head', 'code_injection_foot',
+  'code_injection_head', 'code_injection_foot', 'public_theme',
 ];
 
 const settingsRoutes: FastifyPluginAsync = async (fastify) => {

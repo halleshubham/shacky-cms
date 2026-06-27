@@ -4,7 +4,7 @@ import { ArticleCard } from '@/components/public/ArticleCard';
 import { Pagination } from '@/components/public/Pagination';
 import { ChevronRight } from 'lucide-react';
 
-const API = process.env.NEXT_PUBLIC_API_URL;
+const API = process.env.API_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL;
 
 async function getCategory(slug: string) {
   try {

@@ -281,6 +281,17 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
     });
   });
 
+  // GET /public/pages/:slug — single published page
+  fastify.get('/pages/:slug', async (req, reply) => {
+    const { slug } = req.params as { slug: string };
+    const page = await prisma.page.findFirst({
+      where: { slug, status: 'published' },
+      include: { featuredMedia: true },
+    });
+    if (!page) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Page not found' });
+    return reply.send(page);
+  });
+
   // GET /public/featured — featured posts
   fastify.get('/featured', async (req, reply) => {
     const { limit = 6 } = req.query as any;
@@ -293,16 +304,6 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
     return reply.send(posts.map(fmt));
   });
 
-  // GET /public/settings — site settings for frontend
-  fastify.get('/settings', async (_req, reply) => {
-    const keys = ['site_title', 'site_description', 'site_logo', 'site_icon', 'nav_primary', 'nav_secondary'];
-    const rows = await prisma.setting.findMany({ where: { key: { in: keys } } });
-    const out: Record<string, any> = {};
-    for (const r of rows) {
-      try { out[r.key] = JSON.parse(r.value); } catch { out[r.key] = r.value; }
-    }
-    return reply.send(out);
-  });
 };
 
 export default publicRoutes;

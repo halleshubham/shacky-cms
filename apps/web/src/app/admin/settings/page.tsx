@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { Save, Key, Loader2, Globe, Camera, Sparkles, Upload, X, Image as ImageIcon, AlertTriangle, Mail, Plug, Trash2 } from 'lucide-react';
+import { Save, Key, Loader2, Globe, Camera, Sparkles, Upload, X, Image as ImageIcon, AlertTriangle, Mail, Plug, Trash2, Plus, GripVertical, Palette, Check, Wand2 } from 'lucide-react';
+import { DEFAULT_THEME_ID } from '@/lib/theme-meta';
 import { useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,6 +14,7 @@ import { useAuth } from '@/lib/auth';
 
 const SECTIONS = [
   { id: 'site', label: 'Site & Branding' },
+  { id: 'appearance', label: 'Appearance' },
   { id: 'newsletter', label: 'Newsletter' },
   { id: 'profile', label: 'My Profile' },
   { id: 'stock', label: 'Stock Photos' },
@@ -40,12 +42,25 @@ export default function SettingsPage() {
   const [enablingTotp, setEnablingTotp] = useState(false);
   const [setupMode, setSetupMode] = useState(false);
 
+  // Appearance
+  const [publicTheme, setPublicTheme] = useState<string>(DEFAULT_THEME_ID);
+  const [savingAppearance, setSavingAppearance] = useState(false);
+  const [themeList, setThemeList] = useState<Array<{
+    id: string; label: string; description: string; isBuiltIn: boolean;
+    adminPreview: { background: string; border?: string; primaryBar: string; secondaryBar: string; accentBar: string };
+  }>>([]);
+  const [generateOpen, setGenerateOpen] = useState(false);
+  const [generateLabel, setGenerateLabel] = useState('');
+  const [generatePrompt, setGeneratePrompt] = useState('');
+  const [generating, setGenerating] = useState(false);
+  const [deletingTheme, setDeletingTheme] = useState<string | null>(null);
+
   // Site settings
   const [siteTitle, setSiteTitle] = useState('');
   const [siteDescription, setSiteDescription] = useState('');
   const [siteLogo, setSiteLogo] = useState('');
   const [siteFavicon, setSiteFavicon] = useState('');
-  const [navPrimary, setNavPrimary] = useState('');
+  const [navItems, setNavItems] = useState<{ label: string; url: string }[]>([]);
   const [codeHead, setCodeHead] = useState('');
   const [codeFoot, setCodeFoot] = useState('');
   const [savingSettings, setSavingSettings] = useState(false);
@@ -90,16 +105,26 @@ export default function SettingsPage() {
   const [savingAI, setSavingAI] = useState(false);
   const [fetchingOllamaModels, setFetchingOllamaModels] = useState(false);
 
+  const fetchThemes = () =>
+    api.get<typeof themeList>('/api/themes').then(setThemeList).catch(() => {});
+
   useEffect(() => {
+    fetchThemes();
     api.get<any>('/api/auth/me').then((me) => setProfileName(me.name || '')).catch(() => {});
     api.get<any>('/api/settings').then((s) => {
       setSiteTitle(s.site_title || '');
       setSiteDescription(s.site_description || '');
       setSiteLogo(s.site_logo || '');
       setSiteFavicon(s.site_icon || '');
-      setNavPrimary(s.nav_primary ? (typeof s.nav_primary === 'string' ? s.nav_primary : JSON.stringify(s.nav_primary, null, 2)) : '');
+      if (s.nav_primary) {
+        try {
+          const parsed = typeof s.nav_primary === 'string' ? JSON.parse(s.nav_primary) : s.nav_primary;
+          setNavItems(Array.isArray(parsed) ? parsed : []);
+        } catch { setNavItems([]); }
+      }
       setCodeHead(s.code_injection_head || '');
       setCodeFoot(s.code_injection_foot || '');
+      if (s.public_theme) setPublicTheme(s.public_theme);
       setStockUnsplash(s.stock_unsplash_key ? '••••••••' : '');
       setStockPexels(s.stock_pexels_key ? '••••••••' : '');
       setStockPixabay(s.stock_pixabay_key ? '••••••••' : '');
@@ -139,6 +164,8 @@ export default function SettingsPage() {
     finally { setSavingProfile(false); }
   };
 
+  const revalidateSiteCache = () => fetch('/api/revalidate', { method: 'POST' }).catch(() => {});
+
   const saveSiteSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     setSavingSettings(true);
@@ -148,13 +175,57 @@ export default function SettingsPage() {
         site_description: siteDescription,
         site_logo: siteLogo,
         site_icon: siteFavicon,
-        nav_primary: navPrimary,
+        nav_primary: JSON.stringify(navItems),
         code_injection_head: codeHead,
         code_injection_foot: codeFoot,
       });
+      revalidateSiteCache();
       toast.success('Site settings saved');
     } catch (err: any) { toast.error(err?.message || 'Save failed'); }
     finally { setSavingSettings(false); }
+  };
+
+  const saveAppearance = async () => {
+    setSavingAppearance(true);
+    try {
+      await api.patch('/api/settings', { public_theme: publicTheme });
+      revalidateSiteCache();
+      toast.success('Appearance saved');
+    } catch (err: any) { toast.error(err?.message || 'Save failed'); }
+    finally { setSavingAppearance(false); }
+  };
+
+  const generateThemeAI = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!generateLabel.trim() || !generatePrompt.trim()) return;
+    setGenerating(true);
+    try {
+      await api.post('/api/themes/generate', { label: generateLabel.trim(), prompt: generatePrompt.trim() });
+      toast.success(`Theme "${generateLabel}" generated! Refreshing…`);
+      setGenerateOpen(false);
+      setGenerateLabel('');
+      setGeneratePrompt('');
+      await fetchThemes();
+    } catch (err: any) {
+      toast.error(err?.message || 'Generation failed. Try a larger AI model.');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleDeleteTheme = async (id: string, label: string) => {
+    if (!confirm(`Delete theme "${label}"? This cannot be undone.`)) return;
+    setDeletingTheme(id);
+    try {
+      await api.delete(`/api/themes/${id}`);
+      toast.success(`Theme "${label}" deleted`);
+      if (publicTheme === id) setPublicTheme(DEFAULT_THEME_ID);
+      await fetchThemes();
+    } catch (err: any) {
+      toast.error(err?.message || 'Delete failed');
+    } finally {
+      setDeletingTheme(null);
+    }
   };
 
   const saveNewsletterSettings = async (e: React.FormEvent) => {
@@ -406,11 +477,52 @@ export default function SettingsPage() {
               <Input value={siteFavicon} onChange={(e) => setSiteFavicon(e.target.value)} placeholder="Or paste a URL…" className="text-xs" />
             </div>
 
-            <div className="space-y-1">
-              <Label className="text-xs">Primary Navigation (JSON — e.g. [{`{"label":"Home","url":"/"}`}])</Label>
-              <textarea value={navPrimary} onChange={(e) => setNavPrimary(e.target.value)} rows={3}
-                placeholder='[{"label": "Home", "url": "/"}]'
-                className="w-full text-xs font-mono bg-background border border-input rounded-md p-2 resize-none focus:outline-none focus:ring-2 focus:ring-ring" />
+            <div className="space-y-2">
+              <Label className="text-xs">Primary Navigation</Label>
+              <div className="space-y-1.5">
+                {navItems.map((item, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <Input
+                      value={item.label}
+                      onChange={(e) => {
+                        const next = [...navItems];
+                        next[idx] = { ...next[idx], label: e.target.value };
+                        setNavItems(next);
+                      }}
+                      placeholder="Label"
+                      className="h-8 text-xs flex-1"
+                    />
+                    <Input
+                      value={item.url}
+                      onChange={(e) => {
+                        const next = [...navItems];
+                        next[idx] = { ...next[idx], url: e.target.value };
+                        setNavItems(next);
+                      }}
+                      placeholder="URL (e.g. / or /pages/about)"
+                      className="h-8 text-xs flex-[2]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setNavItems(navItems.filter((_, i) => i !== idx))}
+                      className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors shrink-0"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs gap-1.5"
+                  onClick={() => setNavItems([...navItems, { label: '', url: '' }])}
+                >
+                  <Plus className="h-3.5 w-3.5" /> Add item
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">Links shown in the site header. Leave empty to auto-generate from categories.</p>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
@@ -430,6 +542,84 @@ export default function SettingsPage() {
               {savingSettings ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save Settings
             </Button>
           </form>
+        </CardContent>
+      </Card>
+
+      {/* Appearance */}
+      <Card id="appearance">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Palette className="h-4 w-4" /> Appearance
+            </CardTitle>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-1.5 text-xs h-8"
+              onClick={() => setGenerateOpen(true)}
+            >
+              <Wand2 className="h-3.5 w-3.5" /> Generate with AI
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label className="text-xs mb-3 block">Public Site Theme</Label>
+            {themeList.length === 0 ? (
+              <div className="text-sm text-muted-foreground py-4 text-center">Loading themes…</div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                {themeList.map((t) => {
+                  const { background, border, primaryBar, secondaryBar, accentBar } = t.adminPreview;
+                  const isActive = publicTheme === t.id;
+                  return (
+                    <div key={t.id} className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setPublicTheme(t.id)}
+                        className={`relative w-full rounded-lg border-2 p-3 text-left transition-all ${
+                          isActive ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/40'
+                        }`}
+                      >
+                        <div
+                          className="h-16 rounded flex flex-col items-start justify-center px-3 gap-1 mb-3"
+                          style={{ background, border: border ? `1px solid ${border}` : undefined }}
+                        >
+                          <div className="h-2 w-12 rounded" style={{ background: primaryBar, opacity: 0.25 }} />
+                          <div className="h-1.5 w-20 rounded" style={{ background: secondaryBar, opacity: 0.2 }} />
+                          <div className="h-1 w-10 rounded" style={{ background: accentBar, opacity: 0.5 }} />
+                        </div>
+                        <p className="text-sm font-semibold mb-0.5">{t.label}</p>
+                        <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">{t.description}</p>
+                        {isActive && (
+                          <span className="absolute top-2.5 right-2.5 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                            <Check className="h-3 w-3" />
+                          </span>
+                        )}
+                      </button>
+                      {!t.isBuiltIn && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteTheme(t.id, t.label)}
+                          disabled={deletingTheme === t.id}
+                          className="absolute bottom-3 right-3 p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                          title="Delete theme"
+                        >
+                          {deletingTheme === t.id
+                            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            : <Trash2 className="h-3.5 w-3.5" />}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          <Button onClick={saveAppearance} disabled={savingAppearance} className="gap-2">
+            {savingAppearance ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save Appearance
+          </Button>
         </CardContent>
       </Card>
 
@@ -813,6 +1003,60 @@ export default function SettingsPage() {
       </Card>
       </div>
     </div>
+
+    {/* Generate theme dialog */}
+    <Dialog open={generateOpen} onOpenChange={(open) => { if (!generating) setGenerateOpen(open); }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Wand2 className="h-5 w-5 text-primary" /> Generate Theme with AI
+          </DialogTitle>
+          <DialogDescription>
+            Describe the visual style you want. The AI will generate a complete Header, Footer, and Homepage layout.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={generateThemeAI} className="space-y-4 py-2">
+          <div className="space-y-1">
+            <Label className="text-xs">Theme Name</Label>
+            <Input
+              value={generateLabel}
+              onChange={(e) => setGenerateLabel(e.target.value)}
+              placeholder="e.g. Aurora, Midnight, Copper"
+              disabled={generating}
+              required
+            />
+            <p className="text-xs text-muted-foreground">Becomes the theme ID (lowercase, hyphenated).</p>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Visual Style Description</Label>
+            <textarea
+              value={generatePrompt}
+              onChange={(e) => setGeneratePrompt(e.target.value)}
+              rows={4}
+              placeholder="e.g. Dark background with deep purple accents, elegant serif headings, glassmorphism cards, cyberpunk aesthetic with neon highlights"
+              disabled={generating}
+              required
+              className="w-full text-sm bg-background border border-input rounded-md p-2 resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+          {generating && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 rounded-md px-3 py-2">
+              <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+              Generating theme… this may take 30–60 seconds
+            </div>
+          )}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setGenerateOpen(false)} disabled={generating}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={generating || !generateLabel.trim() || !generatePrompt.trim()} className="gap-2">
+              {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+              {generating ? 'Generating…' : 'Generate Theme'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
 
     {/* Purge confirmation dialog */}
     <Dialog open={!!purgeTarget} onOpenChange={(open) => { if (!open) closePurge(); }}>

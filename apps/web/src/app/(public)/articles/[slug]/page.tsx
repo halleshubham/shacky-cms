@@ -7,7 +7,7 @@ import { ArticleCard } from '@/components/public/ArticleCard';
 import { ChevronRight, Clock, Star } from 'lucide-react';
 import { ViewTracker } from './ViewTracker';
 
-const API = process.env.NEXT_PUBLIC_API_URL;
+const API = process.env.API_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL;
 
 async function getPost(slug: string) {
   try {

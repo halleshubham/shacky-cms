@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-const API = process.env.NEXT_PUBLIC_API_URL;
+const API = process.env.API_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL;
 const SITE = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 
 export async function GET() {

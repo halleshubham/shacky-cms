@@ -1,0 +1,14 @@
+{
+  "id": "classic",
+  "label": "Classic",
+  "description": "Playfair Display serif typeface, cobalt blue accents, editorial magazine layout",
+  "dataTheme": null,
+  "wrapperClass": "min-h-screen flex flex-col bg-background text-foreground",
+  "mainClass": "flex-1 max-w-6xl mx-auto w-full px-4 py-8",
+  "adminPreview": {
+    "background": "#F0F4F8",
+    "primaryBar": "#0F172A",
+    "secondaryBar": "#94A3B8",
+    "accentBar": "#2563EB"
+  }
+}

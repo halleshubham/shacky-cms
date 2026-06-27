@@ -4,7 +4,7 @@ import { ArticleCard } from '@/components/public/ArticleCard';
 import { Pagination } from '@/components/public/Pagination';
 import { ChevronRight, Tag } from 'lucide-react';
 
-const API = process.env.NEXT_PUBLIC_API_URL;
+const API = process.env.API_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL;
 
 async function getTag(slug: string, page = 1) {
   try {

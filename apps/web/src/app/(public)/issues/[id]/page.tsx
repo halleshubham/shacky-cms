@@ -4,7 +4,7 @@ import { format } from 'date-fns';
 import { ArticleCard } from '@/components/public/ArticleCard';
 import { ChevronRight, BookOpen } from 'lucide-react';
 
-const API = process.env.NEXT_PUBLIC_API_URL;
+const API = process.env.API_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL;
 
 async function getIssue(id: string) {
   try {

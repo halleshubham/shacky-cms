@@ -67,6 +67,91 @@
   }
 }
 
+/* ─────────────────────────────────────────────────────────────
+   MEDUSA THEME
+   Inspired by MedusaJS / Linear / Vercel design language.
+   Applied via data-theme="medusa" on the public layout root.
+   ───────────────────────────────────────────────────────────── */
+[data-theme="medusa"] {
+  --background: 0 0% 100%;             /* #FFFFFF pure white */
+  --foreground: 0 0% 7%;               /* #111111 near-black */
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 7%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 7%;
+  --primary: 0 0% 7%;                  /* black primary */
+  --primary-foreground: 0 0% 100%;
+  --secondary: 0 0% 97%;               /* #F7F7F7 */
+  --secondary-foreground: 0 0% 20%;
+  --muted: 0 0% 98%;                   /* #FAFAFA */
+  --muted-foreground: 0 0% 40%;        /* #666666 */
+  --accent: 239 84% 67%;               /* soft indigo for highlights only */
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 220 13% 91%;               /* #E5E7EB */
+  --input: 220 13% 91%;
+  --ring: 0 0% 7%;
+  --radius: 0.875rem;                  /* 14px — soft rounded */
+}
+
+/* Inter throughout the Medusa theme */
+[data-theme="medusa"],
+[data-theme="medusa"] h1,
+[data-theme="medusa"] h2,
+[data-theme="medusa"] h3,
+[data-theme="medusa"] h4,
+[data-theme="medusa"] h5,
+[data-theme="medusa"] h6 {
+  font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  letter-spacing: -0.02em;
+}
+
+[data-theme="medusa"] h1 { letter-spacing: -0.03em; }
+[data-theme="medusa"] h2 { letter-spacing: -0.025em; }
+
+/* Premium card hover lift */
+[data-theme="medusa"] .medusa-card {
+  transition: transform 300ms cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+[data-theme="medusa"] .medusa-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 60px -12px rgba(0, 0, 0, 0.10),
+              0 8px 20px -8px rgba(0, 0, 0, 0.06);
+}
+
+/* Clean article prose for Medusa */
+[data-theme="medusa"] .prose {
+  font-family: var(--font-inter), -apple-system, sans-serif;
+  font-size: 1.0625rem;
+  line-height: 1.75;
+  color: #1a1a1a;
+}
+[data-theme="medusa"] .prose h1,
+[data-theme="medusa"] .prose h2,
+[data-theme="medusa"] .prose h3 {
+  color: #111111;
+  letter-spacing: -0.025em;
+}
+[data-theme="medusa"] .prose a { color: #4f46e5; }
+[data-theme="medusa"] .prose blockquote {
+  border-left-color: #e5e7eb;
+  color: #666666;
+  font-style: normal;
+}
+
+/* Medusa pagination */
+[data-theme="medusa"] .pagination-btn {
+  border-radius: 0.625rem;
+  font-size: 0.875rem;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+/* ====== AI-GENERATED THEMES START ====== */
+[data-theme='coppper'] { --background: 34 33% 98%; --foreground: 30 10% 29%; --card: 0 0% 100%; --card-foreground: 0 0% 29%; --popover: 33 10% 94%; --popover-foreground: 0 0% 20%; --primary: 29 68% 45%; --primary-foreground: 0 0% 100%; --secondary: 0 0% 87%; --secondary-foreground: 0 0% 20%; --muted: 0 0% 85%; --muted-foreground: 0 0% 48%; --accent: 24 58% 61%; --accent-foreground: 0 0% 100%; --destructive: 0 61% 36%; --destructive-foreground: 0 0% 100%; --border: 30 15% 91%; --input: 30 15% 91%; --ring: 29 68% 45%; --radius: 12px; }
+/* ====== AI-GENERATED THEMES END ====== */
+
 /* TipTap editor styles */
 .ProseMirror {
   outline: none;

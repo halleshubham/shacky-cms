@@ -11,13 +11,19 @@ interface Category {
   slug: string;
 }
 
+interface NavItem {
+  label: string;
+  url: string;
+}
+
 interface PublicHeaderProps {
   categories: Category[];
   siteTitle?: string;
   siteLogo?: string;
+  navItems?: NavItem[];
 }
 
-export function PublicHeader({ categories, siteTitle = 'Shacky CMS', siteLogo }: PublicHeaderProps) {
+export function PublicHeader({ categories, siteTitle = 'Shacky CMS', siteLogo, navItems }: PublicHeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -36,6 +42,24 @@ export function PublicHeader({ categories, siteTitle = 'Shacky CMS', siteLogo }:
       setQuery('');
     }
   };
+
+  const hasCustomNav = navItems && navItems.length > 0;
+
+  const desktopLinks = hasCustomNav
+    ? navItems
+    : [
+        { label: 'Home', url: '/' },
+        { label: 'Issues', url: '/issues' },
+        ...categories.slice(0, 7).map((c) => ({ label: c.name, url: `/category/${c.slug}` })),
+      ];
+
+  const mobileLinks = hasCustomNav
+    ? navItems
+    : [
+        { label: 'Home', url: '/' },
+        { label: 'Issues', url: '/issues' },
+        ...categories.map((c) => ({ label: c.name, url: `/category/${c.slug}` })),
+      ];
 
   return (
     <header className="border-b border-border bg-background sticky top-0 z-40">
@@ -97,19 +121,13 @@ export function PublicHeader({ categories, siteTitle = 'Shacky CMS', siteLogo }:
 
         {/* Desktop nav */}
         <nav className="hidden md:flex items-center gap-1 pb-0 -mb-px overflow-x-auto">
-          <Link href="/" className="px-3 py-2 text-sm font-medium hover:text-primary transition-colors whitespace-nowrap">
-            Home
-          </Link>
-          <Link href="/issues" className="px-3 py-2 text-sm font-medium hover:text-primary transition-colors whitespace-nowrap">
-            Issues
-          </Link>
-          {categories.slice(0, 7).map((cat) => (
+          {desktopLinks.map((item, i) => (
             <Link
-              key={cat.id}
-              href={`/category/${cat.slug}`}
+              key={i}
+              href={item.url}
               className="px-3 py-2 text-sm font-medium hover:text-primary transition-colors whitespace-nowrap"
             >
-              {cat.name}
+              {item.label}
             </Link>
           ))}
         </nav>
@@ -118,20 +136,14 @@ export function PublicHeader({ categories, siteTitle = 'Shacky CMS', siteLogo }:
       {/* Mobile menu */}
       {menuOpen && (
         <div className="md:hidden border-t border-border bg-background px-4 py-3 space-y-1">
-          <Link href="/" onClick={() => setMenuOpen(false)} className="block px-3 py-2 text-sm font-medium hover:bg-muted rounded-md">
-            Home
-          </Link>
-          <Link href="/issues" onClick={() => setMenuOpen(false)} className="block px-3 py-2 text-sm font-medium hover:bg-muted rounded-md">
-            Issues
-          </Link>
-          {categories.map((cat) => (
+          {mobileLinks.map((item, i) => (
             <Link
-              key={cat.id}
-              href={`/category/${cat.slug}`}
+              key={i}
+              href={item.url}
               onClick={() => setMenuOpen(false)}
               className="block px-3 py-2 text-sm font-medium hover:bg-muted rounded-md"
             >
-              {cat.name}
+              {item.label}
             </Link>
           ))}
         </div>
