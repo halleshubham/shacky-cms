@@ -15,6 +15,7 @@ export interface SiteSettings {
   translation_languages?: string;
   tts_enabled?: boolean;
   tts_language?: string;
+  header_show_title?: boolean;
 }
 
 export function navItemHref(item: NavItem): string {
@@ -51,6 +52,7 @@ export async function getSiteSettings(): Promise<SiteSettings> {
       translation_languages: raw.translation_languages || 'mr,hi',
       tts_enabled: raw.tts_enabled === 'true',
       tts_language: raw.tts_language || 'mr-IN',
+      header_show_title: raw.header_show_title === 'true',
     } as SiteSettings;
   } catch {
     return {};

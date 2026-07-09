@@ -1,7 +1,6 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Search, Menu, X, Newspaper } from 'lucide-react';
 import { type NavItem, navItemHref } from '@/lib/site-settings';
@@ -17,6 +16,7 @@ interface PublicHeaderProps {
   categories?: Category[];
   siteTitle?: string;
   siteLogo?: string;
+  showTitle?: boolean;
 }
 
 // Build nav links: configured items take priority; fall back to Home + Issues + categories
@@ -33,6 +33,7 @@ export function PublicHeader({
   categories,
   siteTitle = 'Shacky CMS',
   siteLogo,
+  showTitle = false,
 }: PublicHeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -62,14 +63,11 @@ export function PublicHeader({
         <div className="flex items-center justify-between h-16">
           <Link href="/" className="flex items-center gap-2.5 font-bold text-xl tracking-tight shrink-0">
             {siteLogo ? (
-              <Image
-                src={siteLogo}
-                alt={siteTitle}
-                width={140}
-                height={40}
-                className="h-9 w-auto object-contain"
-                priority
-              />
+              <>
+                {/* Plain <img> preserves PNG transparency — Next.js Image converts to WebP which can alter rendering */}
+                <img src={siteLogo} alt={siteTitle} className="h-9 w-auto max-w-[160px] object-contain" />
+                {showTitle && <span>{siteTitle}</span>}
+              </>
             ) : (
               <>
                 <Newspaper className="h-5 w-5 text-primary shrink-0" />

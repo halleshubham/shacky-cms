@@ -64,6 +64,7 @@ export default function SettingsPage() {
   const [savingNav, setSavingNav] = useState(false);
   const [codeHead, setCodeHead] = useState('');
   const [codeFoot, setCodeFoot] = useState('');
+  const [headerShowTitle, setHeaderShowTitle] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingFavicon, setUploadingFavicon] = useState(false);
@@ -127,6 +128,7 @@ export default function SettingsPage() {
       try { setNavSecondary(migrateNavItems(s.nav_secondary ? (typeof s.nav_secondary === 'string' ? JSON.parse(s.nav_secondary) : s.nav_secondary) : [])); } catch { setNavSecondary([]); }
       setCodeHead(s.code_injection_head || '');
       setCodeFoot(s.code_injection_foot || '');
+      setHeaderShowTitle(s.header_show_title === 'true');
       setStockUnsplash(s.stock_unsplash_key ? '••••••••' : '');
       setStockPexels(s.stock_pexels_key ? '••••••••' : '');
       setStockPixabay(s.stock_pixabay_key ? '••••••••' : '');
@@ -181,6 +183,7 @@ export default function SettingsPage() {
         site_icon: siteFavicon,
         code_injection_head: codeHead,
         code_injection_foot: codeFoot,
+        header_show_title: String(headerShowTitle),
       });
       toast.success('Site settings saved');
     } catch (err: any) { toast.error(err?.message || 'Save failed'); }
@@ -418,8 +421,12 @@ export default function SettingsPage() {
               <input ref={logoInputRef} type="file" accept="image/*" className="hidden"
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadImage(f, setSiteLogo, setUploadingLogo); e.target.value = ''; }} />
               {siteLogo ? (
-                <div className="flex items-center gap-3 p-2 border border-border rounded-md bg-muted/30">
-                  <img src={siteLogo} alt="Logo" className="h-10 w-auto max-w-[120px] object-contain rounded" />
+                <div className="flex items-center gap-3 p-2 border border-border rounded-md">
+                  {/* Checkered background shows PNG transparency */}
+                  <div className="rounded overflow-hidden shrink-0"
+                    style={{ backgroundImage: 'repeating-conic-gradient(#80808022 0% 25%, transparent 0% 50%)', backgroundSize: '10px 10px' }}>
+                    <img src={siteLogo} alt="Logo" className="h-10 w-auto max-w-[140px] object-contain" />
+                  </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-muted-foreground truncate">{siteLogo.split('/').pop()}</p>
                   </div>
@@ -437,10 +444,24 @@ export default function SettingsPage() {
                   className="flex items-center gap-2 w-full border-2 border-dashed border-border rounded-md px-4 py-3 text-sm text-muted-foreground hover:border-primary hover:text-foreground transition-colors">
                   {uploadingLogo ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-4 w-4" />}
                   {uploadingLogo ? 'Uploading…' : 'Upload logo image'}
-                  <span className="text-xs ml-auto opacity-60">PNG, SVG, WebP</span>
+                  <span className="text-xs ml-auto opacity-60">PNG (transparent), SVG, WebP</span>
                 </button>
               )}
               <Input value={siteLogo} onChange={(e) => setSiteLogo(e.target.value)} placeholder="Or paste a URL…" className="text-xs" />
+              {siteLogo && (
+                <div className="flex items-center gap-2 pt-1">
+                  <input
+                    id="header-show-title"
+                    type="checkbox"
+                    checked={headerShowTitle}
+                    onChange={(e) => setHeaderShowTitle(e.target.checked)}
+                    className="h-4 w-4 rounded border-input"
+                  />
+                  <Label htmlFor="header-show-title" className="text-xs cursor-pointer">
+                    Show site title next to logo in header
+                  </Label>
+                </div>
+              )}
             </div>
 
             {/* Favicon upload */}

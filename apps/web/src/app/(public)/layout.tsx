@@ -25,6 +25,7 @@ export default async function PublicLayout({ children }: { children: React.React
         categories={categories}
         siteTitle={siteName}
         siteLogo={settings.site_logo}
+        showTitle={settings.header_show_title}
       />
 
       <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-8">
