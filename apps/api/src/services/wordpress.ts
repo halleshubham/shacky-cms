@@ -65,7 +65,7 @@ async function wpFetch(cfg: WPConfig, path: string, params: Record<string, strin
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
   const res = await fetch(url.toString(), {
     headers: { Authorization: authHeader(cfg), 'User-Agent': 'ShackyCMS-Migrator/1.0' },
-    signal: AbortSignal.timeout(30_000),
+    signal: AbortSignal.timeout(120_000),
   });
   if (!res.ok) {
     if (res.status === 401) throw new Error(`WordPress returned 401 Unauthorized — check username and application password`);
@@ -549,7 +549,7 @@ export async function runMigration(
     let done = 0;
     let skipped = 0;
     let errors = 0;
-    const BATCH = 20;
+    const BATCH = 50;
     let page = 1;
 
     while (true) {

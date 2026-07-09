@@ -34,7 +34,7 @@ function readingTime(html: string): number {
 
 const listQuerySchema = z.object({
   page: z.coerce.number().int().positive().default(1),
-  pageSize: z.coerce.number().int().positive().max(100).default(20),
+  pageSize: z.coerce.number().int().positive().default(20),
   status: z.enum(['draft', 'scheduled', 'published']).optional(),
   isFeatured: z.coerce.boolean().optional(),
   authorId: z.string().optional(),
