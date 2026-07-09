@@ -75,23 +75,40 @@ async function wpFetch(cfg: WPConfig, path: string, params: Record<string, strin
   return { data: await res.json(), headers: res.headers };
 }
 
-// Fetch a WP user when /users listing is blocked.
-// Tier 1: /users?slug={slug} — filtered query, allowed on many sites that block listing
-// Tier 2: /users/{id}       — individual fetch by numeric WP user ID
-// Returns null if both fail (fully blocked instance).
-async function fetchWPUser(cfg: WPConfig, wpUserId: number, slug?: string): Promise<any | null> {
-  if (slug) {
-    try {
-      const { data } = await wpFetch(cfg, 'users', { slug });
-      const user = Array.isArray(data) ? data[0] : null;
-      if (user?.name) return user;
-    } catch { /* fall through */ }
-  }
+// Scrape author name + slug from a post's public HTML page.
+// Used when /users and _embed=author are both blocked by security plugins.
+// Looks for the /author/{slug}/ archive link in the page HTML, then extracts
+// the display name from the nearest span element.
+async function scrapeAuthorFromPost(postUrl: string, baseUrl: string): Promise<{ name: string; slug: string } | null> {
   try {
-    const { data } = await wpFetch(cfg, `users/${wpUserId}`);
-    if (data?.name) return data;
-  } catch { /* fall through */ }
-  return null;
+    const res = await fetch(postUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+      },
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!res.ok) return null;
+    const html = await res.text();
+
+    // Find href="https://site.com/author/{slug}/"
+    const origin = new URL(baseUrl).origin;
+    const urlRe = new RegExp(`href="${origin.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/author/([^/"]+)/"`,'i');
+    const urlMatch = html.match(urlRe);
+    if (!urlMatch) return null;
+    const slug = urlMatch[1];
+
+    // Get display name from the span text immediately inside or after the author link
+    const linkIdx = html.indexOf(urlMatch[0]);
+    const ctx = html.slice(linkIdx, linkIdx + 600);
+    const spanMatch = ctx.match(/<span[^>]*>\s*([^<]{2,120}?)\s*<\/span>/);
+    const name = spanMatch ? spanMatch[1].trim() : slug;
+
+    return { name, slug };
+  } catch {
+    return null;
+  }
 }
 
 async function fetchAllPages<T>(cfg: WPConfig, endpoint: string, extraParams: Record<string, string> = {}): Promise<T[]> {
@@ -182,7 +199,8 @@ export async function importAuthorsFromPosts(
     const total = parseInt(headers.get('x-wp-total') || '0', 10);
     setProgress(jobId, { phase: `Scanning ${total} posts for authors…`, total });
 
-    const seen = new Map<string, true>(); // slug → already upserted
+    const seen = new Map<string, true>();        // slug → already upserted
+    const wpUserCache = new Map<number, string>(); // wpUserId → slug (skip re-scraping same author)
     let done = 0;
     let errors = 0;
     let page = 1;
@@ -201,7 +219,7 @@ export async function importAuthorsFromPosts(
           page: String(page),
           status: 'any',
           _embed: 'author',
-          _fields: 'id,author,_embedded',
+          _fields: 'id,author,link,_embedded',
         });
         wpPosts = result.data;
       } catch (e: any) {
@@ -213,36 +231,35 @@ export async function importAuthorsFromPosts(
       if (!Array.isArray(wpPosts) || wpPosts.length === 0) break;
 
       for (const wp of wpPosts) {
-        // Try embedded author first; security plugins often return {code, message} instead of {name}
+        if (wp.author && wpUserCache.has(wp.author)) continue; // already processed this WP user
+
+        // Try embedded author first; security plugins return {code, message} instead of {name}
         const emb = wp._embedded?.author?.[0];
-        const embAuthor = emb?.name ? emb : null;
+        let name: string | undefined = emb?.name;
+        let slug: string | undefined = emb?.slug;
 
-        // Fall back: /users?slug= then /users/{id} (both work on many sites even when listing is blocked)
-        const userData = embAuthor ?? (wp.author ? await fetchWPUser(cfg, wp.author, emb?.slug) : null);
-        if (!userData?.name) continue;
+        // Fall back: scrape the post's public HTML page for /author/{slug}/ link + display name
+        if (!name && wp.link) {
+          const scraped = await scrapeAuthorFromPost(wp.link, cfg.baseUrl);
+          if (scraped) { name = scraped.name; slug = scraped.slug; }
+        }
 
-        const slug = userData.slug || slugify(userData.name);
+        if (!name) continue;
+
+        slug = slug || slugify(name);
+        if (wp.author) wpUserCache.set(wp.author, slug);
         if (seen.has(slug)) continue;
         seen.set(slug, true);
 
         try {
           await prisma.author.upsert({
             where: { slug },
-            update: {
-              displayName: userData.name,
-              bio: userData.description || null,
-              avatarUrl: userData.avatar_urls?.['96'] || null,
-            },
-            create: {
-              slug,
-              displayName: userData.name,
-              bio: userData.description || null,
-              avatarUrl: userData.avatar_urls?.['96'] || null,
-            },
+            update: { displayName: name },
+            create: { slug, displayName: name },
           });
           done++;
         } catch (e: any) {
-          addError(`Author "${userData.name}": ${e.message}`);
+          addError(`Author "${name}": ${e.message}`);
           errors++;
         }
       }
@@ -613,20 +630,21 @@ export async function runMigration(
           if (!authorId) {
             // Embedded author is blocked on many WP security setups — returns {code,message} not {name}
             const emb = wp._embedded?.author?.[0];
-            const embAuthor = emb?.name ? emb : null;
-            // Fall back: /users?slug= then /users/{id}
-            const userData = embAuthor ?? (wp.author ? await fetchWPUser(cfg, wp.author, emb?.slug) : null);
-            if (userData?.name) {
-              const aSlug = userData.slug || slugify(userData.name);
+            let aName: string | undefined = emb?.name;
+            let aSlug: string | undefined = emb?.slug;
+
+            // Fall back: scrape post's public HTML for /author/{slug}/ link + display name
+            if (!aName && wp.link) {
+              const scraped = await scrapeAuthorFromPost(wp.link, cfg.baseUrl);
+              if (scraped) { aName = scraped.name; aSlug = scraped.slug; }
+            }
+
+            if (aName) {
+              aSlug = aSlug || slugify(aName);
               const author = await prisma.author.upsert({
                 where: { slug: aSlug },
                 update: {},
-                create: {
-                  slug: aSlug,
-                  displayName: userData.name,
-                  bio: userData.description || null,
-                  avatarUrl: userData.avatar_urls?.['96'] || null,
-                },
+                create: { slug: aSlug, displayName: aName },
               });
               authorId = author.id;
               wpAuthorToLocal.set(wp.author, author.id);
