@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { Save, Key, Loader2, Globe, Camera, Sparkles, Upload, X, Image as ImageIcon, AlertTriangle, Mail, Plug, Trash2 } from 'lucide-react';
+import { Save, Key, Loader2, Globe, Camera, Sparkles, Upload, X, Image as ImageIcon, AlertTriangle, Mail, Plug, Trash2, Menu } from 'lucide-react';
 import { useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,9 +10,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { api } from '@/lib/api';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/lib/auth';
+import { NavMenuEditor } from '@/components/admin/NavMenuEditor';
+import type { NavItem } from '@/lib/site-settings';
 
 const SECTIONS = [
   { id: 'site', label: 'Site & Branding' },
+  { id: 'navigation', label: 'Navigation' },
   { id: 'newsletter', label: 'Newsletter' },
   { id: 'profile', label: 'My Profile' },
   { id: 'stock', label: 'Stock Photos' },
@@ -45,7 +48,9 @@ export default function SettingsPage() {
   const [siteDescription, setSiteDescription] = useState('');
   const [siteLogo, setSiteLogo] = useState('');
   const [siteFavicon, setSiteFavicon] = useState('');
-  const [navPrimary, setNavPrimary] = useState('');
+  const [navPrimary, setNavPrimary] = useState<NavItem[]>([]);
+  const [navSecondary, setNavSecondary] = useState<NavItem[]>([]);
+  const [savingNav, setSavingNav] = useState(false);
   const [codeHead, setCodeHead] = useState('');
   const [codeFoot, setCodeFoot] = useState('');
   const [savingSettings, setSavingSettings] = useState(false);
@@ -97,7 +102,8 @@ export default function SettingsPage() {
       setSiteDescription(s.site_description || '');
       setSiteLogo(s.site_logo || '');
       setSiteFavicon(s.site_icon || '');
-      setNavPrimary(s.nav_primary ? (typeof s.nav_primary === 'string' ? s.nav_primary : JSON.stringify(s.nav_primary, null, 2)) : '');
+      try { setNavPrimary(s.nav_primary ? (typeof s.nav_primary === 'string' ? JSON.parse(s.nav_primary) : s.nav_primary) : []); } catch { setNavPrimary([]); }
+      try { setNavSecondary(s.nav_secondary ? (typeof s.nav_secondary === 'string' ? JSON.parse(s.nav_secondary) : s.nav_secondary) : []); } catch { setNavSecondary([]); }
       setCodeHead(s.code_injection_head || '');
       setCodeFoot(s.code_injection_foot || '');
       setStockUnsplash(s.stock_unsplash_key ? '••••••••' : '');
@@ -148,13 +154,24 @@ export default function SettingsPage() {
         site_description: siteDescription,
         site_logo: siteLogo,
         site_icon: siteFavicon,
-        nav_primary: navPrimary,
         code_injection_head: codeHead,
         code_injection_foot: codeFoot,
       });
       toast.success('Site settings saved');
     } catch (err: any) { toast.error(err?.message || 'Save failed'); }
     finally { setSavingSettings(false); }
+  };
+
+  const saveNavSettings = async () => {
+    setSavingNav(true);
+    try {
+      await api.patch('/api/settings', {
+        nav_primary: JSON.stringify(navPrimary),
+        nav_secondary: JSON.stringify(navSecondary),
+      });
+      toast.success('Navigation saved');
+    } catch (err: any) { toast.error(err?.message || 'Save failed'); }
+    finally { setSavingNav(false); }
   };
 
   const saveNewsletterSettings = async (e: React.FormEvent) => {
@@ -406,12 +423,7 @@ export default function SettingsPage() {
               <Input value={siteFavicon} onChange={(e) => setSiteFavicon(e.target.value)} placeholder="Or paste a URL…" className="text-xs" />
             </div>
 
-            <div className="space-y-1">
-              <Label className="text-xs">Primary Navigation (JSON — e.g. [{`{"label":"Home","url":"/"}`}])</Label>
-              <textarea value={navPrimary} onChange={(e) => setNavPrimary(e.target.value)} rows={3}
-                placeholder='[{"label": "Home", "url": "/"}]'
-                className="w-full text-xs font-mono bg-background border border-input rounded-md p-2 resize-none focus:outline-none focus:ring-2 focus:ring-ring" />
-            </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label className="text-xs">Code Injection &lt;head&gt;</Label>
@@ -430,6 +442,33 @@ export default function SettingsPage() {
               {savingSettings ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save Settings
             </Button>
           </form>
+        </CardContent>
+      </Card>
+
+      {/* Navigation */}
+      <Card id="navigation">
+        <CardHeader><CardTitle className="text-base flex items-center gap-2"><Menu className="h-4 w-4" /> Navigation</CardTitle></CardHeader>
+        <CardContent className="space-y-6">
+          <div className="space-y-2">
+            <div>
+              <p className="text-sm font-medium">Header Menu</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Links shown in the top navigation bar. Drag ↑↓ to reorder.</p>
+            </div>
+            <NavMenuEditor value={navPrimary} onChange={setNavPrimary} />
+          </div>
+
+          <div className="space-y-2">
+            <div>
+              <p className="text-sm font-medium">Footer Menu</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Links shown in the site footer.</p>
+            </div>
+            <NavMenuEditor value={navSecondary} onChange={setNavSecondary} />
+          </div>
+
+          <Button onClick={saveNavSettings} disabled={savingNav} className="gap-2">
+            {savingNav ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            Save Navigation
+          </Button>
         </CardContent>
       </Card>
 

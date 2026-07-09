@@ -293,6 +293,27 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
     return reply.send(posts.map(fmt));
   });
 
+  // GET /public/pages — list published pages (for nav picker + public display)
+  fastify.get('/pages', async (_req, reply) => {
+    const pages = await prisma.page.findMany({
+      where: { status: 'published' },
+      select: { id: true, title: true, slug: true, excerpt: true },
+      orderBy: { title: 'asc' },
+    });
+    return reply.send(pages);
+  });
+
+  // GET /public/pages/:slug — single published page
+  fastify.get('/pages/:slug', async (req, reply) => {
+    const { slug } = req.params as { slug: string };
+    const page = await prisma.page.findFirst({
+      where: { slug, status: 'published' },
+      include: { featuredMedia: true },
+    });
+    if (!page) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Page not found' });
+    return reply.send(page);
+  });
+
   // GET /public/settings — site settings for frontend
   fastify.get('/settings', async (_req, reply) => {
     const keys = ['site_title', 'site_description', 'site_logo', 'site_icon', 'nav_primary', 'nav_secondary'];
