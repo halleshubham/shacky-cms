@@ -21,6 +21,12 @@ async function main() {
       },
     });
     console.log(`Created superadmin: ${adminEmail} / ${adminPass}`);
+  } else if (process.env.FORCE_SEED === 'true') {
+    await prisma.user.update({
+      where: { email: adminEmail },
+      data: { passwordHash: await bcrypt.hash(adminPass, 12) },
+    });
+    console.log(`Reset superadmin password: ${adminEmail} / ${adminPass}`);
   } else {
     console.log(`Superadmin already exists: ${adminEmail}`);
   }
