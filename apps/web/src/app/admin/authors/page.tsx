@@ -21,8 +21,8 @@ export default function AuthorsPage() {
     setLoading(true);
     try {
       const params = q ? `?search=${encodeURIComponent(q)}` : '';
-      const data = await api.get<any[]>(`/api/authors${params}`);
-      setAuthors(data);
+      const res = await api.get<any>(`/api/authors${params}`);
+      setAuthors(res.data ?? res);
     } finally {
       setLoading(false);
     }

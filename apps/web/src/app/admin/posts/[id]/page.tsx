@@ -52,8 +52,8 @@ export default function EditPostPage() {
   const load = async () => {
     const [postData, catData, authorData] = await Promise.all([
       api.get<any>(`/api/posts/${id}`),
-      api.get<any>('/api/categories'),
-      api.get<any>('/api/authors'),
+      api.get<any>('/api/categories?pageSize=1000'),
+      api.get<any>('/api/authors?pageSize=1000'),
     ]);
     setPost(postData);
     setTitle(postData.title);
@@ -62,8 +62,8 @@ export default function EditPostPage() {
     setStatus(postData.status);
     setSeoTitle(postData.seoTitle || '');
     setSeoDescription(postData.seoDescription || '');
-    setCategories(catData);
-    setAuthors(authorData);
+    setCategories(catData.data ?? catData);
+    setAuthors(authorData.data ?? authorData);
     setSelectedCategories(postData.categories?.map((c: any) => c.id) || []);
     setSelectedAuthors(postData.authors?.map((a: any) => a.id) || []);
     setFeaturedMedia(postData.featuredMedia || null);

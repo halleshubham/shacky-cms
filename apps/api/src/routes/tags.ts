@@ -12,13 +12,27 @@ const schema = z.object({
 
 const tagsRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/', { preHandler: [authenticate] }, async (req, reply) => {
-    const { search } = req.query as { search?: string };
-    const tags = await prisma.tag.findMany({
-      where: search ? { name: { contains: search, mode: 'insensitive' } } : undefined,
-      include: { _count: { select: { posts: true } } },
-      orderBy: { name: 'asc' },
+    const { search, page: pageStr, pageSize: pageSizeStr } = req.query as { search?: string; page?: string; pageSize?: string };
+    const page = Math.max(1, parseInt(pageStr || '1', 10));
+    const pageSize = Math.max(1, parseInt(pageSizeStr || '100', 10));
+    const where = search ? { name: { contains: search, mode: 'insensitive' as const } } : undefined;
+    const [tags, total] = await Promise.all([
+      prisma.tag.findMany({
+        where,
+        include: { _count: { select: { posts: true } } },
+        orderBy: { name: 'asc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      prisma.tag.count({ where }),
+    ]);
+    return reply.send({
+      data: tags.map((t) => ({ ...t, postCount: t._count.posts })),
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
     });
-    return reply.send(tags.map((t) => ({ ...t, postCount: t._count.posts })));
   });
 
   fastify.post('/', { preHandler: [authenticate, requireAdmin] }, async (req, reply) => {

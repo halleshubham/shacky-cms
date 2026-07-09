@@ -488,7 +488,7 @@ export async function runMigration(
       try {
         wpUsers = await fetchAllPages<any>(cfg, 'users');
       } catch (e: any) {
-        addError(`Authors skipped — users endpoint blocked: ${e.message}`);
+        addError(`Users endpoint blocked (${e.message}) — authors will be resolved per-post via HTML scraping in Phase 4`);
         setProgress(jobId, { errorLog });
       }
       for (const wu of wpUsers) {

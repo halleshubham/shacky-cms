@@ -18,8 +18,8 @@ export default function CategoriesPage() {
 
   const load = async () => {
     setLoading(true);
-    const data = await api.get<any[]>('/api/categories');
-    setCategories(data);
+    const res = await api.get<any>('/api/categories');
+    setCategories(res.data ?? res);
     setLoading(false);
   };
 

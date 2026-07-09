@@ -14,8 +14,8 @@ export default function TagsPage() {
 
   const load = async () => {
     setLoading(true);
-    const data = await api.get<any[]>('/api/tags');
-    setTags(data);
+    const res = await api.get<any>('/api/tags');
+    setTags(res.data ?? res);
     setLoading(false);
   };
 

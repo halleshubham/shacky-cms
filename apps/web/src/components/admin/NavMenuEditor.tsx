@@ -47,14 +47,17 @@ export function NavMenuEditor({ value, onChange }: NavMenuEditorProps) {
     if (!addOpen) return;
     setLoadingPicker(true);
     Promise.all([
-      api.get<any[]>('/api/categories').catch(() => []),
-      api.get<any[]>('/api/tags').catch(() => []),
-      api.get<any[]>('/api/pages').catch(() => []),
+      api.get<any>('/api/categories?pageSize=1000').catch(() => ({ data: [] })),
+      api.get<any>('/api/tags?pageSize=1000').catch(() => ({ data: [] })),
+      api.get<any>('/api/pages?pageSize=1000').catch(() => ({ data: [] })),
     ]).then(([cats, tags, pages]) => {
+      const catArr = cats.data ?? cats;
+      const tagArr = tags.data ?? tags;
+      const pageArr = pages.data ?? pages;
       setPickerItems({
-        category: cats.map((c: any) => ({ id: c.id, name: c.name, slug: c.slug })),
-        tag:      tags.map((t: any) => ({ id: t.id, name: t.name, slug: t.slug })),
-        page:     pages.map((p: any) => ({ id: p.id, title: p.title, slug: p.slug })),
+        category: catArr.map((c: any) => ({ id: c.id, name: c.name, slug: c.slug })),
+        tag:      tagArr.map((t: any) => ({ id: t.id, name: t.name, slug: t.slug })),
+        page:     pageArr.map((p: any) => ({ id: p.id, title: p.title, slug: p.slug })),
         url:      [],
       });
     }).finally(() => setLoadingPicker(false));

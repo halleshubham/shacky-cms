@@ -17,8 +17,8 @@ export default function PagesPage() {
   const load = async () => {
     setLoading(true);
     try {
-      const data = await api.get<any[]>('/api/pages');
-      setPages(data);
+      const res = await api.get<any>('/api/pages');
+      setPages(res.data ?? res);
     } finally {
       setLoading(false);
     }

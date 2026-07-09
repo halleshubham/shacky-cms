@@ -18,9 +18,25 @@ const schema = z.object({
 });
 
 const webhooksRoutes: FastifyPluginAsync = async (fastify) => {
-  fastify.get('/', { preHandler: [authenticate, requireAdmin] }, async (_req, reply) => {
-    const hooks = await prisma.webhook.findMany({ orderBy: { createdAt: 'desc' } });
-    return reply.send(hooks.map((h) => ({ ...h, secret: h.secret ? '***' : null })));
+  fastify.get('/', { preHandler: [authenticate, requireAdmin] }, async (req, reply) => {
+    const { page: pageStr, pageSize: pageSizeStr } = req.query as { page?: string; pageSize?: string };
+    const page = Math.max(1, parseInt(pageStr || '1', 10));
+    const pageSize = Math.max(1, parseInt(pageSizeStr || '50', 10));
+    const [hooks, total] = await Promise.all([
+      prisma.webhook.findMany({
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      prisma.webhook.count(),
+    ]);
+    return reply.send({
+      data: hooks.map((h) => ({ ...h, secret: h.secret ? '***' : null })),
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
+    });
   });
 
   fastify.get('/events', { preHandler: [authenticate] }, async (_req, reply) => {

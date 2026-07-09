@@ -44,7 +44,7 @@ export default function IntegrationsPage() {
       if (s.botsab_api_key) setBotsabApiKey('••••••••');
       if (s.botsab_instance_id) setBotsabInstanceId(s.botsab_instance_id);
     }).catch(() => {});
-    api.get<any[]>('/api/webhooks').then(setWebhooks).catch(() => {});
+    api.get<any>('/api/webhooks').then((res) => setWebhooks(res.data ?? res)).catch(() => {});
     api.get<string[]>('/api/webhooks/events').then(setWebhookEvents).catch(() => {});
     api.get<any[]>('/api/auth/application-passwords').then(setAppPasswords).catch(() => {});
     api.get<any[]>('/api/oauth/tokens').then(setOauthTokens).catch(() => {});

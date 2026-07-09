@@ -13,11 +13,27 @@ const schema = z.object({
 
 const categoriesRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/', { preHandler: [authenticate] }, async (req, reply) => {
-    const categories = await prisma.category.findMany({
-      include: { _count: { select: { posts: true } }, children: true },
-      orderBy: { name: 'asc' },
+    const { search, page: pageStr, pageSize: pageSizeStr } = req.query as { search?: string; page?: string; pageSize?: string };
+    const page = Math.max(1, parseInt(pageStr || '1', 10));
+    const pageSize = Math.max(1, parseInt(pageSizeStr || '100', 10));
+    const where = search ? { name: { contains: search, mode: 'insensitive' as const } } : undefined;
+    const [categories, total] = await Promise.all([
+      prisma.category.findMany({
+        where,
+        include: { _count: { select: { posts: true } }, children: true },
+        orderBy: { name: 'asc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      prisma.category.count({ where }),
+    ]);
+    return reply.send({
+      data: categories.map((c) => ({ ...c, postCount: c._count.posts })),
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
     });
-    return reply.send(categories.map((c) => ({ ...c, postCount: c._count.posts })));
   });
 
   fastify.get('/:id', { preHandler: [authenticate] }, async (req, reply) => {

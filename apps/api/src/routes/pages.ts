@@ -18,11 +18,27 @@ const pageBodySchema = z.object({
 
 const pagesRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/', { preHandler: [authenticate] }, async (req, reply) => {
-    const pages = await prisma.page.findMany({
-      orderBy: { createdAt: 'desc' },
-      include: { featuredMedia: true },
+    const { search, page: pageStr, pageSize: pageSizeStr } = req.query as { search?: string; page?: string; pageSize?: string };
+    const page = Math.max(1, parseInt(pageStr || '1', 10));
+    const pageSize = Math.max(1, parseInt(pageSizeStr || '50', 10));
+    const where = search ? { title: { contains: search, mode: 'insensitive' as const } } : undefined;
+    const [pages, total] = await Promise.all([
+      prisma.page.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        include: { featuredMedia: true },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      prisma.page.count({ where }),
+    ]);
+    return reply.send({
+      data: pages,
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
     });
-    return reply.send(pages);
   });
 
   fastify.get('/:id', { preHandler: [authenticate] }, async (req, reply) => {

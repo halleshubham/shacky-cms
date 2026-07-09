@@ -15,13 +15,27 @@ const authorBodySchema = z.object({
 
 const authorsRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/', { preHandler: [authenticate] }, async (req, reply) => {
-    const { search } = req.query as { search?: string };
-    const authors = await prisma.author.findMany({
-      where: search ? { displayName: { contains: search, mode: 'insensitive' } } : undefined,
-      include: { _count: { select: { posts: true } } },
-      orderBy: { displayName: 'asc' },
+    const { search, page: pageStr, pageSize: pageSizeStr } = req.query as { search?: string; page?: string; pageSize?: string };
+    const page = Math.max(1, parseInt(pageStr || '1', 10));
+    const pageSize = Math.max(1, parseInt(pageSizeStr || '100', 10));
+    const where = search ? { displayName: { contains: search, mode: 'insensitive' as const } } : undefined;
+    const [authors, total] = await Promise.all([
+      prisma.author.findMany({
+        where,
+        include: { _count: { select: { posts: true } } },
+        orderBy: { displayName: 'asc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      prisma.author.count({ where }),
+    ]);
+    return reply.send({
+      data: authors.map((a) => ({ ...a, postCount: a._count.posts })),
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
     });
-    return reply.send(authors.map((a) => ({ ...a, postCount: a._count.posts })));
   });
 
   fastify.get('/:id', { preHandler: [authenticate] }, async (req, reply) => {
