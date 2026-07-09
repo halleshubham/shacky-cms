@@ -13,6 +13,8 @@ export interface SiteSettings {
   nav_secondary?: NavItem[];
   translation_enabled?: boolean;
   translation_languages?: string;
+  tts_enabled?: boolean;
+  tts_language?: string;
 }
 
 export function navItemHref(item: NavItem): string {
@@ -47,6 +49,8 @@ export async function getSiteSettings(): Promise<SiteSettings> {
       nav_secondary: raw.nav_secondary ? migrateNavItems(raw.nav_secondary) : undefined,
       translation_enabled: raw.translation_enabled === 'true',
       translation_languages: raw.translation_languages || 'mr,hi',
+      tts_enabled: raw.tts_enabled === 'true',
+      tts_language: raw.tts_language || 'mr-IN',
     } as SiteSettings;
   } catch {
     return {};

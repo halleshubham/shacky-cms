@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { Save, Key, Loader2, Globe, Camera, Sparkles, Upload, X, Image as ImageIcon, AlertTriangle, Mail, Plug, Trash2, Menu, Languages } from 'lucide-react';
+import { Save, Key, Loader2, Globe, Camera, Sparkles, Upload, X, Image as ImageIcon, AlertTriangle, Mail, Plug, Trash2, Menu, Languages, Volume2 } from 'lucide-react';
 import { useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,6 +27,7 @@ const SECTIONS = [
   { id: 'navigation', label: 'Navigation' },
   { id: 'newsletter', label: 'Newsletter' },
   { id: 'translation', label: 'Translation' },
+  { id: 'tts', label: 'Text to Speech' },
   { id: 'profile', label: 'My Profile' },
   { id: 'stock', label: 'Stock Photos' },
   { id: 'ai', label: 'AI Configuration' },
@@ -91,6 +92,11 @@ export default function SettingsPage() {
   const [nlWaChannels, setNlWaChannels] = useState('');
   const [savingNl, setSavingNl] = useState(false);
 
+  // TTS settings
+  const [ttsEnabled, setTtsEnabled] = useState(false);
+  const [ttsLanguage, setTtsLanguage] = useState('mr-IN');
+  const [savingTts, setSavingTts] = useState(false);
+
   // Translation settings
   const [translationEnabled, setTranslationEnabled] = useState(false);
   const [translationLanguages, setTranslationLanguages] = useState('mr,hi');
@@ -131,6 +137,8 @@ export default function SettingsPage() {
       setNlSubscribeUrl(s.newsletter_subscribe_url || '');
       setNlWaGroups(s.newsletter_wa_groups || '');
       setNlWaChannels(s.newsletter_wa_channels || '');
+      setTtsEnabled(s.tts_enabled === 'true');
+      setTtsLanguage(s.tts_language || 'mr-IN');
       setTranslationEnabled(s.translation_enabled === 'true');
       setTranslationLanguages(s.translation_languages || 'mr,hi');
     }).catch(() => {});
@@ -207,6 +215,19 @@ export default function SettingsPage() {
       toast.success('Newsletter settings saved');
     } catch (err: any) { toast.error(err?.message || 'Save failed'); }
     finally { setSavingNl(false); }
+  };
+
+  const saveTtsSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingTts(true);
+    try {
+      await api.patch('/api/settings', {
+        tts_enabled: String(ttsEnabled),
+        tts_language: ttsLanguage,
+      });
+      toast.success('TTS settings saved');
+    } catch (err: any) { toast.error(err?.message || 'Save failed'); }
+    finally { setSavingTts(false); }
   };
 
   const saveTranslationSettings = async (e: React.FormEvent) => {
@@ -593,6 +614,47 @@ export default function SettingsPage() {
             </div>
             <Button type="submit" disabled={savingTranslation} className="gap-2">
               {savingTranslation ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save Translation Settings
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      {/* Text to Speech */}
+      <Card id="tts">
+        <CardHeader><CardTitle className="text-base flex items-center gap-2"><Volume2 className="h-4 w-4" /> Text to Speech</CardTitle></CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground mb-4">
+            Show a Play button on article pages so readers can listen to articles using the browser&apos;s built-in speech engine. No API key required.
+          </p>
+          <form onSubmit={saveTtsSettings} className="space-y-4">
+            <div className="flex items-center gap-3">
+              <input
+                id="tts-enabled"
+                type="checkbox"
+                checked={ttsEnabled}
+                onChange={(e) => setTtsEnabled(e.target.checked)}
+                className="h-4 w-4 rounded border-input"
+              />
+              <Label htmlFor="tts-enabled" className="text-sm font-medium cursor-pointer">
+                Enable text-to-speech on articles
+              </Label>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Language / voice code</Label>
+              <Input
+                value={ttsLanguage}
+                onChange={(e) => setTtsLanguage(e.target.value)}
+                placeholder="mr-IN"
+                className="max-w-xs text-sm font-mono"
+                disabled={!ttsEnabled}
+              />
+              <p className="text-xs text-muted-foreground">
+                BCP-47 code: <code>mr-IN</code> = Marathi, <code>hi-IN</code> = Hindi, <code>en-US</code> = English.
+                Voice availability depends on the reader&apos;s OS and browser.
+              </p>
+            </div>
+            <Button type="submit" disabled={savingTts} className="gap-2">
+              {savingTts ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save TTS Settings
             </Button>
           </form>
         </CardContent>

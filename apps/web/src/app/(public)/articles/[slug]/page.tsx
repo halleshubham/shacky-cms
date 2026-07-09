@@ -5,6 +5,7 @@ import Script from 'next/script';
 import { format } from 'date-fns';
 import { ArticleCard } from '@/components/public/ArticleCard';
 import { TranslateButtons } from '@/components/public/TranslateButtons';
+import { TextToSpeech } from '@/components/public/TextToSpeech';
 import { getSiteSettings } from '@/lib/site-settings';
 import { ChevronRight, Clock, Star } from 'lucide-react';
 import { ViewTracker } from './ViewTracker';
@@ -73,19 +74,24 @@ export default async function ArticlePage({ params }: { params: { slug: string }
         )}
 
         <ViewTracker postId={post.id} />
-        {settings.translation_enabled && (
-          <>
-            <Script id="gt-init" strategy="afterInteractive">{`
-              function googleTranslateElementInit() {
-                new google.translate.TranslateElement({ pageLanguage: 'auto', autoDisplay: false }, 'google_translate_element');
-              }
-            `}</Script>
-            <Script src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit" strategy="afterInteractive" />
-            <div id="google_translate_element" style={{ display: 'none' }} />
-            <div className="mb-3">
-              <TranslateButtons languages={settings.translation_languages || 'mr,hi'} />
-            </div>
-          </>
+        {(settings.translation_enabled || settings.tts_enabled) && (
+          <div className="flex flex-wrap items-center gap-4 mb-3">
+            {settings.tts_enabled && (
+              <TextToSpeech content={post.content} language={settings.tts_language || 'mr-IN'} />
+            )}
+            {settings.translation_enabled && (
+              <>
+                <Script id="gt-init" strategy="afterInteractive">{`
+                  function googleTranslateElementInit() {
+                    new google.translate.TranslateElement({ pageLanguage: 'auto', autoDisplay: false }, 'google_translate_element');
+                  }
+                `}</Script>
+                <Script src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit" strategy="afterInteractive" />
+                <div id="google_translate_element" style={{ display: 'none' }} />
+                <TranslateButtons languages={settings.translation_languages || 'mr,hi'} />
+              </>
+            )}
+          </div>
         )}
         <div className="flex items-center gap-4 text-sm text-muted-foreground border-y border-border py-3">
           <div className="flex items-center gap-2">
