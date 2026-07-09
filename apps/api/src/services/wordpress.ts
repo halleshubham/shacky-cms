@@ -146,6 +146,105 @@ function isCancelled(jobId: string): boolean {
   return cancelled.has(jobId);
 }
 
+// ─── Standalone author import (works even when /users is blocked) ─────────────
+// Extracts unique authors from embedded post data instead of calling /wp/v2/users.
+
+export async function importAuthorsFromPosts(
+  cfg: WPConfig,
+  jobId: string,
+): Promise<void> {
+  setProgress(jobId, { status: 'running', phase: 'Counting posts…', total: 0, done: 0, skipped: 0, errors: 0, errorLog: [] });
+
+  const errorLog: string[] = [];
+  const addError = (msg: string) => { errorLog.push(msg); if (errorLog.length > 50) errorLog.shift(); };
+
+  try {
+    const { headers } = await wpFetch(cfg, 'posts', { per_page: '1', status: 'any' });
+    const total = parseInt(headers.get('x-wp-total') || '0', 10);
+    setProgress(jobId, { phase: `Scanning ${total} posts for authors…`, total });
+
+    const seen = new Map<string, true>(); // slug → already upserted
+    let done = 0;
+    let errors = 0;
+    let page = 1;
+    const BATCH = 100;
+
+    while (true) {
+      if (isCancelled(jobId)) {
+        setProgress(jobId, { status: 'cancelled', phase: 'Cancelled', finishedAt: new Date().toISOString(), errorLog });
+        return;
+      }
+
+      let wpPosts: any[];
+      try {
+        const result = await wpFetch(cfg, 'posts', {
+          per_page: String(BATCH),
+          page: String(page),
+          status: 'any',
+          _embed: 'author',
+          _fields: 'id,_embedded',
+        });
+        wpPosts = result.data;
+      } catch (e: any) {
+        addError(`WP fetch page ${page}: ${e.message}`);
+        setProgress(jobId, { errors: ++errors, errorLog });
+        break;
+      }
+
+      if (!Array.isArray(wpPosts) || wpPosts.length === 0) break;
+
+      for (const wp of wpPosts) {
+        const emb = wp._embedded?.author?.[0];
+        if (!emb?.name) continue;
+        const slug = emb.slug || slugify(emb.name);
+        if (seen.has(slug)) continue;
+        seen.set(slug, true);
+
+        try {
+          await prisma.author.upsert({
+            where: { slug },
+            update: {
+              displayName: emb.name,
+              bio: emb.description || null,
+              avatarUrl: emb.avatar_urls?.['96'] || null,
+            },
+            create: {
+              slug,
+              displayName: emb.name,
+              bio: emb.description || null,
+              avatarUrl: emb.avatar_urls?.['96'] || null,
+            },
+          });
+          done++;
+        } catch (e: any) {
+          addError(`Author "${emb.name}": ${e.message}`);
+          errors++;
+        }
+      }
+
+      setProgress(jobId, { done, errors, errorLog });
+      page++;
+      if (wpPosts.length < BATCH) break;
+    }
+
+    setProgress(jobId, {
+      status: 'done',
+      phase: `Done — ${done} authors upserted, ${errors} errors`,
+      done,
+      errors,
+      errorLog,
+      finishedAt: new Date().toISOString(),
+    });
+  } catch (e: any) {
+    setProgress(jobId, {
+      status: 'failed',
+      phase: `Failed: ${e.message}`,
+      errorLog,
+      finishedAt: new Date().toISOString(),
+    });
+  }
+}
+
 // ─── Featured image import ────────────────────────────────────────────────────
 
 async function importFeaturedImage(

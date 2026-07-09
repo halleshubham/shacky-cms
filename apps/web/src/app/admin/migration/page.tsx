@@ -153,6 +153,22 @@ export default function MigrationPage() {
     toast('Cancellation requested…');
   };
 
+  const importAuthorsOnly = async () => {
+    setRunning(true);
+    setProgress(null);
+    setShowErrors(false);
+    try {
+      const { jobId: id } = await api.post<{ jobId: string }>('/api/migration/wordpress/authors', {
+        baseUrl, username, appPassword,
+      });
+      setJobId(id);
+      toast.success('Author import started');
+    } catch (e: any) {
+      setRunning(false);
+      toast.error(e?.message || 'Failed to start author import');
+    }
+  };
+
   const pct = progress && progress.total > 0
     ? Math.round((progress.done / progress.total) * 100)
     : 0;
@@ -222,12 +238,21 @@ export default function MigrationPage() {
                   <div key={label} className="flex items-center gap-1.5 text-sm text-green-700 dark:text-green-300">
                     <Icon className="h-3.5 w-3.5 opacity-70" />
                     {blocked
-                      ? <span className="text-xs text-amber-600">Authors blocked by security plugin</span>
+                      ? <span className="text-xs text-amber-600">/users blocked</span>
                       : <><span className="font-medium">{count.toLocaleString()}</span><span className="text-xs opacity-70">{label}</span></>
                     }
                   </div>
                 ))}
               </div>
+              {testResult.usersBlocked && (
+                <div className="mt-2 border border-amber-300 bg-amber-50 dark:bg-amber-950/30 rounded p-2 flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                  <div className="text-xs text-amber-700 dark:text-amber-300 space-y-1">
+                    <p className="font-medium">Authors endpoint blocked by a security plugin</p>
+                    <p>Use <strong>Import Authors via Posts</strong> in the Run section below — it extracts authors from embedded post data, no <code className="font-mono bg-amber-100 dark:bg-amber-900 px-1 rounded">/users</code> call needed.</p>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </CardContent>
@@ -364,20 +389,34 @@ export default function MigrationPage() {
 
       {/* Run */}
       <Card>
-        <CardContent className="pt-6 flex items-center gap-3">
-          <Button
-            onClick={startMigration}
-            disabled={running || !baseUrl || !username || !appPassword || (useDateRange && !!dateFrom && !!dateTo && new Date(dateFrom) > new Date(dateTo))}
-            className="gap-2"
-          >
-            {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
-            {running ? 'Migrating…' : 'Start Migration'}
-          </Button>
-          {running && (
-            <Button variant="outline" onClick={cancelMigration} className="gap-2 text-destructive border-destructive/30">
-              <XCircle className="h-4 w-4" /> Cancel
+        <CardContent className="pt-6 space-y-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            <Button
+              onClick={startMigration}
+              disabled={running || !baseUrl || !username || !appPassword || (useDateRange && !!dateFrom && !!dateTo && new Date(dateFrom) > new Date(dateTo))}
+              className="gap-2"
+            >
+              {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
+              {running ? 'Migrating…' : 'Start Migration'}
             </Button>
-          )}
+            <Button
+              onClick={importAuthorsOnly}
+              disabled={running || !baseUrl || !username || !appPassword}
+              variant="outline"
+              className="gap-2"
+            >
+              {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Users className="h-4 w-4" />}
+              Import Authors via Posts
+            </Button>
+            {running && (
+              <Button variant="outline" onClick={cancelMigration} className="gap-2 text-destructive border-destructive/30">
+                <XCircle className="h-4 w-4" /> Cancel
+              </Button>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            <strong>Import Authors via Posts</strong> extracts authors from embedded post data — works even when the WordPress site blocks the <code className="font-mono">/users</code> endpoint.
+          </p>
         </CardContent>
       </Card>
 
