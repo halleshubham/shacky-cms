@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { Save, Key, Loader2, Globe, Camera, Sparkles, Upload, X, Image as ImageIcon, AlertTriangle, Mail, Plug, Trash2, Menu } from 'lucide-react';
+import { Save, Key, Loader2, Globe, Camera, Sparkles, Upload, X, Image as ImageIcon, AlertTriangle, Mail, Plug, Trash2, Menu, Languages } from 'lucide-react';
 import { useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,6 +26,7 @@ const SECTIONS = [
   { id: 'site', label: 'Site & Branding' },
   { id: 'navigation', label: 'Navigation' },
   { id: 'newsletter', label: 'Newsletter' },
+  { id: 'translation', label: 'Translation' },
   { id: 'profile', label: 'My Profile' },
   { id: 'stock', label: 'Stock Photos' },
   { id: 'ai', label: 'AI Configuration' },
@@ -90,6 +91,11 @@ export default function SettingsPage() {
   const [nlWaChannels, setNlWaChannels] = useState('');
   const [savingNl, setSavingNl] = useState(false);
 
+  // Translation settings
+  const [translationEnabled, setTranslationEnabled] = useState(false);
+  const [translationLanguages, setTranslationLanguages] = useState('mr,hi');
+  const [savingTranslation, setSavingTranslation] = useState(false);
+
   // AI configuration
   const [aiProvider, setAiProvider] = useState<'openai' | 'gemini' | 'ollama' | 'groq'>('openai');
   const [aiApiKey, setAiApiKey] = useState('');
@@ -125,6 +131,8 @@ export default function SettingsPage() {
       setNlSubscribeUrl(s.newsletter_subscribe_url || '');
       setNlWaGroups(s.newsletter_wa_groups || '');
       setNlWaChannels(s.newsletter_wa_channels || '');
+      setTranslationEnabled(s.translation_enabled === 'true');
+      setTranslationLanguages(s.translation_languages || 'mr,hi');
     }).catch(() => {});
     api.get<any>('/api/ai/config').then((cfg) => {
       if (cfg.configured) {
@@ -199,6 +207,19 @@ export default function SettingsPage() {
       toast.success('Newsletter settings saved');
     } catch (err: any) { toast.error(err?.message || 'Save failed'); }
     finally { setSavingNl(false); }
+  };
+
+  const saveTranslationSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingTranslation(true);
+    try {
+      await api.patch('/api/settings', {
+        translation_enabled: String(translationEnabled),
+        translation_languages: translationLanguages,
+      });
+      toast.success('Translation settings saved');
+    } catch (err: any) { toast.error(err?.message || 'Save failed'); }
+    finally { setSavingTranslation(false); }
   };
 
   const saveStockKeys = async (e: React.FormEvent) => {
@@ -534,6 +555,44 @@ export default function SettingsPage() {
 
             <Button type="submit" disabled={savingNl} className="gap-2">
               {savingNl ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save Newsletter Settings
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      {/* Translation */}
+      <Card id="translation">
+        <CardHeader><CardTitle className="text-base flex items-center gap-2"><Languages className="h-4 w-4" /> Translation</CardTitle></CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground mb-4">
+            Show language buttons on article pages so readers can translate content using Google Translate.
+          </p>
+          <form onSubmit={saveTranslationSettings} className="space-y-4">
+            <div className="flex items-center gap-3">
+              <input
+                id="translation-enabled"
+                type="checkbox"
+                checked={translationEnabled}
+                onChange={(e) => setTranslationEnabled(e.target.checked)}
+                className="h-4 w-4 rounded border-input"
+              />
+              <Label htmlFor="translation-enabled" className="text-sm font-medium cursor-pointer">
+                Enable browser translation buttons
+              </Label>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Languages (comma-separated codes)</Label>
+              <Input
+                value={translationLanguages}
+                onChange={(e) => setTranslationLanguages(e.target.value)}
+                placeholder="mr,hi"
+                className="max-w-xs text-sm font-mono"
+                disabled={!translationEnabled}
+              />
+              <p className="text-xs text-muted-foreground">e.g. <code>mr</code> = Marathi, <code>hi</code> = Hindi. Default: <code>mr,hi</code></p>
+            </div>
+            <Button type="submit" disabled={savingTranslation} className="gap-2">
+              {savingTranslation ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save Translation Settings
             </Button>
           </form>
         </CardContent>

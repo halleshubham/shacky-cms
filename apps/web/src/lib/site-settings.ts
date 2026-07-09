@@ -11,6 +11,8 @@ export interface SiteSettings {
   site_icon?: string;
   nav_primary?: NavItem[];
   nav_secondary?: NavItem[];
+  translation_enabled?: boolean;
+  translation_languages?: string;
 }
 
 export function navItemHref(item: NavItem): string {
@@ -43,6 +45,8 @@ export async function getSiteSettings(): Promise<SiteSettings> {
       ...raw,
       nav_primary: raw.nav_primary ? migrateNavItems(raw.nav_primary) : undefined,
       nav_secondary: raw.nav_secondary ? migrateNavItems(raw.nav_secondary) : undefined,
+      translation_enabled: raw.translation_enabled === 'true',
+      translation_languages: raw.translation_languages || 'mr,hi',
     } as SiteSettings;
   } catch {
     return {};

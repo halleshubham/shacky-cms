@@ -8,6 +8,7 @@ const PUBLIC_KEYS = [
   'site_title', 'site_description', 'site_logo', 'site_icon',
   'site_cover', 'site_lang', 'nav_primary', 'nav_secondary',
   'code_injection_head', 'code_injection_foot',
+  'translation_enabled', 'translation_languages',
 ];
 
 const settingsRoutes: FastifyPluginAsync = async (fastify) => {
