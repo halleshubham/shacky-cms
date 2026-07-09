@@ -9,18 +9,19 @@ function stripHtml(html: string): string {
   return (div.textContent || div.innerText || '').replace(/\s+/g, ' ').trim();
 }
 
-// Split into sentence-sized chunks so Chrome's ~15s speech limit doesn't cut off mid-article
+// Split into sentence-sized chunks so Chrome's ~15s speech limit doesn't cut off mid-article.
+// Uses match() instead of lookbehind split() — broader browser support.
 function chunkText(text: string): string[] {
-  const raw = text.split(/(?<=[.!?।])\s+|(?<=।)\s*/);
+  const sentences = text.match(/[^.!?।]+[.!?।\s]*/g) || [text];
   const chunks: string[] = [];
   let current = '';
-  for (const part of raw) {
-    if (!part.trim()) continue;
-    if (current.length + part.length > 200) {
-      if (current) chunks.push(current.trim());
-      current = part;
+  for (const s of sentences) {
+    if (!s.trim()) continue;
+    if (current.length + s.length > 200) {
+      if (current.trim()) chunks.push(current.trim());
+      current = s;
     } else {
-      current = current ? current + ' ' + part : part;
+      current += s;
     }
   }
   if (current.trim()) chunks.push(current.trim());
@@ -69,7 +70,8 @@ export function TextToSpeech({ content, language }: { content: string; language:
     utt.rate = 0.85;
     utt.onend = () => {
       chunkIdxRef.current = index + 1;
-      speakChunk(index + 1);
+      // Chrome silently drops speak() called synchronously inside onend — defer by one tick
+      setTimeout(() => speakChunk(index + 1), 0);
     };
     utt.onerror = (e) => {
       if (e.error !== 'interrupted') { setStatus('idle'); activeRef.current = false; stopKeepAlive(); }
