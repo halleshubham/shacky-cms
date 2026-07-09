@@ -345,7 +345,7 @@ export default function MigrationPage() {
               {groupByDate && (
                 <div className="pl-6 space-y-3">
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Issue numbering for the first date imported</p>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-3 gap-3">
                     <div className="space-y-1">
                       <Label className="text-xs">Volume No.</Label>
                       <Input
@@ -362,12 +362,22 @@ export default function MigrationPage() {
                         onChange={(e) => setFirstIssueNumber(e.target.value)}
                       />
                     </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Issues / volume</Label>
+                      <Input
+                        type="number" min="1" placeholder="blank = by year"
+                        value={issuesPerVolume}
+                        onChange={(e) => setIssuesPerVolume(e.target.value)}
+                      />
+                    </div>
                   </div>
                   {firstVolumeNumber && firstIssueNumber && (
                     <p className="text-xs text-muted-foreground">
-                      First issue → <span className="font-medium">Vol. {firstVolumeNumber}, No. {firstIssueNumber}</span>.
-                      Volume increments automatically when the year changes; issue number resets to 1 each new year.
-                      Title format: <span className="font-medium italic">Vol. {firstVolumeNumber}, No. {firstIssueNumber} | DD Mon YYYY - DD Mon YYYY</span>
+                      First issue → <span className="font-medium">Vol. {firstVolumeNumber}, No. {firstIssueNumber}</span>.{' '}
+                      {issuesPerVolume
+                        ? <>Volume rolls over every <span className="font-medium">{issuesPerVolume}</span> issues.</>
+                        : <>Volume increments when the year changes; issue resets to 1 each new year.</>
+                      }
                     </p>
                   )}
                   {(!firstVolumeNumber || !firstIssueNumber) && (
