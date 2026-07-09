@@ -105,7 +105,7 @@ export function NavMenuEditor({ value, onChange }: NavMenuEditorProps) {
       ) : (
         <ul className="space-y-1.5">
           {value.map((item, i) => {
-            const meta = TYPE_META[item.type];
+            const meta = TYPE_META[item.type] ?? TYPE_META.url;
             return (
               <li key={i} className="flex items-center gap-2 p-2.5 border border-border rounded-md bg-card group">
                 <GripVertical className="h-4 w-4 text-muted-foreground/40 shrink-0" />

@@ -13,6 +13,15 @@ import { useAuth } from '@/lib/auth';
 import { NavMenuEditor } from '@/components/admin/NavMenuEditor';
 import type { NavItem } from '@/lib/site-settings';
 
+function migrateNavItems(items: any[]): NavItem[] {
+  if (!Array.isArray(items)) return [];
+  return items.map((item): NavItem => {
+    if (item.type && item.value !== undefined) return item as NavItem;
+    // Legacy format: { label, url } → { label, type: 'url', value: url }
+    return { label: item.label || '', type: 'url', value: item.url || item.value || '' };
+  });
+}
+
 const SECTIONS = [
   { id: 'site', label: 'Site & Branding' },
   { id: 'navigation', label: 'Navigation' },
@@ -102,8 +111,8 @@ export default function SettingsPage() {
       setSiteDescription(s.site_description || '');
       setSiteLogo(s.site_logo || '');
       setSiteFavicon(s.site_icon || '');
-      try { setNavPrimary(s.nav_primary ? (typeof s.nav_primary === 'string' ? JSON.parse(s.nav_primary) : s.nav_primary) : []); } catch { setNavPrimary([]); }
-      try { setNavSecondary(s.nav_secondary ? (typeof s.nav_secondary === 'string' ? JSON.parse(s.nav_secondary) : s.nav_secondary) : []); } catch { setNavSecondary([]); }
+      try { setNavPrimary(migrateNavItems(s.nav_primary ? (typeof s.nav_primary === 'string' ? JSON.parse(s.nav_primary) : s.nav_primary) : [])); } catch { setNavPrimary([]); }
+      try { setNavSecondary(migrateNavItems(s.nav_secondary ? (typeof s.nav_secondary === 'string' ? JSON.parse(s.nav_secondary) : s.nav_secondary) : [])); } catch { setNavSecondary([]); }
       setCodeHead(s.code_injection_head || '');
       setCodeFoot(s.code_injection_foot || '');
       setStockUnsplash(s.stock_unsplash_key ? '••••••••' : '');
