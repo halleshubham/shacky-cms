@@ -67,6 +67,21 @@ const categoriesRoutes: FastifyPluginAsync = async (fastify) => {
     await prisma.category.delete({ where: { id } });
     return reply.send({ success: true });
   });
+
+  // POST /categories/:id/merge/:targetId — reassign all posts from source to target, then delete source
+  fastify.post('/:id/merge/:targetId', { preHandler: [authenticate, requireAdmin] }, async (req, reply) => {
+    const { id, targetId } = req.params as { id: string; targetId: string };
+    await prisma.$transaction([
+      prisma.$executeRaw`
+        INSERT INTO post_categories ("postId", "categoryId")
+        SELECT "postId", ${targetId} FROM post_categories WHERE "categoryId" = ${id}
+        ON CONFLICT ("postId", "categoryId") DO NOTHING
+      `,
+      prisma.$executeRaw`DELETE FROM post_categories WHERE "categoryId" = ${id}`,
+      prisma.category.delete({ where: { id } }),
+    ]);
+    return reply.send({ success: true });
+  });
 };
 
 export default categoriesRoutes;
