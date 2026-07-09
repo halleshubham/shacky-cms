@@ -3,7 +3,7 @@ import { ArticleCard } from '@/components/public/ArticleCard';
 import { BookOpen, ArrowRight } from 'lucide-react';
 import { format } from 'date-fns';
 
-const API = process.env.NEXT_PUBLIC_API_URL;
+const API = process.env.API_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL;
 
 async function getLatestIssue() {
   try {

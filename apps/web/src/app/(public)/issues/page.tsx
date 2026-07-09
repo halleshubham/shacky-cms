@@ -4,7 +4,7 @@ import { format } from 'date-fns';
 import { BookOpen, FileText } from 'lucide-react';
 import { Pagination } from '@/components/public/Pagination';
 
-const API = process.env.NEXT_PUBLIC_API_URL;
+const API = process.env.API_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL;
 
 async function getIssues(page = 1) {
   try {
