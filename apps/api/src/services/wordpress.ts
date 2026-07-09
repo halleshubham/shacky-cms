@@ -549,12 +549,14 @@ export async function runMigration(
     const dateToOrderCounter = new Map<string, number>();
     let issuesCreated = 0;
 
-    // Vol/No numbering — user supplies the starting point; we increment chronologically
+    // Vol/No numbering — user supplies the starting point; volume increments on year change
     const useCustomNumbering = !!(options.firstVolumeNumber && options.firstIssueNumber);
-    const issuesPerVolume = options.issuesPerVolume ?? 52;
-    // 0-indexed offset within the first volume (e.g. firstIssueNumber=9 → offset=8)
-    const initialOffset = useCustomNumbering ? (options.firstIssueNumber! - 1) : 0;
-    let dateSequence = 0; // increments for every new unique date we encounter
+
+    // Year-based volume tracking (only used when useCustomNumbering is true)
+    let firstYear: number | null = null;
+    let currentVolumeYear: number | null = null;
+    let currentVolume = options.firstVolumeNumber ?? 1;
+    let currentVolumeIssueSeq = 0; // incremented before use; seeded from firstIssueNumber on first issue
 
     // Fallback auto-increment (used when the user doesn't provide Vol/No)
     let nextAutoIssueNumber = 1;
@@ -671,9 +673,22 @@ export async function runMigration(
                 let issueNumber: number;
 
                 if (useCustomNumbering) {
-                  const absSeq = initialOffset + dateSequence;
-                  volumeNumber = options.firstVolumeNumber! + Math.floor(absSeq / issuesPerVolume);
-                  issueNumber = (absSeq % issuesPerVolume) + 1;
+                  const issueYear = dayStart.getUTCFullYear();
+                  if (firstYear === null) {
+                    // Anchor on first issue encountered
+                    firstYear = issueYear;
+                    currentVolumeYear = issueYear;
+                    currentVolume = options.firstVolumeNumber!;
+                    currentVolumeIssueSeq = options.firstIssueNumber! - 1; // will be incremented below
+                  } else if (issueYear !== currentVolumeYear) {
+                    // Year boundary — new volume, reset issue counter
+                    currentVolume += issueYear - currentVolumeYear!;
+                    currentVolumeYear = issueYear;
+                    currentVolumeIssueSeq = 0;
+                  }
+                  currentVolumeIssueSeq++;
+                  volumeNumber = currentVolume;
+                  issueNumber = currentVolumeIssueSeq;
                 } else {
                   volumeNumber = 1;
                   issueNumber = nextAutoIssueNumber++;
@@ -694,7 +709,6 @@ export async function runMigration(
               }
               dateToIssueId.set(dateKey, issue.id);
               dateToOrderCounter.set(dateKey, 0);
-              dateSequence++;
             }
             const order = (dateToOrderCounter.get(dateKey) ?? 0) + 1;
             dateToOrderCounter.set(dateKey, order);
