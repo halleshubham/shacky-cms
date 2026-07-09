@@ -5,7 +5,7 @@ import { Search, Loader2, FileText } from 'lucide-react';
 import { ArticleCard } from '@/components/public/ArticleCard';
 import { Pagination } from '@/components/public/Pagination';
 
-const API = process.env.API_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL;
+const API = '';
 
 export function SearchResults({ q, page }: { q: string; page: number }) {
   const [query, setQuery] = useState(q);

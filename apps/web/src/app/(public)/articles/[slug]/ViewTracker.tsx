@@ -1,7 +1,7 @@
 'use client';
 import { useEffect } from 'react';
 
-const API = process.env.API_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL;
+const API = '';
 
 export function ViewTracker({ postId }: { postId: string }) {
   useEffect(() => {

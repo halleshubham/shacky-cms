@@ -39,7 +39,7 @@ export default function CampaignsPage() {
   };
 
   const openPreview = (id: string) => {
-    window.open(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api/campaigns/${id}/preview`, '_blank');
+    window.open(`/api/campaigns/${id}/preview`, '_blank');
   };
 
   return (
