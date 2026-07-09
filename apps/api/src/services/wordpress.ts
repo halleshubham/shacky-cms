@@ -75,6 +75,25 @@ async function wpFetch(cfg: WPConfig, path: string, params: Record<string, strin
   return { data: await res.json(), headers: res.headers };
 }
 
+// Fetch a WP user when /users listing is blocked.
+// Tier 1: /users?slug={slug} — filtered query, allowed on many sites that block listing
+// Tier 2: /users/{id}       — individual fetch by numeric WP user ID
+// Returns null if both fail (fully blocked instance).
+async function fetchWPUser(cfg: WPConfig, wpUserId: number, slug?: string): Promise<any | null> {
+  if (slug) {
+    try {
+      const { data } = await wpFetch(cfg, 'users', { slug });
+      const user = Array.isArray(data) ? data[0] : null;
+      if (user?.name) return user;
+    } catch { /* fall through */ }
+  }
+  try {
+    const { data } = await wpFetch(cfg, `users/${wpUserId}`);
+    if (data?.name) return data;
+  } catch { /* fall through */ }
+  return null;
+}
+
 async function fetchAllPages<T>(cfg: WPConfig, endpoint: string, extraParams: Record<string, string> = {}): Promise<T[]> {
   const results: T[] = [];
   let page = 1;
@@ -182,7 +201,7 @@ export async function importAuthorsFromPosts(
           page: String(page),
           status: 'any',
           _embed: 'author',
-          _fields: 'id,_embedded',
+          _fields: 'id,author,_embedded',
         });
         wpPosts = result.data;
       } catch (e: any) {
@@ -194,9 +213,15 @@ export async function importAuthorsFromPosts(
       if (!Array.isArray(wpPosts) || wpPosts.length === 0) break;
 
       for (const wp of wpPosts) {
+        // Try embedded author first; security plugins often return {code, message} instead of {name}
         const emb = wp._embedded?.author?.[0];
-        if (!emb?.name) continue;
-        const slug = emb.slug || slugify(emb.name);
+        const embAuthor = emb?.name ? emb : null;
+
+        // Fall back: /users?slug= then /users/{id} (both work on many sites even when listing is blocked)
+        const userData = embAuthor ?? (wp.author ? await fetchWPUser(cfg, wp.author, emb?.slug) : null);
+        if (!userData?.name) continue;
+
+        const slug = userData.slug || slugify(userData.name);
         if (seen.has(slug)) continue;
         seen.set(slug, true);
 
@@ -204,20 +229,20 @@ export async function importAuthorsFromPosts(
           await prisma.author.upsert({
             where: { slug },
             update: {
-              displayName: emb.name,
-              bio: emb.description || null,
-              avatarUrl: emb.avatar_urls?.['96'] || null,
+              displayName: userData.name,
+              bio: userData.description || null,
+              avatarUrl: userData.avatar_urls?.['96'] || null,
             },
             create: {
               slug,
-              displayName: emb.name,
-              bio: emb.description || null,
-              avatarUrl: emb.avatar_urls?.['96'] || null,
+              displayName: userData.name,
+              bio: userData.description || null,
+              avatarUrl: userData.avatar_urls?.['96'] || null,
             },
           });
           done++;
         } catch (e: any) {
-          addError(`Author "${emb.name}": ${e.message}`);
+          addError(`Author "${userData.name}": ${e.message}`);
           errors++;
         }
       }
@@ -586,18 +611,21 @@ export async function runMigration(
             .filter(Boolean) as string[];
           let authorId = wpAuthorToLocal.get(wp.author);
           if (!authorId) {
-            // Fall back to embedded author (available even when /users endpoint is blocked)
+            // Embedded author is blocked on many WP security setups — returns {code,message} not {name}
             const emb = wp._embedded?.author?.[0];
-            if (emb?.name) {
-              const aSlug = emb.slug || slugify(emb.name);
+            const embAuthor = emb?.name ? emb : null;
+            // Fall back: /users?slug= then /users/{id}
+            const userData = embAuthor ?? (wp.author ? await fetchWPUser(cfg, wp.author, emb?.slug) : null);
+            if (userData?.name) {
+              const aSlug = userData.slug || slugify(userData.name);
               const author = await prisma.author.upsert({
                 where: { slug: aSlug },
                 update: {},
                 create: {
                   slug: aSlug,
-                  displayName: emb.name,
-                  bio: emb.description || null,
-                  avatarUrl: emb.avatar_urls?.['96'] || null,
+                  displayName: userData.name,
+                  bio: userData.description || null,
+                  avatarUrl: userData.avatar_urls?.['96'] || null,
                 },
               });
               authorId = author.id;

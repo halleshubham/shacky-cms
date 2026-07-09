@@ -30,7 +30,7 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/posts', async (req, reply) => {
     const q = z.object({
       page: z.coerce.number().int().positive().default(1),
-      pageSize: z.coerce.number().int().positive().max(50).default(12),
+      pageSize: z.coerce.number().int().positive().max(200).default(12),
       search: z.string().optional(),
       categorySlug: z.string().optional(),
       tagSlug: z.string().optional(),
