@@ -566,10 +566,11 @@ export async function runMigration(
     let dateSequence = 0;
 
     // Fallback auto-increment (used when the user doesn't provide Vol/No)
+    // Use the latest issue by publishDate to determine next number
     let nextAutoIssueNumber = 1;
     if (options.groupByDate && !useCustomNumbering) {
-      const agg = await prisma.issue.aggregate({ _max: { issueNumber: true } });
-      nextAutoIssueNumber = (agg._max.issueNumber ?? 0) + 1;
+      const latest = await prisma.issue.findFirst({ orderBy: { publishDate: 'desc' }, select: { issueNumber: true } });
+      nextAutoIssueNumber = (latest?.issueNumber ?? 0) + 1;
     }
 
     let done = 0;

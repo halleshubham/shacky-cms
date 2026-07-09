@@ -4,7 +4,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   ArrowLeft, Plus, Upload, Loader2, Eye, CheckCircle,
-  Link2, Search, X, Zap,
+  Link2, Search, X, Zap, Pencil, Check,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -30,6 +30,11 @@ export default function IssueDetailPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [attaching, setAttaching] = useState(false);
   const [autoAttaching, setAutoAttaching] = useState(false);
+
+  // Inline edit for vol/issue/title
+  const [editing, setEditing] = useState(false);
+  const [editForm, setEditForm] = useState({ volumeNumber: '', issueNumber: '', title: '' });
+  const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
     const issueData = await api.get<any>(`/api/issues/${id}`);
@@ -134,6 +139,33 @@ export default function IssueDetailPage() {
       return next;
     });
 
+  const openEdit = () => {
+    setEditForm({
+      volumeNumber: String(issue.volumeNumber),
+      issueNumber: String(issue.issueNumber),
+      title: issue.title,
+    });
+    setEditing(true);
+  };
+
+  const saveEdit = async () => {
+    setSaving(true);
+    try {
+      await api.patch(`/api/issues/${id}`, {
+        volumeNumber: parseInt(editForm.volumeNumber),
+        issueNumber: parseInt(editForm.issueNumber),
+        title: editForm.title,
+      });
+      toast.success('Issue updated');
+      setEditing(false);
+      await load();
+    } catch (err: any) {
+      toast.error(err?.message || 'Update failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const bulkPublish = async (status: 'published' | 'draft') => {
     const toastId = toast.loading(`${status === 'published' ? 'Publishing' : 'Unpublishing'} all…`);
     try {
@@ -152,16 +184,54 @@ export default function IssueDetailPage() {
 
   return (
     <div className="space-y-6 max-w-4xl">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="sm" asChild>
+      <div className="flex items-start gap-4">
+        <Button variant="ghost" size="sm" asChild className="mt-1">
           <Link href="/admin/issues"><ArrowLeft className="h-4 w-4" /> Issues</Link>
         </Button>
-        <div>
-          <h1 className="text-2xl font-bold">{issue.title}</h1>
-          <p className="text-muted-foreground text-sm">
-            Vol. {issue.volumeNumber}, No. {issue.issueNumber} · {formatDate(issue.publishDate)} · {issue.type}
-          </p>
-        </div>
+        {editing ? (
+          <div className="flex-1 space-y-2">
+            <Input
+              value={editForm.title}
+              onChange={(e) => setEditForm((f) => ({ ...f, title: e.target.value }))}
+              className="text-lg font-semibold h-9"
+              placeholder="Issue title"
+            />
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-muted-foreground shrink-0">Vol.</label>
+              <Input
+                type="number" min="1"
+                value={editForm.volumeNumber}
+                onChange={(e) => setEditForm((f) => ({ ...f, volumeNumber: e.target.value }))}
+                className="w-20 h-7 text-sm"
+              />
+              <label className="text-xs text-muted-foreground shrink-0">No.</label>
+              <Input
+                type="number" min="1"
+                value={editForm.issueNumber}
+                onChange={(e) => setEditForm((f) => ({ ...f, issueNumber: e.target.value }))}
+                className="w-20 h-7 text-sm"
+              />
+              <Button size="sm" onClick={saveEdit} disabled={saving || !editForm.title || !editForm.volumeNumber || !editForm.issueNumber} className="gap-1 h-7 px-2">
+                {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />} Save
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setEditing(false)} className="h-7 px-2">
+                <X className="h-3 w-3" />
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex-1 flex items-start justify-between gap-2">
+            <div>
+              <h1 className="text-2xl font-bold">{issue.title}</h1>
+              <p className="text-muted-foreground text-sm">
+                Vol. {issue.volumeNumber}, No. {issue.issueNumber} · {formatDate(issue.publishDate)} · {issue.type}
+              </p>
+            </div>
+            <Button variant="ghost" size="sm" onClick={openEdit} className="gap-1 shrink-0 mt-1">
+              <Pencil className="h-3.5 w-3.5" /> Edit
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Bulk actions */}

@@ -71,15 +71,22 @@ const issuesRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.patch('/:id', { preHandler: [authenticate, requireAdmin] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const body = issueBodySchema.partial().parse(req.body);
-    const issue = await prisma.issue.update({
-      where: { id },
-      data: {
-        ...body,
-        ...(body.publishDate && { publishDate: new Date(body.publishDate) }),
-      },
-    });
-    await audit(req, 'issue.updated', { entity: 'issue', entityId: id });
-    return reply.send(issue);
+    try {
+      const issue = await prisma.issue.update({
+        where: { id },
+        data: {
+          ...body,
+          ...(body.publishDate && { publishDate: new Date(body.publishDate) }),
+        },
+      });
+      await audit(req, 'issue.updated', { entity: 'issue', entityId: id });
+      return reply.send(issue);
+    } catch (e: any) {
+      if (e?.code === 'P2002') {
+        return reply.status(409).send({ statusCode: 409, error: 'Conflict', message: `Vol. ${body.volumeNumber}, No. ${body.issueNumber} is already taken by another issue` });
+      }
+      throw e;
+    }
   });
 
   // DELETE /issues/:id
