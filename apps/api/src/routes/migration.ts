@@ -5,6 +5,7 @@ import { authenticate, requireAdmin } from '../middleware/auth.js';
 import {
   testWPConnection,
   runMigration,
+  importAuthorsFromPosts,
   getProgress,
   cancelJob,
 } from '../services/wordpress.js';
@@ -69,6 +70,19 @@ const migrationRoutes: FastifyPluginAsync = async (fastify) => {
     const progress = getProgress(jobId);
     if (!progress) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Job not found' });
     return reply.send(progress);
+  });
+
+  // POST /migration/wordpress/authors — import authors via embedded post data
+  // Works even when the WP site blocks /wp/v2/users (security plugins, etc.)
+  fastify.post('/wordpress/authors', { preHandler: [authenticate, requireAdmin] }, async (req, reply) => {
+    const cfg = wpConfigSchema.parse(req.body);
+    const jobId = createId();
+    setImmediate(() => {
+      importAuthorsFromPosts(cfg, jobId).catch((e) =>
+        fastify.log.error({ err: e }, 'Author import job crashed'),
+      );
+    });
+    return reply.status(202).send({ jobId });
   });
 
   // DELETE /migration/wordpress/job/:jobId — cancel running job
