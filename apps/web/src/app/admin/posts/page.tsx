@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Plus, Search, Star, Copy, Trash2, Globe, EyeOff, ChevronDown } from 'lucide-react';
+import { Plus, Search, Star, Copy, Trash2, Globe, EyeOff, ChevronDown, Pencil, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -171,6 +171,14 @@ export default function PostsPage() {
                   <button onClick={() => duplicate(post.id)} title="Duplicate" className="hidden sm:flex p-1.5 rounded hover:bg-muted text-muted-foreground transition-colors">
                     <Copy className="h-3.5 w-3.5" />
                   </button>
+                  <Link href={`/admin/posts/${post.id}`} title="Edit" className="p-1.5 rounded hover:bg-muted text-muted-foreground transition-colors">
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Link>
+                  {post.status === 'published' && (
+                    <Link href={`/articles/${post.slug}`} target="_blank" title="View published article" className="p-1.5 rounded hover:bg-muted text-muted-foreground transition-colors">
+                      <Eye className="h-3.5 w-3.5" />
+                    </Link>
+                  )}
                   <button
                     onClick={() => toggleStatus(post)}
                     className={`text-xs px-2 py-0.5 rounded-full font-medium cursor-pointer hover:opacity-80 transition-opacity ${statusColor(post.status)}`}
