@@ -13,12 +13,17 @@ function getActiveLang(): string {
 }
 
 function setLang(lang: string) {
+  const exp = 'expires=Thu, 01 Jan 1970 00:00:00 UTC';
+  const host = location.hostname;
   if (lang === '') {
-    document.cookie = 'googtrans=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC';
-    document.cookie = `googtrans=; path=/; domain=${location.hostname}; expires=Thu, 01 Jan 1970 00:00:00 UTC`;
+    // Google sets the cookie on both the bare hostname and the dot-prefixed domain.
+    // Clear all three variants so the widget sees no cookie on reload.
+    document.cookie = `googtrans=; path=/; ${exp}`;
+    document.cookie = `googtrans=; path=/; domain=${host}; ${exp}`;
+    document.cookie = `googtrans=; path=/; domain=.${host}; ${exp}`;
   } else {
     document.cookie = `googtrans=/auto/${lang}; path=/`;
-    document.cookie = `googtrans=/auto/${lang}; path=/; domain=${location.hostname}`;
+    document.cookie = `googtrans=/auto/${lang}; path=/; domain=${host}`;
   }
   location.reload();
 }
