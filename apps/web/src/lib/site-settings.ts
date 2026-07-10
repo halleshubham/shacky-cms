@@ -17,6 +17,7 @@ export interface SiteSettings {
   tts_enabled?: boolean;
   tts_language?: string;
   header_show_title?: boolean;
+  homepage_sections?: import('./page-builder').Section[];
 }
 
 export function navItemHref(item: NavItem): string {

@@ -11,17 +11,20 @@ const PUBLIC_KEYS = [
   'translation_enabled', 'translation_languages',
   'tts_enabled', 'tts_language',
   'header_show_title',
+  'homepage_sections',
 ];
 
 const settingsRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /settings/public — no auth required (used by public frontend)
   fastify.get('/public', async (_req, reply) => {
     const rows = await prisma.setting.findMany({ where: { key: { in: PUBLIC_KEYS } } });
-    const out: Record<string, string> = {};
-    for (const r of rows) out[r.key] = r.value;
-    // Parse nav JSON
-    if (out.nav_primary) { try { out.nav_primary = JSON.parse(out.nav_primary); } catch { /* keep raw */ } }
-    if (out.nav_secondary) { try { out.nav_secondary = JSON.parse(out.nav_secondary); } catch { /* keep raw */ } }
+    const raw: Record<string, string> = {};
+    for (const r of rows) raw[r.key] = r.value;
+    const out: Record<string, unknown> = { ...raw };
+    // Parse JSON fields
+    if (raw.nav_primary) { try { out.nav_primary = JSON.parse(raw.nav_primary); } catch { /* keep raw */ } }
+    if (raw.nav_secondary) { try { out.nav_secondary = JSON.parse(raw.nav_secondary); } catch { /* keep raw */ } }
+    if (raw.homepage_sections) { try { out.homepage_sections = JSON.parse(raw.homepage_sections); } catch { out.homepage_sections = []; } }
     return reply.send(out);
   });
 
