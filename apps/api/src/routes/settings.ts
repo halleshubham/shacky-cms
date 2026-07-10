@@ -55,14 +55,18 @@ const settingsRoutes: FastifyPluginAsync = async (fastify) => {
     return reply.send({ success: true });
   });
 
-  // POST /settings/migrate-domain — one-time URL migration (remove after use)
-  fastify.post('/migrate-domain', { preHandler: [authenticate, requireAdmin] }, async (_req, reply) => {
-    const OLD = 'https://janata.shackyapps.in';
-    const NEW = 'https://janataweekly.org';
-    const media   = await prisma.$executeRawUnsafe(`UPDATE "Media" SET url = REPLACE(url, '${OLD}', '${NEW}') WHERE url LIKE '%janata.shackyapps.in%'`);
-    const posts   = await prisma.$executeRawUnsafe(`UPDATE "Post" SET content = REPLACE(content, '${OLD}', '${NEW}') WHERE content LIKE '%janata.shackyapps.in%'`);
-    const authors = await prisma.$executeRawUnsafe(`UPDATE "Author" SET "avatarUrl" = REPLACE("avatarUrl", '${OLD}', '${NEW}') WHERE "avatarUrl" LIKE '%janata.shackyapps.in%'`);
-    return reply.send({ media, posts, authors });
+  // GET /settings/migrate-domain — one-time URL migration (remove after use)
+  fastify.get('/migrate-domain', { preHandler: [authenticate, requireAdmin] }, async (_req, reply) => {
+    try {
+      const OLD = 'https://janata.shackyapps.in';
+      const NEW = 'https://janataweekly.org';
+      const media   = await prisma.$executeRawUnsafe(`UPDATE "Media" SET url = REPLACE(url, '${OLD}', '${NEW}') WHERE url LIKE '%janata.shackyapps.in%'`);
+      const posts   = await prisma.$executeRawUnsafe(`UPDATE "Post" SET content = REPLACE(content, '${OLD}', '${NEW}') WHERE content LIKE '%janata.shackyapps.in%'`);
+      const authors = await prisma.$executeRawUnsafe(`UPDATE "Author" SET "avatarUrl" = REPLACE("avatarUrl", '${OLD}', '${NEW}') WHERE "avatarUrl" LIKE '%janata.shackyapps.in%'`);
+      return reply.send({ media, posts, authors });
+    } catch (e: any) {
+      return reply.status(500).send({ error: e.message, stack: e.stack });
+    }
   });
 
   // GET /settings/counts — row counts for every purgeable entity
