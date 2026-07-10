@@ -12,6 +12,8 @@ const PUBLIC_KEYS = [
   'tts_enabled', 'tts_language',
   'header_show_title',
   'homepage_sections',
+  'social_facebook', 'social_instagram', 'social_whatsapp',
+  'social_telegram', 'social_youtube', 'social_x',
 ];
 
 const settingsRoutes: FastifyPluginAsync = async (fastify) => {

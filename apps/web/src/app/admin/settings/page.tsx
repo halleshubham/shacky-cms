@@ -25,6 +25,7 @@ function migrateNavItems(items: any[]): NavItem[] {
 const SECTIONS = [
   { id: 'site', label: 'Site & Branding' },
   { id: 'navigation', label: 'Navigation' },
+  { id: 'social', label: 'Social Links' },
   { id: 'newsletter', label: 'Newsletter' },
   { id: 'translation', label: 'Translation' },
   { id: 'tts', label: 'Text to Speech' },
@@ -70,6 +71,15 @@ export default function SettingsPage() {
   const [uploadingFavicon, setUploadingFavicon] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const faviconInputRef = useRef<HTMLInputElement>(null);
+
+  // Social links
+  const [socialFacebook, setSocialFacebook] = useState('');
+  const [socialInstagram, setSocialInstagram] = useState('');
+  const [socialWhatsapp, setSocialWhatsapp] = useState('');
+  const [socialTelegram, setSocialTelegram] = useState('');
+  const [socialYoutube, setSocialYoutube] = useState('');
+  const [socialX, setSocialX] = useState('');
+  const [savingSocial, setSavingSocial] = useState(false);
 
   // Profile
   const [profileName, setProfileName] = useState('');
@@ -143,6 +153,12 @@ export default function SettingsPage() {
       setTtsLanguage(s.tts_language || 'mr-IN');
       setTranslationEnabled(s.translation_enabled === 'true');
       setTranslationLanguages(s.translation_languages || 'mr,hi');
+      setSocialFacebook(s.social_facebook || '');
+      setSocialInstagram(s.social_instagram || '');
+      setSocialWhatsapp(s.social_whatsapp || '');
+      setSocialTelegram(s.social_telegram || '');
+      setSocialYoutube(s.social_youtube || '');
+      setSocialX(s.social_x || '');
     }).catch(() => {});
     api.get<any>('/api/ai/config').then((cfg) => {
       if (cfg.configured) {
@@ -200,6 +216,23 @@ export default function SettingsPage() {
       toast.success('Navigation saved');
     } catch (err: any) { toast.error(err?.message || 'Save failed'); }
     finally { setSavingNav(false); }
+  };
+
+  const saveSocialLinks = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingSocial(true);
+    try {
+      await api.patch('/api/settings', {
+        social_facebook: socialFacebook,
+        social_instagram: socialInstagram,
+        social_whatsapp: socialWhatsapp,
+        social_telegram: socialTelegram,
+        social_youtube: socialYoutube,
+        social_x: socialX,
+      });
+      toast.success('Social links saved');
+    } catch (err: any) { toast.error(err?.message || 'Save failed'); }
+    finally { setSavingSocial(false); }
   };
 
   const saveNewsletterSettings = async (e: React.FormEvent) => {
@@ -541,6 +574,48 @@ export default function SettingsPage() {
             {savingNav ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             Save Navigation
           </Button>
+        </CardContent>
+      </Card>
+
+      {/* Social Links */}
+      <Card id="social">
+        <CardHeader><CardTitle className="text-base flex items-center gap-2"><Globe className="h-4 w-4" /> Social Links</CardTitle></CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground mb-4">
+            Social profile URLs shown in the site header and footer. Leave blank to hide an icon.
+          </p>
+          <form onSubmit={saveSocialLinks} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="social_facebook">Facebook</Label>
+                <Input id="social_facebook" placeholder="https://facebook.com/yourpage" value={socialFacebook} onChange={(e) => setSocialFacebook(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="social_instagram">Instagram</Label>
+                <Input id="social_instagram" placeholder="https://instagram.com/yourhandle" value={socialInstagram} onChange={(e) => setSocialInstagram(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="social_whatsapp">WhatsApp</Label>
+                <Input id="social_whatsapp" placeholder="https://wa.me/919876543210" value={socialWhatsapp} onChange={(e) => setSocialWhatsapp(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="social_telegram">Telegram</Label>
+                <Input id="social_telegram" placeholder="https://t.me/yourchannel" value={socialTelegram} onChange={(e) => setSocialTelegram(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="social_youtube">YouTube</Label>
+                <Input id="social_youtube" placeholder="https://youtube.com/@yourchannel" value={socialYoutube} onChange={(e) => setSocialYoutube(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="social_x">X (Twitter)</Label>
+                <Input id="social_x" placeholder="https://x.com/yourhandle" value={socialX} onChange={(e) => setSocialX(e.target.value)} />
+              </div>
+            </div>
+            <Button type="submit" disabled={savingSocial} className="gap-2">
+              {savingSocial ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              Save Social Links
+            </Button>
+          </form>
         </CardContent>
       </Card>
 

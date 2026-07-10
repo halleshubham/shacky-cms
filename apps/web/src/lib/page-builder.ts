@@ -11,7 +11,9 @@ export type SectionType =
   | 'image_block'
   | 'rich_text'
   | 'heading_block'
-  | 'button_row';
+  | 'button_row'
+  | 'file_downloads'
+  | 'image_gallery';
 
 export interface HeroConfig {
   source: 'latest' | 'latest_issue' | 'category';
@@ -92,6 +94,38 @@ export interface ButtonRowConfig {
   align: 'left' | 'center' | 'right';
 }
 
+export type FileType = 'pdf' | 'docx' | 'ppt' | 'mp4' | 'other';
+export type FileLang = 'mr' | 'hi' | 'en' | '';
+
+export interface FileItem {
+  label: string;
+  url: string;
+  lang?: FileLang;
+  fileType?: FileType;
+}
+
+export interface FileDownloadsConfig {
+  title?: string;
+  description?: string;
+  files: FileItem[];
+  layout: 'list' | 'grid';
+}
+
+export interface GalleryImage {
+  src: string;
+  alt?: string;
+  caption?: string;
+  linkUrl?: string;
+  linkNewTab?: boolean;
+}
+
+export interface ImageGalleryConfig {
+  title?: string;
+  images: GalleryImage[];
+  columns: 2 | 3 | 4;
+  showCaptions: boolean;
+}
+
 export type SectionConfig =
   | HeroConfig
   | PostGridConfig
@@ -103,7 +137,9 @@ export type SectionConfig =
   | ImageBlockConfig
   | RichTextConfig
   | HeadingBlockConfig
-  | ButtonRowConfig;
+  | ButtonRowConfig
+  | FileDownloadsConfig
+  | ImageGalleryConfig;
 
 export interface Section {
   id: string;
@@ -118,6 +154,8 @@ export interface SectionMeta {
 }
 
 export const SECTION_META: Record<SectionType, SectionMeta> = {
+  file_downloads:  { label: 'Downloads',      description: 'Downloadable files (PDF, DOCX, PPT…)', color: 'bg-orange-100 text-orange-700 border-orange-200' },
+  image_gallery:   { label: 'Gallery',         description: 'Image grid with optional links',        color: 'bg-fuchsia-100 text-fuchsia-700 border-fuchsia-200' },
   hero:            { label: 'Hero',            description: 'Large featured article with image',   color: 'bg-violet-100 text-violet-700 border-violet-200' },
   post_grid:       { label: 'Post Grid',       description: 'Grid of article cards',               color: 'bg-blue-100 text-blue-700 border-blue-200' },
   latest_issue:    { label: 'Latest Issue',    description: 'Banner with latest issue info',       color: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
@@ -144,6 +182,8 @@ export function defaultConfig(type: SectionType): SectionConfig {
     case 'rich_text':       return { html: '<p>Enter your text here…</p>' } as RichTextConfig;
     case 'heading_block':   return { text: 'Section Heading', subtext: '', level: 2, align: 'left', linkUrl: '', linkNewTab: false } as HeadingBlockConfig;
     case 'button_row':      return { buttons: [{ label: 'Learn More', url: '/', variant: 'primary', newTab: false }], align: 'left' } as ButtonRowConfig;
+    case 'file_downloads':  return { title: 'Downloads', description: '', files: [], layout: 'list' } as FileDownloadsConfig;
+    case 'image_gallery':   return { title: '', images: [], columns: 3, showCaptions: true } as ImageGalleryConfig;
   }
 }
 

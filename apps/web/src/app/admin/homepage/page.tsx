@@ -31,6 +31,7 @@ import {
   type CategoryRowConfig, type DownloadBannerConfig, type HtmlEmbedConfig,
   type DividerConfig, type ImageBlockConfig, type RichTextConfig,
   type HeadingBlockConfig, type ButtonRowConfig, type ButtonDef,
+  type FileDownloadsConfig, type FileItem, type ImageGalleryConfig, type GalleryImage,
   SECTION_META, createSection,
 } from '@/lib/page-builder';
 
@@ -47,6 +48,8 @@ const SECTION_ICONS: Record<SectionType, React.ReactNode> = {
   rich_text:       <Type className="h-4 w-4" />,
   heading_block:   <Heading className="h-4 w-4" />,
   button_row:      <MousePointerClick className="h-4 w-4" />,
+  file_downloads:  <Download className="h-4 w-4" />,
+  image_gallery:   <Grid3X3 className="h-4 w-4" />,
 };
 
 const PALETTE_GROUPS = [
@@ -61,6 +64,10 @@ const PALETTE_GROUPS = [
   {
     label: 'Layout',
     types: ['download_banner', 'divider', 'html_embed'] as SectionType[],
+  },
+  {
+    label: 'Media',
+    types: ['file_downloads', 'image_gallery'] as SectionType[],
   },
 ];
 
@@ -306,6 +313,55 @@ function ButtonRowPreview({ config }: { config: ButtonRowConfig }) {
   );
 }
 
+function FileDownloadsPreview({ config }: { config: FileDownloadsConfig }) {
+  const EXT_COLORS: Record<string, string> = { pdf: 'bg-red-100 text-red-700', docx: 'bg-blue-100 text-blue-700', ppt: 'bg-orange-100 text-orange-700', mp4: 'bg-purple-100 text-purple-700', other: 'bg-slate-100 text-slate-700' };
+  return (
+    <div className="space-y-3">
+      {config.title && <p className="font-bold text-base">{config.title}</p>}
+      {config.description && <p className="text-sm text-muted-foreground">{config.description}</p>}
+      {config.files.length === 0 ? (
+        <div className="border-2 border-dashed border-border rounded-lg flex items-center justify-center h-20 bg-muted/20">
+          <p className="text-xs text-muted-foreground">No files added yet</p>
+        </div>
+      ) : (
+        <div className={config.layout === 'grid' ? 'grid grid-cols-3 gap-2' : 'space-y-2'}>
+          {config.files.map((f, i) => (
+            <div key={i} className="flex items-center gap-2.5 p-2 rounded-md border border-border bg-muted/20">
+              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase shrink-0 ${EXT_COLORS[f.fileType || 'other'] ?? EXT_COLORS.other}`}>{f.fileType || 'FILE'}</span>
+              <span className="text-sm truncate flex-1">{f.label || 'File'}</span>
+              {f.lang && <span className="text-[10px] text-muted-foreground shrink-0 uppercase">{f.lang}</span>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ImageGalleryPreview({ config }: { config: ImageGalleryConfig }) {
+  const colClass = { 2: 'grid-cols-2', 3: 'grid-cols-3', 4: 'grid-cols-4' }[config.columns] ?? 'grid-cols-3';
+  return (
+    <div className="space-y-3">
+      {config.title && <p className="font-bold text-base">{config.title}</p>}
+      {config.images.length === 0 ? (
+        <div className="border-2 border-dashed border-border rounded-lg flex items-center justify-center h-24 bg-muted/20">
+          <p className="text-xs text-muted-foreground">No images added yet</p>
+        </div>
+      ) : (
+        <div className={`grid ${colClass} gap-2`}>
+          {config.images.map((img, i) => (
+            <figure key={i} className="space-y-1">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={img.src} alt={img.alt || ''} className="aspect-square object-cover rounded-md w-full border border-border" />
+              {config.showCaptions && img.caption && <figcaption className="text-xs text-muted-foreground text-center truncate">{img.caption}</figcaption>}
+            </figure>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SectionPreview({ section }: { section: Section }) {
   switch (section.type) {
     case 'hero':            return <HeroPreview config={section.config as HeroConfig} />;
@@ -319,6 +375,8 @@ function SectionPreview({ section }: { section: Section }) {
     case 'rich_text':       return <RichTextPreview config={section.config as RichTextConfig} />;
     case 'heading_block':   return <HeadingPreview config={section.config as HeadingBlockConfig} />;
     case 'button_row':      return <ButtonRowPreview config={section.config as ButtonRowConfig} />;
+    case 'file_downloads':  return <FileDownloadsPreview config={section.config as FileDownloadsConfig} />;
+    case 'image_gallery':   return <ImageGalleryPreview config={section.config as ImageGalleryConfig} />;
     default: return null;
   }
 }
@@ -755,6 +813,127 @@ function ButtonRowConfigForm({ config, onChange }: { config: ButtonRowConfig; on
   );
 }
 
+function FileDownloadsConfigForm({ config, onChange }: { config: FileDownloadsConfig; onChange: (c: FileDownloadsConfig) => void }) {
+  const updateFile = (i: number, patch: Partial<FileItem>) =>
+    onChange({ ...config, files: config.files.map((f, idx) => idx === i ? { ...f, ...patch } : f) });
+  const addFile = () => onChange({ ...config, files: [...config.files, { label: '', url: '', lang: '', fileType: 'pdf' }] });
+  const removeFile = (i: number) => onChange({ ...config, files: config.files.filter((_, idx) => idx !== i) });
+
+  return (
+    <div className="space-y-4">
+      <div className="space-y-1.5"><Label className="text-xs font-medium">Section Title</Label><Input className="h-8 text-sm" placeholder="Downloads" value={config.title || ''} onChange={(e) => onChange({ ...config, title: e.target.value })} /></div>
+      <div className="space-y-1.5"><Label className="text-xs font-medium">Description</Label><Input className="h-8 text-sm" placeholder="Optional description" value={config.description || ''} onChange={(e) => onChange({ ...config, description: e.target.value })} /></div>
+      <div className="space-y-1.5">
+        <Label className="text-xs font-medium">Layout</Label>
+        <Select value={config.layout} onValueChange={(v) => onChange({ ...config, layout: v as FileDownloadsConfig['layout'] })}>
+          <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="list">List</SelectItem>
+            <SelectItem value="grid">Grid (3 columns)</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-2">
+        <Label className="text-xs font-medium">Files</Label>
+        {config.files.map((f, i) => (
+          <div key={i} className="rounded-md border border-border p-3 space-y-2 bg-muted/20">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold text-muted-foreground">File {i + 1}</p>
+              <button type="button" onClick={() => removeFile(i)} className="p-1 rounded text-muted-foreground hover:text-destructive"><Trash2 className="h-3.5 w-3.5" /></button>
+            </div>
+            <div className="space-y-1.5"><Label className="text-xs">Label</Label><Input className="h-7 text-sm" placeholder="Samvidhan PDF" value={f.label} onChange={(e) => updateFile(i, { label: e.target.value })} /></div>
+            <div className="space-y-1.5"><Label className="text-xs">URL</Label><Input className="h-7 text-sm" placeholder="/s3/... or https://..." value={f.url} onChange={(e) => updateFile(i, { url: e.target.value })} /></div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label className="text-xs">Type</Label>
+                <Select value={f.fileType || 'other'} onValueChange={(v) => updateFile(i, { fileType: v as FileItem['fileType'] })}>
+                  <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pdf">PDF</SelectItem>
+                    <SelectItem value="docx">DOCX</SelectItem>
+                    <SelectItem value="ppt">PPT</SelectItem>
+                    <SelectItem value="mp4">MP4</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Language</Label>
+                <Select value={f.lang || ''} onValueChange={(v) => updateFile(i, { lang: v as FileItem['lang'] })}>
+                  <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Any" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Any</SelectItem>
+                    <SelectItem value="mr">Marathi</SelectItem>
+                    <SelectItem value="hi">Hindi</SelectItem>
+                    <SelectItem value="en">English</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+        ))}
+        <button type="button" onClick={addFile} className="w-full py-2 border border-dashed border-border rounded-md text-xs text-muted-foreground hover:text-foreground hover:border-foreground transition-colors flex items-center justify-center gap-1.5">
+          <Plus className="h-3.5 w-3.5" /> Add file
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ImageGalleryConfigForm({ config, onChange }: { config: ImageGalleryConfig; onChange: (c: ImageGalleryConfig) => void }) {
+  const updateImage = (i: number, patch: Partial<GalleryImage>) =>
+    onChange({ ...config, images: config.images.map((img, idx) => idx === i ? { ...img, ...patch } : img) });
+  const addImage = () => onChange({ ...config, images: [...config.images, { src: '', alt: '', caption: '' }] });
+  const removeImage = (i: number) => onChange({ ...config, images: config.images.filter((_, idx) => idx !== i) });
+
+  return (
+    <div className="space-y-4">
+      <div className="space-y-1.5"><Label className="text-xs font-medium">Gallery Title</Label><Input className="h-8 text-sm" placeholder="Optional title" value={config.title || ''} onChange={(e) => onChange({ ...config, title: e.target.value })} /></div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label className="text-xs font-medium">Columns</Label>
+          <Select value={String(config.columns)} onValueChange={(v) => onChange({ ...config, columns: Number(v) as 2|3|4 })}>
+            <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="2">2 columns</SelectItem>
+              <SelectItem value="3">3 columns</SelectItem>
+              <SelectItem value="4">4 columns</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5 flex flex-col justify-end">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" checked={config.showCaptions} onChange={(e) => onChange({ ...config, showCaptions: e.target.checked })} className="h-4 w-4 rounded" />
+            <span className="text-xs font-medium">Show captions</span>
+          </label>
+        </div>
+      </div>
+      <div className="space-y-2">
+        <Label className="text-xs font-medium">Images</Label>
+        {config.images.map((img, i) => (
+          <div key={i} className="rounded-md border border-border p-3 space-y-2 bg-muted/20">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold text-muted-foreground">Image {i + 1}</p>
+              <button type="button" onClick={() => removeImage(i)} className="p-1 rounded text-muted-foreground hover:text-destructive"><Trash2 className="h-3.5 w-3.5" /></button>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Image URL</Label>
+              <Input className="h-7 text-sm" placeholder="/s3/... or https://..." value={img.src} onChange={(e) => updateImage(i, { src: e.target.value })} />
+              {img.src && <img src={img.src} alt="" className="mt-1 rounded max-h-20 object-cover border border-border" />}
+            </div>
+            <div className="space-y-1.5"><Label className="text-xs">Alt Text</Label><Input className="h-7 text-sm" value={img.alt || ''} onChange={(e) => updateImage(i, { alt: e.target.value })} /></div>
+            <div className="space-y-1.5"><Label className="text-xs">Caption</Label><Input className="h-7 text-sm" value={img.caption || ''} onChange={(e) => updateImage(i, { caption: e.target.value })} /></div>
+            <LinkFields url={img.linkUrl || ''} newTab={img.linkNewTab} onChange={(linkUrl, linkNewTab) => updateImage(i, { linkUrl, linkNewTab })} />
+          </div>
+        ))}
+        <button type="button" onClick={addImage} className="w-full py-2 border border-dashed border-border rounded-md text-xs text-muted-foreground hover:text-foreground hover:border-foreground transition-colors flex items-center justify-center gap-1.5">
+          <Plus className="h-3.5 w-3.5" /> Add image
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function SectionConfigForm({ section, onChange }: { section: Section; onChange: (config: SectionConfig) => void }) {
   switch (section.type) {
     case 'hero':            return <HeroConfigForm config={section.config as HeroConfig} onChange={onChange} />;
@@ -768,6 +947,8 @@ function SectionConfigForm({ section, onChange }: { section: Section; onChange: 
     case 'rich_text':       return <RichTextConfigForm config={section.config as RichTextConfig} onChange={onChange} />;
     case 'heading_block':   return <HeadingBlockConfigForm config={section.config as HeadingBlockConfig} onChange={onChange} />;
     case 'button_row':      return <ButtonRowConfigForm config={section.config as ButtonRowConfig} onChange={onChange} />;
+    case 'file_downloads':  return <FileDownloadsConfigForm config={section.config as FileDownloadsConfig} onChange={onChange} />;
+    case 'image_gallery':   return <ImageGalleryConfigForm config={section.config as ImageGalleryConfig} onChange={onChange} />;
     default:                return <p className="text-sm text-muted-foreground">No config for this block.</p>;
   }
 }

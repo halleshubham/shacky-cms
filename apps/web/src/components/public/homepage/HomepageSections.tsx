@@ -6,6 +6,7 @@ import type {
   Section, HeroConfig, PostGridConfig, LatestIssueConfig,
   CategoryRowConfig, DownloadBannerConfig, HtmlEmbedConfig, DividerConfig,
   ImageBlockConfig, RichTextConfig, HeadingBlockConfig, ButtonRowConfig,
+  FileDownloadsConfig, ImageGalleryConfig,
 } from '@/lib/page-builder';
 
 const API = process.env.API_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
@@ -293,6 +294,73 @@ function ButtonRowSection({ config }: { config: ButtonRowConfig }) {
   );
 }
 
+function FileDownloadsSection({ config }: { config: FileDownloadsConfig }) {
+  if (!config.files.length) return null;
+
+  const EXT_COLORS: Record<string, string> = {
+    pdf:   'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+    docx:  'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+    ppt:   'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
+    mp4:   'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
+    other: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
+  };
+  const LANG_LABEL: Record<string, string> = { mr: 'मराठी', hi: 'हिंदी', en: 'EN' };
+
+  const colClass = config.layout === 'grid' ? 'grid sm:grid-cols-2 lg:grid-cols-3 gap-3' : 'space-y-2';
+
+  return (
+    <section>
+      {config.title && <h2 className="text-xl font-bold mb-2">{config.title}</h2>}
+      {config.description && <p className="text-muted-foreground text-sm mb-4">{config.description}</p>}
+      <div className={colClass}>
+        {config.files.map((f, i) => (
+          <a key={i} href={f.url} target="_blank" rel="noopener noreferrer" download
+            className="flex items-center gap-3 p-3 rounded-lg border border-border bg-muted/20 hover:bg-muted transition-colors group">
+            <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded uppercase shrink-0 ${EXT_COLORS[f.fileType || 'other'] ?? EXT_COLORS.other}`}>
+              {f.fileType || 'FILE'}
+            </span>
+            <span className="flex-1 text-sm font-medium truncate group-hover:underline">{f.label}</span>
+            {f.lang && <span className="text-xs text-muted-foreground shrink-0">{LANG_LABEL[f.lang] || f.lang}</span>}
+            <DownloadIcon className="h-4 w-4 text-muted-foreground shrink-0" />
+          </a>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ImageGallerySection({ config }: { config: ImageGalleryConfig }) {
+  if (!config.images.length) return null;
+  const colClass = { 2: 'sm:grid-cols-2', 3: 'sm:grid-cols-2 lg:grid-cols-3', 4: 'sm:grid-cols-2 lg:grid-cols-4' }[config.columns] ?? 'sm:grid-cols-3';
+
+  return (
+    <section>
+      {config.title && <h2 className="text-xl font-bold mb-4">{config.title}</h2>}
+      <div className={`grid ${colClass} gap-3`}>
+        {config.images.map((img, i) => {
+          const imgEl = (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={img.src} alt={img.alt || ''} className="aspect-square w-full object-cover rounded-lg" />
+          );
+          return (
+            <figure key={i} className="space-y-1">
+              {img.linkUrl ? (
+                <a href={img.linkUrl} target={img.linkNewTab ? '_blank' : '_self'} rel={img.linkNewTab ? 'noopener noreferrer' : undefined}
+                  className="block hover:opacity-90 transition-opacity">
+                  {imgEl}
+                </a>
+              ) : imgEl}
+              {config.showCaptions && img.caption && (
+                <figcaption className="text-xs text-muted-foreground text-center">{img.caption}</figcaption>
+              )}
+            </figure>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 // ─── Main export ───────────────────────────────────────────────────────────────
 export async function HomepageSections({ sections }: { sections: Section[] }) {
   return (
@@ -310,6 +378,8 @@ export async function HomepageSections({ sections }: { sections: Section[] }) {
           case 'rich_text':       return <RichTextSection key={section.id} config={section.config as RichTextConfig} />;
           case 'heading_block':   return <HeadingBlockSection key={section.id} config={section.config as HeadingBlockConfig} />;
           case 'button_row':      return <ButtonRowSection key={section.id} config={section.config as ButtonRowConfig} />;
+          case 'file_downloads':  return <FileDownloadsSection key={section.id} config={section.config as FileDownloadsConfig} />;
+          case 'image_gallery':   return <ImageGallerySection key={section.id} config={section.config as ImageGalleryConfig} />;
           default:                return null;
         }
       })}

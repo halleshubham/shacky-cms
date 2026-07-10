@@ -18,6 +18,13 @@ export interface SiteSettings {
   tts_language?: string;
   header_show_title?: boolean;
   homepage_sections?: import('./page-builder').Section[];
+  // Social links
+  social_facebook?: string;
+  social_instagram?: string;
+  social_whatsapp?: string;
+  social_telegram?: string;
+  social_youtube?: string;
+  social_x?: string;
 }
 
 export function navItemHref(item: NavItem): string {

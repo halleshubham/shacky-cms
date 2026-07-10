@@ -26,6 +26,7 @@ export default async function PublicLayout({ children }: { children: React.React
         siteTitle={siteName}
         siteLogo={settings.site_logo}
         showTitle={settings.header_show_title}
+        settings={settings}
       />
 
       <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-8">
@@ -36,6 +37,7 @@ export default async function PublicLayout({ children }: { children: React.React
         navItems={settings.nav_secondary}
         categories={categories}
         siteName={siteName}
+        settings={settings}
       />
     </div>
   );
