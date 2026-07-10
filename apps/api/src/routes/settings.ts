@@ -55,6 +55,18 @@ const settingsRoutes: FastifyPluginAsync = async (fastify) => {
     return reply.send({ success: true });
   });
 
+  // POST /settings/migrate-domain — one-time URL migration (remove after use)
+  fastify.post('/migrate-domain', { preHandler: [authenticate, requireAdmin] }, async (_req, reply) => {
+    const OLD = 'https://janata.shackyapps.in';
+    const NEW = 'https://janataweekly.org';
+    const [media, posts, authors] = await Promise.all([
+      prisma.$executeRaw`UPDATE "Media" SET url = REPLACE(url, ${OLD}, ${NEW}) WHERE url LIKE '%janata.shackyapps.in%'`,
+      prisma.$executeRaw`UPDATE "Post" SET content = REPLACE(content, ${OLD}, ${NEW}) WHERE content LIKE '%janata.shackyapps.in%'`,
+      prisma.$executeRaw`UPDATE "Author" SET "avatarUrl" = REPLACE("avatarUrl", ${OLD}, ${NEW}) WHERE "avatarUrl" LIKE '%janata.shackyapps.in%'`,
+    ]);
+    return reply.send({ media, posts, authors });
+  });
+
   // GET /settings/counts — row counts for every purgeable entity
   fastify.get('/counts', { preHandler: [authenticate, requireAdmin] }, async (_req, reply) => {
     const [posts, issues, categories, tags, authors, media, subscribers] = await Promise.all([
