@@ -1,10 +1,14 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { useParams } from 'next/navigation';
 import { PageBuilderCanvas, type Category } from '@/components/admin/PageBuilderCanvas';
 import { api } from '@/lib/api';
 import type { Section } from '@/lib/page-builder';
+import toast from 'react-hot-toast';
 
-export default function HomepageBuilderPage() {
+export default function PageBuilderPage() {
+  const { id } = useParams<{ id: string }>();
+  const [page, setPage] = useState<{ title: string; slug: string } | null>(null);
   const [sections, setSections] = useState<Section[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -13,39 +17,45 @@ export default function HomepageBuilderPage() {
 
   useEffect(() => {
     Promise.all([
-      api.get<any>('/api/settings'),
+      api.get<any>(`/api/pages/${id}`),
       api.get<any>('/api/categories').catch(() => ({ data: [] })),
-    ]).then(([raw, cats]) => {
-      if (raw.homepage_sections) {
+    ]).then(([pg, cats]) => {
+      setPage({ title: pg.title, slug: pg.slug });
+      if (pg.sectionsJson) {
         try {
-          const parsed = JSON.parse(raw.homepage_sections);
+          const parsed = JSON.parse(pg.sectionsJson);
           if (Array.isArray(parsed)) setSections(parsed);
-        } catch { /* empty */ }
+        } catch { /* start empty */ }
       }
       setCategories((cats.data ?? cats ?? []).filter((c: any) => !c.parentId));
-    }).finally(() => setLoading(false));
-  }, []);
+    }).catch(() => toast.error('Failed to load page'))
+      .finally(() => setLoading(false));
+  }, [id]);
 
   const save = async () => {
     setSaving(true);
     try {
-      await api.patch('/api/settings', { homepage_sections: JSON.stringify(sections) });
-      await fetch('/api/revalidate?tag=site-settings', { method: 'POST' }).catch(() => {});
+      await api.patch(`/api/pages/${id}`, { sectionsJson: JSON.stringify(sections) });
       setSavedOk(true);
       setTimeout(() => setSavedOk(false), 3000);
-    } finally { setSaving(false); }
+    } catch (err: any) {
+      toast.error(err?.message || 'Save failed');
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (loading) return <div className="flex items-center justify-center h-64 text-muted-foreground">Loading…</div>;
+  if (!page) return <div className="flex items-center justify-center h-64 text-muted-foreground">Page not found</div>;
 
   return (
     <PageBuilderCanvas
       sections={sections}
       onSectionsChange={setSections}
       categories={categories}
-      title="Homepage Builder"
-      backHref="/admin"
-      previewHref="/"
+      title={page.title}
+      backHref={`/admin/pages/${id}`}
+      previewHref={`/pages/${page.slug}`}
       onSave={save}
       saving={saving}
       savedOk={savedOk}

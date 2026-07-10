@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Save, Loader2, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Save, Loader2, ExternalLink, LayoutTemplate } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -90,6 +90,11 @@ export default function EditPagePage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" asChild>
+            <Link href={`/admin/pages/${id}/builder`} className="gap-1.5">
+              <LayoutTemplate className="h-3.5 w-3.5" /> Page Builder
+            </Link>
+          </Button>
           {page.status === 'published' && (
             <Button variant="outline" size="sm" asChild>
               <a href={`/${page.slug}`} target="_blank" rel="noopener noreferrer" className="gap-1">

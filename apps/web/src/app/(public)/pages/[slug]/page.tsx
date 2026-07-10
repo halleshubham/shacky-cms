@@ -1,5 +1,7 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
+import { HomepageSections } from '@/components/public/homepage/HomepageSections';
+import type { Section } from '@/lib/page-builder';
 
 const API = process.env.API_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL;
 
@@ -25,6 +27,19 @@ export async function generateMetadata({ params }: { params: { slug: string } })
 export default async function PublicPageView({ params }: { params: { slug: string } }) {
   const page = await getPage(params.slug);
   if (!page) notFound();
+
+  let sections: Section[] | null = null;
+  if (page.sectionsJson) {
+    try { sections = JSON.parse(page.sectionsJson); } catch { /* fall through to rich text */ }
+  }
+
+  if (sections && sections.length > 0) {
+    return (
+      <article>
+        <HomepageSections sections={sections} />
+      </article>
+    );
+  }
 
   return (
     <article className="max-w-3xl mx-auto">
