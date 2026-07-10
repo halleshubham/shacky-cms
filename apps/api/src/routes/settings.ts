@@ -59,11 +59,9 @@ const settingsRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post('/migrate-domain', { preHandler: [authenticate, requireAdmin] }, async (_req, reply) => {
     const OLD = 'https://janata.shackyapps.in';
     const NEW = 'https://janataweekly.org';
-    const [media, posts, authors] = await Promise.all([
-      prisma.$executeRaw`UPDATE "Media" SET url = REPLACE(url, ${OLD}, ${NEW}) WHERE url LIKE '%janata.shackyapps.in%'`,
-      prisma.$executeRaw`UPDATE "Post" SET content = REPLACE(content, ${OLD}, ${NEW}) WHERE content LIKE '%janata.shackyapps.in%'`,
-      prisma.$executeRaw`UPDATE "Author" SET "avatarUrl" = REPLACE("avatarUrl", ${OLD}, ${NEW}) WHERE "avatarUrl" LIKE '%janata.shackyapps.in%'`,
-    ]);
+    const media   = await prisma.$executeRawUnsafe(`UPDATE "Media" SET url = REPLACE(url, '${OLD}', '${NEW}') WHERE url LIKE '%janata.shackyapps.in%'`);
+    const posts   = await prisma.$executeRawUnsafe(`UPDATE "Post" SET content = REPLACE(content, '${OLD}', '${NEW}') WHERE content LIKE '%janata.shackyapps.in%'`);
+    const authors = await prisma.$executeRawUnsafe(`UPDATE "Author" SET "avatarUrl" = REPLACE("avatarUrl", '${OLD}', '${NEW}') WHERE "avatarUrl" LIKE '%janata.shackyapps.in%'`);
     return reply.send({ media, posts, authors });
   });
 

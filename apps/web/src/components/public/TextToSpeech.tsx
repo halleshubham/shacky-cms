@@ -35,6 +35,9 @@ export function TextToSpeech({ content, language }: { content: string; language:
   const chunkIdxRef = useRef(0);
   const activeRef = useRef(false);
   const keepAliveRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Chrome garbage-collects SpeechSynthesisUtterance objects mid-speech if nothing
+  // outside the browser's internal queue holds a reference — keep one alive here.
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
 
   useEffect(() => {
     setSupported('speechSynthesis' in window);
@@ -76,6 +79,7 @@ export function TextToSpeech({ content, language }: { content: string; language:
     utt.onerror = (e) => {
       if (e.error !== 'interrupted') { setStatus('idle'); activeRef.current = false; stopKeepAlive(); }
     };
+    utteranceRef.current = utt;
     window.speechSynthesis.speak(utt);
   }, [language]);
 
@@ -108,6 +112,7 @@ export function TextToSpeech({ content, language }: { content: string; language:
     activeRef.current = false;
     window.speechSynthesis.cancel();
     stopKeepAlive();
+    utteranceRef.current = null;
     setStatus('idle');
   };
 
