@@ -2,6 +2,7 @@ export interface NavItem {
   label: string;
   type: 'url' | 'category' | 'tag' | 'page';
   value: string;
+  children?: Omit<NavItem, 'children'>[];
 }
 
 export interface SiteSettings {
