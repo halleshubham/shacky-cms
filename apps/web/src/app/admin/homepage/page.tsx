@@ -13,19 +13,22 @@ import { CSS } from '@dnd-kit/utilities';
 import {
   GripVertical, X, Settings2, Plus, Save, LayoutTemplate,
   Grid3X3, Newspaper, AlignJustify, Download, Code, Minus,
-  Eye, EyeOff, ChevronDown, ChevronUp,
+  Eye, ImageIcon, Type, Heading, MousePointerClick, Trash2,
+  AlignLeft, AlignCenter, AlignRight, ExternalLink,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { RichTextEditor } from '@/components/editor/RichTextEditor';
 import { api } from '@/lib/api';
 import {
   type Section, type SectionType, type SectionConfig,
   type HeroConfig, type PostGridConfig, type LatestIssueConfig,
   type CategoryRowConfig, type DownloadBannerConfig, type HtmlEmbedConfig,
-  type DividerConfig,
+  type DividerConfig, type ImageBlockConfig, type RichTextConfig,
+  type HeadingBlockConfig, type ButtonRowConfig, type ButtonDef,
   SECTION_META, createSection,
 } from '@/lib/page-builder';
 
@@ -38,11 +41,16 @@ const SECTION_ICONS: Record<SectionType, React.ReactNode> = {
   download_banner: <Download className="h-4 w-4" />,
   html_embed:      <Code className="h-4 w-4" />,
   divider:         <Minus className="h-4 w-4" />,
+  image_block:     <ImageIcon className="h-4 w-4" />,
+  rich_text:       <Type className="h-4 w-4" />,
+  heading_block:   <Heading className="h-4 w-4" />,
+  button_row:      <MousePointerClick className="h-4 w-4" />,
 };
 
 const SECTION_TYPES: SectionType[] = [
   'hero', 'post_grid', 'latest_issue', 'category_row',
   'download_banner', 'html_embed', 'divider',
+  'image_block', 'rich_text', 'heading_block', 'button_row',
 ];
 
 // ─── Config forms ─────────────────────────────────────────────────────────────
@@ -252,6 +260,214 @@ function DividerConfigForm({ config, onChange }: { config: DividerConfig; onChan
   );
 }
 
+// ── Link sub-field ────────────────────────────────────────────────────────────
+function LinkFields({
+  url, newTab,
+  onChange,
+}: {
+  url: string;
+  newTab?: boolean;
+  onChange: (url: string, newTab: boolean) => void;
+}) {
+  return (
+    <div className="space-y-2 rounded-md border border-border p-3 bg-muted/30">
+      <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Hyperlink</p>
+      <div className="space-y-1.5">
+        <Label className="text-xs font-medium">URL</Label>
+        <Input className="h-8 text-sm" placeholder="/page-slug or https://..." value={url} onChange={(e) => onChange(e.target.value, newTab ?? false)} />
+      </div>
+      <div className="flex items-center gap-2">
+        <input type="checkbox" id="link-newtab" checked={!!newTab} onChange={(e) => onChange(url, e.target.checked)} className="h-4 w-4 rounded" />
+        <Label htmlFor="link-newtab" className="text-xs font-medium cursor-pointer flex items-center gap-1">
+          <ExternalLink className="h-3 w-3" /> Open in new tab
+        </Label>
+      </div>
+    </div>
+  );
+}
+
+// ── Align control ─────────────────────────────────────────────────────────────
+function AlignControl({ value, onChange }: { value: 'left' | 'center' | 'right'; onChange: (v: 'left' | 'center' | 'right') => void }) {
+  return (
+    <div className="flex gap-1">
+      {(['left', 'center', 'right'] as const).map((a) => {
+        const icons = { left: <AlignLeft className="h-3.5 w-3.5" />, center: <AlignCenter className="h-3.5 w-3.5" />, right: <AlignRight className="h-3.5 w-3.5" /> };
+        return (
+          <button key={a} type="button" onClick={() => onChange(a)}
+            className={`p-1.5 rounded border transition-colors ${value === a ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground hover:bg-muted'}`}>
+            {icons[a]}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Image block config ────────────────────────────────────────────────────────
+function ImageBlockConfigForm({ config, onChange }: { config: ImageBlockConfig; onChange: (c: ImageBlockConfig) => void }) {
+  return (
+    <div className="space-y-4">
+      <div className="space-y-1.5">
+        <Label className="text-xs font-medium">Image URL</Label>
+        <Input className="h-8 text-sm" placeholder="https://… or /s3/…" value={config.src} onChange={(e) => onChange({ ...config, src: e.target.value })} />
+        {config.src && (
+          <div className="mt-2 rounded-md overflow-hidden border border-border bg-muted/30 max-h-40 flex items-center justify-center">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={config.src} alt={config.alt || ''} className="max-h-40 max-w-full object-contain" />
+          </div>
+        )}
+      </div>
+      <div className="space-y-1.5">
+        <Label className="text-xs font-medium">Alt Text</Label>
+        <Input className="h-8 text-sm" placeholder="Describe the image" value={config.alt || ''} onChange={(e) => onChange({ ...config, alt: e.target.value })} />
+      </div>
+      <div className="space-y-1.5">
+        <Label className="text-xs font-medium">Caption (optional)</Label>
+        <Input className="h-8 text-sm" placeholder="Caption shown below image" value={config.caption || ''} onChange={(e) => onChange({ ...config, caption: e.target.value })} />
+      </div>
+      <div className="space-y-1.5">
+        <Label className="text-xs font-medium">Max Width</Label>
+        <Input className="h-8 text-sm" placeholder="e.g. 600px or 80%" value={config.maxWidth || '100%'} onChange={(e) => onChange({ ...config, maxWidth: e.target.value })} />
+      </div>
+      <div className="space-y-1.5">
+        <Label className="text-xs font-medium">Alignment</Label>
+        <Select value={config.align} onValueChange={(v) => onChange({ ...config, align: v as ImageBlockConfig['align'] })}>
+          <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="left">Left</SelectItem>
+            <SelectItem value="center">Center</SelectItem>
+            <SelectItem value="right">Right</SelectItem>
+            <SelectItem value="full">Full width</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <LinkFields
+        url={config.linkUrl || ''}
+        newTab={config.linkNewTab}
+        onChange={(linkUrl, linkNewTab) => onChange({ ...config, linkUrl, linkNewTab })}
+      />
+    </div>
+  );
+}
+
+// ── Rich text config ──────────────────────────────────────────────────────────
+function RichTextConfigForm({ config, onChange }: { config: RichTextConfig; onChange: (c: RichTextConfig) => void }) {
+  return (
+    <div className="space-y-2">
+      <Label className="text-xs font-medium">Content</Label>
+      <p className="text-[11px] text-muted-foreground">Use the toolbar to add links, bold, headings, etc.</p>
+      <RichTextEditor value={config.html} onChange={(html) => onChange({ ...config, html })} className="min-h-[160px] text-sm" />
+    </div>
+  );
+}
+
+// ── Heading block config ──────────────────────────────────────────────────────
+function HeadingBlockConfigForm({ config, onChange }: { config: HeadingBlockConfig; onChange: (c: HeadingBlockConfig) => void }) {
+  return (
+    <div className="space-y-4">
+      <div className="space-y-1.5">
+        <Label className="text-xs font-medium">Heading Text</Label>
+        <Input className="h-8 text-sm" value={config.text} onChange={(e) => onChange({ ...config, text: e.target.value })} />
+      </div>
+      <div className="space-y-1.5">
+        <Label className="text-xs font-medium">Subtext (optional)</Label>
+        <Input className="h-8 text-sm" placeholder="Subtitle or description" value={config.subtext || ''} onChange={(e) => onChange({ ...config, subtext: e.target.value })} />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label className="text-xs font-medium">Level</Label>
+          <Select value={String(config.level)} onValueChange={(v) => onChange({ ...config, level: Number(v) as 1 | 2 | 3 })}>
+            <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="1">H1 — Page title</SelectItem>
+              <SelectItem value="2">H2 — Section</SelectItem>
+              <SelectItem value="3">H3 — Sub-section</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs font-medium">Alignment</Label>
+          <AlignControl value={config.align} onChange={(align) => onChange({ ...config, align })} />
+        </div>
+      </div>
+      <LinkFields
+        url={config.linkUrl || ''}
+        newTab={config.linkNewTab}
+        onChange={(linkUrl, linkNewTab) => onChange({ ...config, linkUrl, linkNewTab })}
+      />
+    </div>
+  );
+}
+
+// ── Button row config ─────────────────────────────────────────────────────────
+function ButtonRowConfigForm({ config, onChange }: { config: ButtonRowConfig; onChange: (c: ButtonRowConfig) => void }) {
+  const updateButton = (i: number, patch: Partial<ButtonDef>) => {
+    const buttons = config.buttons.map((b, idx) => idx === i ? { ...b, ...patch } : b);
+    onChange({ ...config, buttons });
+  };
+  const addButton = () => {
+    if (config.buttons.length >= 3) return;
+    onChange({ ...config, buttons: [...config.buttons, { label: 'Button', url: '/', variant: 'outline', newTab: false }] });
+  };
+  const removeButton = (i: number) => onChange({ ...config, buttons: config.buttons.filter((_, idx) => idx !== i) });
+
+  return (
+    <div className="space-y-4">
+      <div className="space-y-1.5">
+        <Label className="text-xs font-medium">Row Alignment</Label>
+        <AlignControl value={config.align} onChange={(align) => onChange({ ...config, align })} />
+      </div>
+
+      <div className="space-y-3">
+        {config.buttons.map((btn, i) => (
+          <div key={i} className="rounded-md border border-border p-3 space-y-2.5 bg-muted/20">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold text-muted-foreground">Button {i + 1}</p>
+              <button type="button" onClick={() => removeButton(i)} disabled={config.buttons.length <= 1}
+                className="p-1 rounded text-muted-foreground hover:text-destructive disabled:opacity-30">
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Label</Label>
+              <Input className="h-7 text-sm" value={btn.label} onChange={(e) => updateButton(i, { label: e.target.value })} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">URL</Label>
+              <Input className="h-7 text-sm" placeholder="/page or https://..." value={btn.url} onChange={(e) => updateButton(i, { url: e.target.value })} />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label className="text-xs">Style</Label>
+                <Select value={btn.variant} onValueChange={(v) => updateButton(i, { variant: v as ButtonDef['variant'] })}>
+                  <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="primary">Primary</SelectItem>
+                    <SelectItem value="outline">Outline</SelectItem>
+                    <SelectItem value="ghost">Ghost</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-end pb-1">
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input type="checkbox" checked={!!btn.newTab} onChange={(e) => updateButton(i, { newTab: e.target.checked })} className="h-3.5 w-3.5 rounded" />
+                  <span className="text-xs text-muted-foreground flex items-center gap-0.5"><ExternalLink className="h-3 w-3" /> New tab</span>
+                </label>
+              </div>
+            </div>
+          </div>
+        ))}
+        {config.buttons.length < 3 && (
+          <button type="button" onClick={addButton}
+            className="w-full py-2 border border-dashed border-border rounded-md text-xs text-muted-foreground hover:text-foreground hover:border-foreground transition-colors flex items-center justify-center gap-1.5">
+            <Plus className="h-3.5 w-3.5" /> Add button
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function SectionConfigForm({ section, onChange }: { section: Section; onChange: (config: SectionConfig) => void }) {
   switch (section.type) {
     case 'hero':            return <HeroConfigForm config={section.config as HeroConfig} onChange={onChange} />;
@@ -261,6 +477,10 @@ function SectionConfigForm({ section, onChange }: { section: Section; onChange: 
     case 'download_banner': return <DownloadBannerConfigForm config={section.config as DownloadBannerConfig} onChange={onChange} />;
     case 'html_embed':      return <HtmlEmbedConfigForm config={section.config as HtmlEmbedConfig} onChange={onChange} />;
     case 'divider':         return <DividerConfigForm config={section.config as DividerConfig} onChange={onChange} />;
+    case 'image_block':     return <ImageBlockConfigForm config={section.config as ImageBlockConfig} onChange={onChange} />;
+    case 'rich_text':       return <RichTextConfigForm config={section.config as RichTextConfig} onChange={onChange} />;
+    case 'heading_block':   return <HeadingBlockConfigForm config={section.config as HeadingBlockConfig} onChange={onChange} />;
+    case 'button_row':      return <ButtonRowConfigForm config={section.config as ButtonRowConfig} onChange={onChange} />;
     default:                return <p className="text-sm text-muted-foreground">No config available.</p>;
   }
 }
@@ -360,6 +580,23 @@ function getSectionSummary(section: Section): string {
     case 'divider': {
       const c = section.config as DividerConfig;
       return c.label ? `Divider: "${c.label}"` : 'Divider';
+    }
+    case 'image_block': {
+      const c = section.config as ImageBlockConfig;
+      return c.src ? (c.alt || c.src.split('/').pop() || 'Image') : 'No image set';
+    }
+    case 'rich_text': {
+      const c = section.config as RichTextConfig;
+      const text = c.html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      return text.slice(0, 60) || 'Empty text block';
+    }
+    case 'heading_block': {
+      const c = section.config as HeadingBlockConfig;
+      return `H${c.level}: ${c.text}`;
+    }
+    case 'button_row': {
+      const c = section.config as ButtonRowConfig;
+      return c.buttons.map((b) => b.label).join(' · ') || 'No buttons';
     }
     default: return section.type;
   }

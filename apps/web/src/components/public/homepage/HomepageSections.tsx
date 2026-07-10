@@ -5,6 +5,7 @@ import { ArticleCard } from '@/components/public/ArticleCard';
 import type {
   Section, HeroConfig, PostGridConfig, LatestIssueConfig,
   CategoryRowConfig, DownloadBannerConfig, HtmlEmbedConfig, DividerConfig,
+  ImageBlockConfig, RichTextConfig, HeadingBlockConfig, ButtonRowConfig,
 } from '@/lib/page-builder';
 
 const API = process.env.API_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
@@ -206,6 +207,92 @@ function DividerSection({ config }: { config: DividerConfig }) {
   return <hr className="border-border" />;
 }
 
+function ImageBlockSection({ config }: { config: ImageBlockConfig }) {
+  if (!config.src) return null;
+  const alignClass = { left: 'mr-auto', center: 'mx-auto', right: 'ml-auto', full: 'w-full' }[config.align] ?? 'mx-auto';
+  const img = (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={config.src}
+      alt={config.alt || ''}
+      style={{ maxWidth: config.maxWidth || '100%' }}
+      className={`block h-auto rounded-md ${alignClass}`}
+    />
+  );
+  return (
+    <figure className="space-y-2">
+      {config.linkUrl ? (
+        <a href={config.linkUrl} target={config.linkNewTab ? '_blank' : '_self'} rel={config.linkNewTab ? 'noopener noreferrer' : undefined} className="block hover:opacity-90 transition-opacity">
+          {img}
+        </a>
+      ) : img}
+      {config.caption && (
+        <figcaption className={`text-sm text-muted-foreground text-${config.align === 'full' ? 'center' : config.align}`}>
+          {config.caption}
+        </figcaption>
+      )}
+    </figure>
+  );
+}
+
+function RichTextSection({ config }: { config: RichTextConfig }) {
+  if (!config.html) return null;
+  return (
+    <div
+      className="prose prose-sm max-w-none dark:prose-invert [&_a]:text-primary [&_a]:underline"
+      dangerouslySetInnerHTML={{ __html: config.html }}
+    />
+  );
+}
+
+function HeadingBlockSection({ config }: { config: HeadingBlockConfig }) {
+  const alignClass = { left: 'text-left', center: 'text-center', right: 'text-right' }[config.align];
+  const sizeClass = { 1: 'text-4xl', 2: 'text-2xl', 3: 'text-xl' }[config.level] ?? 'text-2xl';
+  const Tag = `h${config.level}` as 'h1' | 'h2' | 'h3';
+
+  const heading = (
+    <Tag className={`font-bold leading-tight ${sizeClass} ${alignClass}`}>{config.text}</Tag>
+  );
+
+  return (
+    <div className={`space-y-1 ${alignClass}`}>
+      {config.linkUrl ? (
+        <a href={config.linkUrl} target={config.linkNewTab ? '_blank' : '_self'} rel={config.linkNewTab ? 'noopener noreferrer' : undefined} className="hover:opacity-80 transition-opacity">
+          {heading}
+        </a>
+      ) : heading}
+      {config.subtext && (
+        <p className={`text-muted-foreground ${alignClass}`}>{config.subtext}</p>
+      )}
+    </div>
+  );
+}
+
+function ButtonRowSection({ config }: { config: ButtonRowConfig }) {
+  const alignClass = { left: 'justify-start', center: 'justify-center', right: 'justify-end' }[config.align] ?? 'justify-start';
+  const variantClass = {
+    primary: 'bg-primary text-primary-foreground hover:bg-primary/90',
+    outline: 'border border-border hover:bg-muted text-foreground',
+    ghost:   'hover:bg-muted text-foreground',
+  };
+
+  return (
+    <div className={`flex flex-wrap gap-3 ${alignClass}`}>
+      {config.buttons.map((btn, i) => (
+        <a
+          key={i}
+          href={btn.url}
+          target={btn.newTab ? '_blank' : '_self'}
+          rel={btn.newTab ? 'noopener noreferrer' : undefined}
+          className={`inline-flex items-center px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors ${variantClass[btn.variant] ?? variantClass.primary}`}
+        >
+          {btn.label}
+        </a>
+      ))}
+    </div>
+  );
+}
+
 // ─── Main export ───────────────────────────────────────────────────────────────
 export async function HomepageSections({ sections }: { sections: Section[] }) {
   return (
@@ -219,6 +306,10 @@ export async function HomepageSections({ sections }: { sections: Section[] }) {
           case 'download_banner': return <DownloadBannerSection key={section.id} config={section.config as DownloadBannerConfig} />;
           case 'html_embed':      return <HtmlEmbedSection key={section.id} config={section.config as HtmlEmbedConfig} />;
           case 'divider':         return <DividerSection key={section.id} config={section.config as DividerConfig} />;
+          case 'image_block':     return <ImageBlockSection key={section.id} config={section.config as ImageBlockConfig} />;
+          case 'rich_text':       return <RichTextSection key={section.id} config={section.config as RichTextConfig} />;
+          case 'heading_block':   return <HeadingBlockSection key={section.id} config={section.config as HeadingBlockConfig} />;
+          case 'button_row':      return <ButtonRowSection key={section.id} config={section.config as ButtonRowConfig} />;
           default:                return null;
         }
       })}
