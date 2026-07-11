@@ -85,7 +85,7 @@ export async function saveAIConfig(config: Partial<AIConfig>): Promise<void> {
 function defaultTextModel(provider: AIProvider): string {
   switch (provider) {
     case 'openai': return 'gpt-4o-mini';
-    case 'gemini': return 'gemini-2.5-flash';
+    case 'gemini': return 'gemini-3.5-flash';
     case 'groq':   return 'llama-3.3-70b-versatile';
     case 'ollama': return 'llama3.2';
   }

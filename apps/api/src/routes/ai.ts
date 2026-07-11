@@ -36,7 +36,7 @@ const aiConfigSchema = z.object({
 
 const OPENAI_TEXT_MODELS   = ['gpt-4.1', 'gpt-4.1-mini', 'gpt-4o', 'gpt-4o-mini', 'o4-mini', 'o3-mini'];
 const OPENAI_IMAGE_MODELS  = ['gpt-image-1', 'dall-e-3'];
-const GEMINI_TEXT_MODELS   = ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash-lite', 'gemini-1.5-flash', 'gemini-1.5-pro'];
+const GEMINI_TEXT_MODELS   = ['gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-3.1-pro-preview', 'gemini-3-flash-preview'];
 const GEMINI_IMAGE_MODELS  = ['gemini-3.1-flash-image', 'gemini-3.1-flash-lite-image', 'gemini-3-pro-image', 'gemini-2.5-flash-image', 'imagen-3.0-generate-002'];
 const GROQ_TEXT_MODELS     = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'llama3-8b-8192', 'gemma2-9b-it', 'compound-beta'];
 const OLLAMA_FALLBACK_MODELS = ['llama3.2', 'llama3.1', 'mistral', 'gemma2', 'phi4', 'qwen2.5', 'deepseek-r1', 'codellama'];
