@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { PageBuilderCanvas, type Category } from '@/components/admin/PageBuilderCanvas';
 import { api } from '@/lib/api';
 import type { Section } from '@/lib/page-builder';
+import toast from 'react-hot-toast';
 
 export default function HomepageBuilderPage() {
   const [sections, setSections] = useState<Section[]>([]);
@@ -33,6 +34,8 @@ export default function HomepageBuilderPage() {
       await fetch('/api/revalidate?tag=site-settings', { method: 'POST' }).catch(() => {});
       setSavedOk(true);
       setTimeout(() => setSavedOk(false), 3000);
+    } catch (err: any) {
+      toast.error(err?.message || 'Save failed');
     } finally { setSaving(false); }
   };
 

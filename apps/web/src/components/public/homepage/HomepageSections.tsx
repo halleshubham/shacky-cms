@@ -6,7 +6,7 @@ import type {
   Section, HeroConfig, PostGridConfig, LatestIssueConfig,
   CategoryRowConfig, DownloadBannerConfig, HtmlEmbedConfig, DividerConfig,
   ImageBlockConfig, RichTextConfig, HeadingBlockConfig, ButtonRowConfig,
-  FileDownloadsConfig, ImageGalleryConfig,
+  FileDownloadsConfig, ImageGalleryConfig, ColumnsBlockConfig, ColumnItem,
 } from '@/lib/page-builder';
 
 const API = process.env.API_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
@@ -247,7 +247,7 @@ function RichTextSection({ config }: { config: RichTextConfig }) {
 }
 
 function HeadingBlockSection({ config }: { config: HeadingBlockConfig }) {
-  const alignClass = { left: 'text-left', center: 'text-center', right: 'text-right' }[config.align];
+  const alignClass = { left: 'text-left', center: 'text-center', right: 'text-right' }[config.align] ?? 'text-left';
   const sizeClass = { 1: 'text-4xl', 2: 'text-2xl', 3: 'text-xl' }[config.level] ?? 'text-2xl';
   const Tag = `h${config.level}` as 'h1' | 'h2' | 'h3';
 
@@ -361,6 +361,48 @@ function ImageGallerySection({ config }: { config: ImageGalleryConfig }) {
   );
 }
 
+function ColumnsBlockSection({ config }: { config: ColumnsBlockConfig }) {
+  if (!config.columns || config.columns.length === 0) return null;
+  const colClass: Record<number, string> = { 1: 'grid-cols-1', 2: 'sm:grid-cols-2', 3: 'sm:grid-cols-2 md:grid-cols-3', 4: 'sm:grid-cols-2 md:grid-cols-4' };
+  const gridClass = colClass[config.columnsPerRow] ?? 'sm:grid-cols-2';
+  const alignClass = { left: 'text-left', center: 'text-center', right: 'text-right' }[config.textAlign] ?? 'text-left';
+  const variantClass: Record<string, string> = {
+    primary: 'bg-primary text-primary-foreground hover:bg-primary/90',
+    outline: 'border border-border hover:bg-muted text-foreground',
+    ghost:   'hover:bg-muted text-foreground',
+  };
+  return (
+    <div className={`grid grid-cols-1 ${gridClass} gap-6 lg:gap-8`}>
+      {config.columns.map((col: ColumnItem, i: number) => (
+        <div key={i} className={`flex flex-col gap-3 ${alignClass}`}>
+          {col.imageSrc && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={col.imageSrc}
+              alt={col.imageAlt || col.title || ''}
+              className="w-full rounded-lg object-cover aspect-video"
+            />
+          )}
+          {col.title && <h3 className="font-bold text-lg leading-snug">{col.title}</h3>}
+          {col.text && <p className="text-muted-foreground leading-relaxed text-sm">{col.text}</p>}
+          {col.buttonLabel && col.buttonUrl && (
+            <div className={`mt-auto pt-1 flex ${config.textAlign === 'center' ? 'justify-center' : config.textAlign === 'right' ? 'justify-end' : 'justify-start'}`}>
+              <a
+                href={col.buttonUrl}
+                target={col.buttonNewTab ? '_blank' : '_self'}
+                rel={col.buttonNewTab ? 'noopener noreferrer' : undefined}
+                className={`inline-flex items-center px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors ${variantClass[col.buttonVariant || 'primary'] ?? variantClass.primary}`}
+              >
+                {col.buttonLabel}
+              </a>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ─── Main export ───────────────────────────────────────────────────────────────
 export async function HomepageSections({ sections }: { sections: Section[] }) {
   return (
@@ -380,6 +422,7 @@ export async function HomepageSections({ sections }: { sections: Section[] }) {
           case 'button_row':      return <ButtonRowSection key={section.id} config={section.config as ButtonRowConfig} />;
           case 'file_downloads':  return <FileDownloadsSection key={section.id} config={section.config as FileDownloadsConfig} />;
           case 'image_gallery':   return <ImageGallerySection key={section.id} config={section.config as ImageGalleryConfig} />;
+          case 'columns_block':   return <ColumnsBlockSection key={section.id} config={section.config as ColumnsBlockConfig} />;
           default:                return null;
         }
       })}

@@ -13,7 +13,8 @@ export type SectionType =
   | 'heading_block'
   | 'button_row'
   | 'file_downloads'
-  | 'image_gallery';
+  | 'image_gallery'
+  | 'columns_block';
 
 export interface HeroConfig {
   source: 'latest' | 'latest_issue' | 'category';
@@ -126,6 +127,23 @@ export interface ImageGalleryConfig {
   showCaptions: boolean;
 }
 
+export interface ColumnItem {
+  title?: string;
+  text?: string;
+  imageSrc?: string;
+  imageAlt?: string;
+  buttonLabel?: string;
+  buttonUrl?: string;
+  buttonVariant?: 'primary' | 'outline' | 'ghost';
+  buttonNewTab?: boolean;
+}
+
+export interface ColumnsBlockConfig {
+  columns: ColumnItem[];
+  columnsPerRow: 1 | 2 | 3 | 4;
+  textAlign: 'left' | 'center' | 'right';
+}
+
 export type SectionConfig =
   | HeroConfig
   | PostGridConfig
@@ -139,7 +157,8 @@ export type SectionConfig =
   | HeadingBlockConfig
   | ButtonRowConfig
   | FileDownloadsConfig
-  | ImageGalleryConfig;
+  | ImageGalleryConfig
+  | ColumnsBlockConfig;
 
 export interface Section {
   id: string;
@@ -154,6 +173,7 @@ export interface SectionMeta {
 }
 
 export const SECTION_META: Record<SectionType, SectionMeta> = {
+  columns_block:   { label: 'Columns',         description: 'Multi-column layout with title, text, image & button', color: 'bg-lime-100 text-lime-700 border-lime-200' },
   file_downloads:  { label: 'Downloads',      description: 'Downloadable files (PDF, DOCX, PPT…)', color: 'bg-orange-100 text-orange-700 border-orange-200' },
   image_gallery:   { label: 'Gallery',         description: 'Image grid with optional links',        color: 'bg-fuchsia-100 text-fuchsia-700 border-fuchsia-200' },
   hero:            { label: 'Hero',            description: 'Large featured article with image',   color: 'bg-violet-100 text-violet-700 border-violet-200' },
@@ -184,6 +204,7 @@ export function defaultConfig(type: SectionType): SectionConfig {
     case 'button_row':      return { buttons: [{ label: 'Learn More', url: '/', variant: 'primary', newTab: false }], align: 'left' } as ButtonRowConfig;
     case 'file_downloads':  return { title: 'Downloads', description: '', files: [], layout: 'list' } as FileDownloadsConfig;
     case 'image_gallery':   return { title: '', images: [], columns: 3, showCaptions: true } as ImageGalleryConfig;
+    case 'columns_block':   return { columns: [{ title: 'Column 1', text: '', imageSrc: '', buttonLabel: '', buttonUrl: '', buttonVariant: 'primary', buttonNewTab: false }, { title: 'Column 2', text: '', imageSrc: '', buttonLabel: '', buttonUrl: '', buttonVariant: 'primary', buttonNewTab: false }], columnsPerRow: 2, textAlign: 'left' } as ColumnsBlockConfig;
   }
 }
 

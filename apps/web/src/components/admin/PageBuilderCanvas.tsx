@@ -15,7 +15,7 @@ import {
   AlignJustify, Download, Code, Minus, ImageIcon, Type, Heading,
   MousePointerClick, Trash2, AlignLeft, AlignCenter, AlignRight,
   ExternalLink, ChevronUp, ChevronDown, BookOpen, ArrowRight,
-  Monitor, Tablet, Smartphone, ArrowLeft, Settings2,
+  Monitor, Tablet, Smartphone, ArrowLeft, Settings2, Columns2,
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -32,6 +32,7 @@ import {
   type DividerConfig, type ImageBlockConfig, type RichTextConfig,
   type HeadingBlockConfig, type ButtonRowConfig, type ButtonDef,
   type FileDownloadsConfig, type FileItem, type ImageGalleryConfig, type GalleryImage,
+  type ColumnsBlockConfig, type ColumnItem,
   SECTION_META, createSection,
 } from '@/lib/page-builder';
 
@@ -52,11 +53,12 @@ const SECTION_ICONS: Record<SectionType, React.ReactNode> = {
   button_row:      <MousePointerClick className="h-4 w-4" />,
   file_downloads:  <Download className="h-4 w-4" />,
   image_gallery:   <Grid3X3 className="h-4 w-4" />,
+  columns_block:   <Columns2 className="h-4 w-4" />,
 };
 
 const PALETTE_GROUPS = [
   { label: 'CMS Blocks', types: ['hero', 'post_grid', 'latest_issue', 'category_row'] as SectionType[] },
-  { label: 'Content',    types: ['heading_block', 'rich_text', 'image_block', 'button_row'] as SectionType[] },
+  { label: 'Content',    types: ['heading_block', 'rich_text', 'image_block', 'button_row', 'columns_block'] as SectionType[] },
   { label: 'Layout',     types: ['download_banner', 'divider', 'html_embed'] as SectionType[] },
   { label: 'Media',      types: ['file_downloads', 'image_gallery'] as SectionType[] },
 ];
@@ -310,6 +312,32 @@ function ImageGalleryPreview({ config }: { config: ImageGalleryConfig }) {
   );
 }
 
+function ColumnsBlockPreview({ config }: { config: ColumnsBlockConfig }) {
+  const colClass = { 1: 'grid-cols-1', 2: 'grid-cols-2', 3: 'grid-cols-3', 4: 'grid-cols-4' }[config.columnsPerRow] ?? 'grid-cols-2';
+  const alignClass = { left: 'text-left', center: 'text-center', right: 'text-right' }[config.textAlign] ?? 'text-left';
+  return (
+    <div className={`grid ${colClass} gap-4`}>
+      {config.columns.map((col, i) => (
+        <div key={i} className={`space-y-2 ${alignClass}`}>
+          {col.imageSrc ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={col.imageSrc} alt={col.imageAlt || ''} className="w-full aspect-video object-cover rounded-md border border-border" />
+          ) : (
+            <div className="w-full aspect-video rounded-md border-2 border-dashed border-border bg-muted/20 flex items-center justify-center">
+              <ImageIcon className="h-5 w-5 text-muted-foreground/30" />
+            </div>
+          )}
+          {col.title && <p className="font-semibold text-sm">{col.title}</p>}
+          {col.text && <p className="text-xs text-muted-foreground line-clamp-3">{col.text}</p>}
+          {col.buttonLabel && (
+            <span className="inline-flex items-center px-3 py-1 rounded-md text-xs font-semibold bg-primary text-primary-foreground">{col.buttonLabel}</span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function SectionPreview({ section }: { section: Section }) {
   switch (section.type) {
     case 'hero':            return <HeroPreview config={section.config as HeroConfig} />;
@@ -325,6 +353,7 @@ function SectionPreview({ section }: { section: Section }) {
     case 'button_row':      return <ButtonRowPreview config={section.config as ButtonRowConfig} />;
     case 'file_downloads':  return <FileDownloadsPreview config={section.config as FileDownloadsConfig} />;
     case 'image_gallery':   return <ImageGalleryPreview config={section.config as ImageGalleryConfig} />;
+    case 'columns_block':   return <ColumnsBlockPreview config={section.config as ColumnsBlockConfig} />;
     default:                return null;
   }
 }
@@ -780,6 +809,93 @@ function ImageGalleryConfigForm({ config, onChange }: { config: ImageGalleryConf
   );
 }
 
+function ColumnsBlockConfigForm({ config, onChange }: { config: ColumnsBlockConfig; onChange: (c: ColumnsBlockConfig) => void }) {
+  const updateColumn = (i: number, patch: Partial<ColumnItem>) =>
+    onChange({ ...config, columns: config.columns.map((col, idx) => idx === i ? { ...col, ...patch } : col) });
+  const addColumn = () => {
+    if (config.columns.length < 4)
+      onChange({ ...config, columns: [...config.columns, { title: `Column ${config.columns.length + 1}`, text: '', imageSrc: '', buttonLabel: '', buttonUrl: '', buttonVariant: 'primary', buttonNewTab: false }] });
+  };
+  const removeColumn = (i: number) => onChange({ ...config, columns: config.columns.filter((_, idx) => idx !== i) });
+  return (
+    <div className="space-y-5">
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label className="text-xs font-medium">Columns per row</Label>
+          <Select value={String(config.columnsPerRow)} onValueChange={(v) => onChange({ ...config, columnsPerRow: Number(v) as 1|2|3|4 })}>
+            <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="1">1 — Full width</SelectItem>
+              <SelectItem value="2">2 columns</SelectItem>
+              <SelectItem value="3">3 columns</SelectItem>
+              <SelectItem value="4">4 columns</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs font-medium">Text alignment</Label>
+          <AlignControl value={config.textAlign} onChange={(textAlign) => onChange({ ...config, textAlign })} />
+        </div>
+      </div>
+      <div className="space-y-3">
+        <Label className="text-xs font-medium">Columns ({config.columns.length})</Label>
+        {config.columns.map((col, i) => (
+          <div key={i} className="rounded-md border border-border p-3 space-y-2.5 bg-muted/20">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold text-muted-foreground">Column {i + 1}</p>
+              <button type="button" onClick={() => removeColumn(i)} disabled={config.columns.length <= 1}
+                className="p-1 rounded text-muted-foreground hover:text-destructive disabled:opacity-30">
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Image URL</Label>
+              <Input className="h-7 text-sm" placeholder="/s3/... or https://..." value={col.imageSrc || ''} onChange={(e) => updateColumn(i, { imageSrc: e.target.value })} />
+              {col.imageSrc && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={col.imageSrc} alt="" className="mt-1 rounded max-h-20 w-full object-cover border border-border" />
+              )}
+            </div>
+            <div className="space-y-1.5"><Label className="text-xs">Image alt text</Label><Input className="h-7 text-sm" value={col.imageAlt || ''} onChange={(e) => updateColumn(i, { imageAlt: e.target.value })} /></div>
+            <div className="space-y-1.5"><Label className="text-xs">Title</Label><Input className="h-7 text-sm" value={col.title || ''} onChange={(e) => updateColumn(i, { title: e.target.value })} /></div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Text</Label>
+              <Textarea className="text-xs min-h-[60px] resize-none" placeholder="Paragraph text…" value={col.text || ''} onChange={(e) => updateColumn(i, { text: e.target.value })} />
+            </div>
+            <div className="space-y-1.5"><Label className="text-xs">Button label</Label><Input className="h-7 text-sm" placeholder="Learn More" value={col.buttonLabel || ''} onChange={(e) => updateColumn(i, { buttonLabel: e.target.value })} /></div>
+            {col.buttonLabel && (
+              <>
+                <div className="space-y-1.5"><Label className="text-xs">Button URL</Label><Input className="h-7 text-sm" placeholder="/page or https://..." value={col.buttonUrl || ''} onChange={(e) => updateColumn(i, { buttonUrl: e.target.value })} /></div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Button style</Label>
+                    <Select value={col.buttonVariant || 'primary'} onValueChange={(v) => updateColumn(i, { buttonVariant: v as ColumnItem['buttonVariant'] })}>
+                      <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent><SelectItem value="primary">Primary</SelectItem><SelectItem value="outline">Outline</SelectItem><SelectItem value="ghost">Ghost</SelectItem></SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-end pb-1">
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input type="checkbox" checked={!!col.buttonNewTab} onChange={(e) => updateColumn(i, { buttonNewTab: e.target.checked })} className="h-3.5 w-3.5 rounded" />
+                      <span className="text-xs text-muted-foreground flex items-center gap-0.5"><ExternalLink className="h-3 w-3" /> New tab</span>
+                    </label>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        ))}
+        {config.columns.length < 4 && (
+          <button type="button" onClick={addColumn}
+            className="w-full py-2 border border-dashed border-border rounded-md text-xs text-muted-foreground hover:text-foreground hover:border-foreground transition-colors flex items-center justify-center gap-1.5">
+            <Plus className="h-3.5 w-3.5" /> Add column
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function SectionConfigForm({ section, onChange, categories }: { section: Section; onChange: (config: SectionConfig) => void; categories: Category[] }) {
   switch (section.type) {
     case 'hero':            return <HeroConfigForm config={section.config as HeroConfig} onChange={onChange} categories={categories} />;
@@ -795,6 +911,7 @@ function SectionConfigForm({ section, onChange, categories }: { section: Section
     case 'button_row':      return <ButtonRowConfigForm config={section.config as ButtonRowConfig} onChange={onChange} />;
     case 'file_downloads':  return <FileDownloadsConfigForm config={section.config as FileDownloadsConfig} onChange={onChange} />;
     case 'image_gallery':   return <ImageGalleryConfigForm config={section.config as ImageGalleryConfig} onChange={onChange} />;
+    case 'columns_block':   return <ColumnsBlockConfigForm config={section.config as ColumnsBlockConfig} onChange={onChange} />;
     default:                return <p className="text-sm text-muted-foreground">No config for this block.</p>;
   }
 }
@@ -878,9 +995,10 @@ export function PageBuilderCanvas({
 
   const openPickerAt = (idx: number | null) => { setInsertAt(idx); setPickerOpen(true); };
 
-  const addSection = useCallback((type: SectionType) => {
+  const addSection = useCallback((type: SectionType, forceAt?: number | null) => {
     const s = createSection(type);
-    onSectionsChange(insertAt === null ? [...sections, s] : (() => { const next = [...sections]; next.splice(insertAt + 1, 0, s); return next; })());
+    const at = forceAt !== undefined ? forceAt : insertAt;
+    onSectionsChange(at === null ? [...sections, s] : (() => { const next = [...sections]; next.splice(at + 1, 0, s); return next; })());
     setSelectedId(s.id);
     setInsertAt(null);
   }, [sections, onSectionsChange, insertAt]);
@@ -952,7 +1070,7 @@ export function PageBuilderCanvas({
                     const meta = SECTION_META[type];
                     const icon = SECTION_ICONS[type];
                     return (
-                      <button key={type} type="button" onClick={() => { setInsertAt(null); addSection(type); }}
+                      <button key={type} type="button" onClick={() => addSection(type, null)}
                         className="w-full flex items-center gap-2 px-2.5 py-2 rounded-md text-left hover:bg-background border border-transparent hover:border-border transition-all group text-sm">
                         <span className={`flex items-center justify-center h-6 w-6 rounded border shrink-0 text-[10px] ${meta.color}`}>{icon}</span>
                         <span className="font-medium truncate">{meta.label}</span>

@@ -33,9 +33,11 @@ export default function PageBuilderPage() {
   }, [id]);
 
   const save = async () => {
+    if (!page) return;
     setSaving(true);
     try {
       await api.patch(`/api/pages/${id}`, { sectionsJson: JSON.stringify(sections) });
+      await fetch(`/api/revalidate?path=/pages/${page.slug}`, { method: 'POST' }).catch(() => {});
       setSavedOk(true);
       setTimeout(() => setSavedOk(false), 3000);
     } catch (err: any) {
