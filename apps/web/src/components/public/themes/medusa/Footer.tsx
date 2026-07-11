@@ -5,26 +5,26 @@ import type { ThemeFooterProps } from '@/lib/theme-types';
 
 export function MedusaFooter({ categories, siteTitle, siteDescription }: ThemeFooterProps) {
   return (
-    <footer className="border-t border-[#E5E7EB] mt-24 bg-[#FAFAFA]">
+    <footer className="border-t border-border mt-24 bg-card">
       <div className="max-w-[1280px] mx-auto px-6 md:px-10 py-14">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-10 mb-10">
           <div className="md:col-span-2">
-            <p className="text-[1.0625rem] font-bold text-[#111111] mb-2">{siteTitle}</p>
+            <p className="text-[1.0625rem] font-bold text-foreground mb-2">{siteTitle}</p>
             {siteDescription && (
-              <p className="text-[0.875rem] text-[#666666] leading-relaxed max-w-xs">
+              <p className="text-[0.875rem] text-muted-foreground leading-relaxed max-w-xs">
                 {siteDescription}
               </p>
             )}
           </div>
           <div>
-            <p className="text-[0.6875rem] font-semibold text-[#AAAAAA] uppercase tracking-widest mb-4">Publication</p>
+            <p className="text-[0.6875rem] font-semibold text-muted-foreground/50 uppercase tracking-widest mb-4">Publication</p>
             <ul className="space-y-2.5">
               {[
                 { label: 'Home', url: '/' },
                 { label: 'All Issues', url: '/issues' },
               ].map((l) => (
                 <li key={l.url}>
-                  <Link href={l.url} className="text-[0.875rem] text-[#555555] hover:text-[#111111] transition-colors">
+                  <Link href={l.url} className="text-[0.875rem] text-muted-foreground hover:text-foreground transition-colors">
                     {l.label}
                   </Link>
                 </li>
@@ -33,11 +33,11 @@ export function MedusaFooter({ categories, siteTitle, siteDescription }: ThemeFo
           </div>
           {categories.length > 0 && (
             <div>
-              <p className="text-[0.6875rem] font-semibold text-[#AAAAAA] uppercase tracking-widest mb-4">Sections</p>
+              <p className="text-[0.6875rem] font-semibold text-muted-foreground/50 uppercase tracking-widest mb-4">Sections</p>
               <ul className="space-y-2.5">
                 {categories.slice(0, 6).map((c) => (
                   <li key={c.id}>
-                    <Link href={`/category/${c.slug}`} className="text-[0.875rem] text-[#555555] hover:text-[#111111] transition-colors">
+                    <Link href={`/category/${c.slug}`} className="text-[0.875rem] text-muted-foreground hover:text-foreground transition-colors">
                       {c.name}
                     </Link>
                   </li>
@@ -46,8 +46,8 @@ export function MedusaFooter({ categories, siteTitle, siteDescription }: ThemeFo
             </div>
           )}
         </div>
-        <div className="border-t border-[#E5E7EB] pt-7">
-          <p className="text-[0.8125rem] text-[#AAAAAA]">
+        <div className="border-t border-border pt-7">
+          <p className="text-[0.8125rem] text-muted-foreground/50">
             © {new Date().getFullYear()} {siteTitle}. All rights reserved.
           </p>
         </div>

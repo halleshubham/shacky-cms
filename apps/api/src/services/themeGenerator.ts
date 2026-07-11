@@ -246,6 +246,27 @@ STRICT COMPONENT RULES (apply to ALL three component files):
 9. No other external library imports (no framer-motion, no @headlessui, etc.)
 10. Components must be complete and self-contained — no TODO, no placeholder code
 
+CSS VARIABLE RULE — CRITICAL FOR PAGE BUILDER COMPATIBILITY:
+ALL color classes in components MUST use Tailwind semantic tokens backed by CSS custom properties,
+NOT hardcoded hex or RGB values. This ensures page builder blocks automatically inherit the theme palette.
+
+Required class mapping (use these, never hardcoded colors):
+  bg-background        text-foreground       border-border
+  bg-card              text-card-foreground
+  bg-muted             text-muted-foreground
+  bg-primary           text-primary          ring-ring
+  bg-secondary         text-secondary-foreground
+  bg-accent            text-accent           text-accent-foreground
+  hover:bg-muted       hover:text-foreground  hover:border-border/70
+  opacity variants:    text-foreground/80    text-muted-foreground/50  text-muted-foreground/40
+
+The theme's visual personality is defined ENTIRELY by the CSS custom property block in meta.css —
+not by hardcoded colors in JSX. Components should look identical in structure across themes;
+only the CSS variable values differ.
+
+wrapperClass MUST be: "min-h-screen flex flex-col bg-background text-foreground"
+(bg-background and text-foreground pick up the theme's CSS variable values automatically)
+
 PROP TYPE REFERENCE:
 ThemeHeaderProps = { categories: Array<{id:string;name:string;slug:string}>; siteTitle?:string; siteLogo?:string; navItems?:Array<{label:string;url:string}>; }
 ThemeFooterProps = { categories: Array<{id:string;name:string;slug:string}>; siteTitle:string; siteDescription?:string; }
@@ -297,7 +318,7 @@ META OBJECT SHAPE:
   "label": "<Human Label>",
   "description": "<1-sentence description under 80 chars>",
   "dataTheme": "<theme-id>",
-  "wrapperClass": "min-h-screen flex flex-col <bg + text tailwind classes>",
+  "wrapperClass": "min-h-screen flex flex-col bg-background text-foreground",
   "mainClass": "<max-w + padding + flex-1 tailwind classes>",
   "css": "<full CSS string for [data-theme='<id>'] block with all HSL custom property overrides>",
   "adminPreview": { "background":"#hex","border":"#hex (optional)","primaryBar":"#hex","secondaryBar":"#hex","accentBar":"#hex" }

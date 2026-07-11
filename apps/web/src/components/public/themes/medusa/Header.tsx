@@ -34,29 +34,25 @@ export function MedusaHeader({ categories, siteTitle = 'Shacky CMS', siteLogo, n
     }
   };
 
-  const hasCustomNav = navItems && navItems.length > 0;
-  const navLinks = hasCustomNav
+  const nav = navItems?.length
     ? navItems
-    : [
-        { label: 'Home', url: '/' },
-        { label: 'Issues', url: '/issues' },
-        ...categories.slice(0, 5).map((c) => ({ label: c.name, url: `/category/${c.slug}` })),
-      ];
+    : categories.length
+      ? categories.slice(0, 5).map((c) => ({ label: c.name, url: `/category/${c.slug}` }))
+      : [{ label: 'Home', url: '/' }, { label: 'Issues', url: '/issues' }];
 
   return (
     <header
-      className={`sticky top-0 z-40 transition-all duration-300 ease-in-out ${
+      className={`sticky top-0 z-50 w-full transition-all duration-300 ease-in-out ${
         scrolled
-          ? 'bg-white/95 backdrop-blur-md border-b border-[#E5E7EB]/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)]'
+          ? 'bg-background/95 backdrop-blur-md border-b border-border/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)]'
           : 'bg-transparent'
       }`}
     >
       <div className="max-w-[1280px] mx-auto px-6 md:px-10">
         <div className="flex items-center h-16 gap-8">
-          {/* Logo */}
           <Link
             href="/"
-            className="flex items-center gap-2.5 font-bold text-[1.1rem] tracking-tight shrink-0 text-[#111111] hover:opacity-80 transition-opacity"
+            className="flex items-center gap-2.5 font-bold text-[1.1rem] tracking-tight shrink-0 text-foreground hover:opacity-80 transition-opacity"
           >
             {siteLogo ? (
               <Image src={siteLogo} alt={siteTitle} width={140} height={40} className="h-8 w-auto object-contain" priority />
@@ -68,31 +64,29 @@ export function MedusaHeader({ categories, siteTitle = 'Shacky CMS', siteLogo, n
             )}
           </Link>
 
-          {/* Center nav — desktop */}
           <nav className="hidden md:flex items-center gap-0.5 flex-1 justify-center">
-            {navLinks.slice(0, 7).map((item, i) => (
+            {nav.slice(0, 7).map((item, i) => (
               <Link
                 key={i}
                 href={item.url}
-                className="px-3 py-1.5 text-[0.8125rem] font-medium text-[#666666] hover:text-[#111111] rounded-lg hover:bg-[#F5F5F5] transition-all duration-150 whitespace-nowrap"
+                className="px-3 py-1.5 text-[0.8125rem] font-medium text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted transition-all duration-150 whitespace-nowrap"
               >
                 {item.label}
               </Link>
             ))}
           </nav>
 
-          {/* Right: search + mobile toggle */}
           <div className="flex items-center gap-1.5 ml-auto shrink-0">
             <button
               onClick={() => { setSearchOpen(!searchOpen); if (menuOpen) setMenuOpen(false); }}
-              className="p-2 rounded-lg text-[#666666] hover:text-[#111111] hover:bg-[#F5F5F5] transition-all"
+              className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
               aria-label="Toggle search"
             >
               {searchOpen ? <X className="h-[18px] w-[18px]" /> : <Search className="h-[18px] w-[18px]" />}
             </button>
             <button
               onClick={() => { setMenuOpen(!menuOpen); if (searchOpen) setSearchOpen(false); }}
-              className="md:hidden p-2 rounded-lg text-[#666666] hover:text-[#111111] hover:bg-[#F5F5F5] transition-all"
+              className="md:hidden p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
               aria-label="Toggle menu"
             >
               {menuOpen ? <X className="h-[18px] w-[18px]" /> : <Menu className="h-[18px] w-[18px]" />}
@@ -100,46 +94,44 @@ export function MedusaHeader({ categories, siteTitle = 'Shacky CMS', siteLogo, n
           </div>
         </div>
 
-        {/* Inline search bar */}
         {searchOpen && (
           <div className="pb-3 -mt-1">
             <form onSubmit={handleSearch} className="relative">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-[15px] w-[15px] text-[#999999] pointer-events-none" />
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-[15px] w-[15px] text-muted-foreground/60 pointer-events-none" />
               <input
                 ref={inputRef}
                 type="search"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search articles, authors, topics…"
-                className="w-full pl-10 pr-4 h-11 border border-[#E5E7EB] rounded-xl bg-white text-[0.875rem] text-[#111111] placeholder:text-[#AAAAAA] focus:outline-none focus:ring-2 focus:ring-[#111111]/8 focus:border-[#111111]/30 transition-all"
+                className="w-full pl-10 pr-4 h-11 border border-border rounded-xl bg-background text-[0.875rem] text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring/30 transition-all"
               />
             </form>
           </div>
         )}
       </div>
 
-      {/* Mobile menu */}
       {menuOpen && (
-        <div className="md:hidden bg-white border-t border-[#E5E7EB] px-6 py-3 space-y-0.5">
-          {navLinks.map((item, i) => (
+        <div className="md:hidden bg-background border-t border-border px-6 py-3 space-y-0.5">
+          {nav.map((item, i) => (
             <Link
               key={i}
               href={item.url}
               onClick={() => setMenuOpen(false)}
-              className="block px-3 py-2.5 text-[0.875rem] font-medium text-[#444444] hover:text-[#111111] rounded-lg hover:bg-[#F5F5F5] transition-all"
+              className="block px-3 py-2.5 text-[0.875rem] font-medium text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted transition-all"
             >
               {item.label}
             </Link>
           ))}
           <div className="pt-2 pb-1">
             <form onSubmit={handleSearch} className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-[14px] w-[14px] text-[#999999] pointer-events-none" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-[14px] w-[14px] text-muted-foreground/60 pointer-events-none" />
               <input
                 type="search"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search…"
-                className="w-full pl-9 pr-4 h-10 border border-[#E5E7EB] rounded-lg bg-[#FAFAFA] text-[0.875rem] text-[#111111] placeholder:text-[#AAAAAA] focus:outline-none focus:ring-2 focus:ring-[#111111]/8 focus:border-[#111111]/30"
+                className="w-full pl-9 pr-4 h-10 border border-border rounded-lg bg-muted text-[0.875rem] text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring/30"
               />
             </form>
           </div>

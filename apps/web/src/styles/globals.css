@@ -98,6 +98,29 @@
 .ProseMirror td { @apply border border-border px-3 py-2; }
 
 /* ====== AI-GENERATED THEMES START ====== */
+[data-theme='medusa'] {
+  --background: 0 0% 100%;
+  --foreground: 0 0% 7%;
+  --card: 0 0% 98%;
+  --card-foreground: 0 0% 7%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 7%;
+  --primary: 0 0% 7%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 0 0% 96%;
+  --secondary-foreground: 0 0% 20%;
+  --muted: 0 0% 96%;
+  --muted-foreground: 0 0% 53%;
+  --accent: 243 75% 59%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 0 0% 90%;
+  --input: 0 0% 90%;
+  --ring: 0 0% 7%;
+  --radius: 0.25rem;
+}
+
 [data-theme='coppper'] {
   --background: 34 33% 98%;
   --foreground: 0 0% 29%;
@@ -107,12 +130,12 @@
   --popover-foreground: 0 0% 29%;
   --primary: 29 68% 45%;
   --primary-foreground: 34 33% 98%;
-  --secondary: 34 30% 90%;
-  --secondary-foreground: 0 0% 29%;
+  --secondary: 0 0% 12%;
+  --secondary-foreground: 34 33% 98%;
   --muted: 34 20% 93%;
-  --muted-foreground: 0 0% 60%;
+  --muted-foreground: 0 0% 48%;
   --accent: 28 55% 75%;
-  --accent-foreground: 0 0% 20%;
+  --accent-foreground: 0 0% 12%;
   --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 100%;
   --border: 34 25% 85%;

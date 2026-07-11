@@ -3,9 +3,9 @@
   "label": "Coppper",
   "description": "A premium digital magazine theme inspired by the warm elegance of copper.",
   "dataTheme": "coppper",
-  "wrapperClass": "min-h-screen flex flex-col bg-[#FAF8F5] text-[#4A4A4A]",
+  "wrapperClass": "min-h-screen flex flex-col bg-background text-foreground",
   "mainClass": "max-w-7xl mx-auto flex-1 p-6",
-  "css": "[data-theme='coppper'] { --background: 34 33% 98%; --foreground: 30 10% 29%; --card: 0 0% 100%; --card-foreground: 0 0% 29%; --popover: 33 10% 94%; --popover-foreground: 0 0% 20%; --primary: 29 68% 45%; --primary-foreground: 0 0% 100%; --secondary: 0 0% 87%; --secondary-foreground: 0 0% 20%; --muted: 0 0% 85%; --muted-foreground: 0 0% 48%; --accent: 24 58% 61%; --accent-foreground: 0 0% 100%; --destructive: 0 61% 36%; --destructive-foreground: 0 0% 100%; --border: 30 15% 91%; --input: 30 15% 91%; --ring: 29 68% 45%; --radius: 12px; }",
+  "css": "[data-theme='coppper'] {\n  --background: 34 33% 98%;\n  --foreground: 0 0% 29%;\n  --card: 34 20% 95%;\n  --card-foreground: 0 0% 29%;\n  --popover: 34 20% 95%;\n  --popover-foreground: 0 0% 29%;\n  --primary: 29 68% 45%;\n  --primary-foreground: 34 33% 98%;\n  --secondary: 0 0% 12%;\n  --secondary-foreground: 34 33% 98%;\n  --muted: 34 20% 93%;\n  --muted-foreground: 0 0% 48%;\n  --accent: 28 55% 75%;\n  --accent-foreground: 0 0% 12%;\n  --destructive: 0 84% 60%;\n  --destructive-foreground: 0 0% 100%;\n  --border: 34 25% 85%;\n  --input: 34 25% 85%;\n  --ring: 29 68% 45%;\n  --radius: 12px;\n}",
   "adminPreview": {
     "background": "#FAF8F5",
     "primaryBar": "#B87333",
