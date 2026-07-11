@@ -127,11 +127,21 @@ export interface ImageGalleryConfig {
   showCaptions: boolean;
 }
 
+export type ColumnContentType = 'card' | Exclude<SectionType, 'columns_block'>;
+
 export interface ColumnItem {
+  // 'card' is the default flat layout; any other SectionType nests a full block
+  contentType?: ColumnContentType;
+  nestedConfig?: SectionConfig;
+
+  // Card layout fields (used when contentType is 'card' or absent)
   title?: string;
   text?: string;
   imageSrc?: string;
   imageAlt?: string;
+  imageLink?: string;
+  imageLinkNewTab?: boolean;
+  imageDownload?: boolean;
   buttonLabel?: string;
   buttonUrl?: string;
   buttonVariant?: 'primary' | 'outline' | 'ghost';

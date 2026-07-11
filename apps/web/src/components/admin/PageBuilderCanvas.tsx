@@ -32,8 +32,8 @@ import {
   type DividerConfig, type ImageBlockConfig, type RichTextConfig,
   type HeadingBlockConfig, type ButtonRowConfig, type ButtonDef,
   type FileDownloadsConfig, type FileItem, type ImageGalleryConfig, type GalleryImage,
-  type ColumnsBlockConfig, type ColumnItem,
-  SECTION_META, createSection,
+  type ColumnsBlockConfig, type ColumnItem, type ColumnContentType,
+  SECTION_META, createSection, defaultConfig,
 } from '@/lib/page-builder';
 
 export interface Category { id: string; name: string; slug: string }
@@ -317,23 +317,37 @@ function ColumnsBlockPreview({ config }: { config: ColumnsBlockConfig }) {
   const alignClass = { left: 'text-left', center: 'text-center', right: 'text-right' }[config.textAlign] ?? 'text-left';
   return (
     <div className={`grid ${colClass} gap-4`}>
-      {config.columns.map((col, i) => (
-        <div key={i} className={`space-y-2 ${alignClass}`}>
-          {col.imageSrc ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={col.imageSrc} alt={col.imageAlt || ''} className="w-full aspect-video object-cover rounded-md border border-border" />
-          ) : (
-            <div className="w-full aspect-video rounded-md border-2 border-dashed border-border bg-muted/20 flex items-center justify-center">
-              <ImageIcon className="h-5 w-5 text-muted-foreground/30" />
+      {config.columns.map((col, i) => {
+        if (col.contentType && col.contentType !== 'card') {
+          const meta = SECTION_META[col.contentType];
+          const icon = SECTION_ICONS[col.contentType];
+          return (
+            <div key={i} className="rounded-md border border-dashed border-border bg-muted/20 p-3 space-y-1.5">
+              <div className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md font-medium ${meta.color}`}>
+                {icon} {meta.label}
+              </div>
+              <p className="text-[10px] text-muted-foreground/70 leading-snug">{meta.description}</p>
             </div>
-          )}
-          {col.title && <p className="font-semibold text-sm">{col.title}</p>}
-          {col.text && <p className="text-xs text-muted-foreground line-clamp-3">{col.text}</p>}
-          {col.buttonLabel && (
-            <span className="inline-flex items-center px-3 py-1 rounded-md text-xs font-semibold bg-primary text-primary-foreground">{col.buttonLabel}</span>
-          )}
-        </div>
-      ))}
+          );
+        }
+        return (
+          <div key={i} className={`space-y-2 ${alignClass}`}>
+            {col.imageSrc ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={col.imageSrc} alt={col.imageAlt || ''} className="w-full aspect-video object-cover rounded-md border border-border" />
+            ) : (
+              <div className="w-full aspect-video rounded-md border-2 border-dashed border-border bg-muted/20 flex items-center justify-center">
+                <ImageIcon className="h-5 w-5 text-muted-foreground/30" />
+              </div>
+            )}
+            {col.title && <p className="font-semibold text-sm">{col.title}</p>}
+            {col.text && <p className="text-xs text-muted-foreground line-clamp-3">{col.text}</p>}
+            {col.buttonLabel && (
+              <span className="inline-flex items-center px-3 py-1 rounded-md text-xs font-semibold bg-primary text-primary-foreground">{col.buttonLabel}</span>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -809,14 +823,40 @@ function ImageGalleryConfigForm({ config, onChange }: { config: ImageGalleryConf
   );
 }
 
-function ColumnsBlockConfigForm({ config, onChange }: { config: ColumnsBlockConfig; onChange: (c: ColumnsBlockConfig) => void }) {
+const COLUMN_CONTENT_OPTIONS: { value: ColumnContentType; label: string }[] = [
+  { value: 'card',           label: 'Card (image + title + text + button)' },
+  { value: 'heading_block',  label: 'Heading' },
+  { value: 'rich_text',      label: 'Rich Text' },
+  { value: 'image_block',    label: 'Image' },
+  { value: 'button_row',     label: 'Buttons' },
+  { value: 'html_embed',     label: 'HTML Embed' },
+  { value: 'divider',        label: 'Divider' },
+  { value: 'file_downloads', label: 'Downloads' },
+  { value: 'image_gallery',  label: 'Gallery' },
+  { value: 'download_banner',label: 'Download Banner' },
+  { value: 'hero',           label: 'Hero (CMS)' },
+  { value: 'post_grid',      label: 'Post Grid (CMS)' },
+  { value: 'latest_issue',   label: 'Latest Issue (CMS)' },
+  { value: 'category_row',   label: 'Category Row (CMS)' },
+];
+
+function ColumnsBlockConfigForm({ config, onChange, categories }: { config: ColumnsBlockConfig; onChange: (c: ColumnsBlockConfig) => void; categories: Category[] }) {
   const updateColumn = (i: number, patch: Partial<ColumnItem>) =>
     onChange({ ...config, columns: config.columns.map((col, idx) => idx === i ? { ...col, ...patch } : col) });
   const addColumn = () => {
     if (config.columns.length < 4)
-      onChange({ ...config, columns: [...config.columns, { title: `Column ${config.columns.length + 1}`, text: '', imageSrc: '', buttonLabel: '', buttonUrl: '', buttonVariant: 'primary', buttonNewTab: false }] });
+      onChange({ ...config, columns: [...config.columns, { contentType: 'card', title: `Column ${config.columns.length + 1}`, text: '', imageSrc: '', buttonLabel: '', buttonUrl: '', buttonVariant: 'primary', buttonNewTab: false }] });
   };
   const removeColumn = (i: number) => onChange({ ...config, columns: config.columns.filter((_, idx) => idx !== i) });
+
+  const changeContentType = (i: number, ct: ColumnContentType) => {
+    if (ct === 'card') {
+      updateColumn(i, { contentType: 'card', nestedConfig: undefined });
+    } else {
+      updateColumn(i, { contentType: ct, nestedConfig: defaultConfig(ct) });
+    }
+  };
+
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 gap-3">
@@ -839,52 +879,104 @@ function ColumnsBlockConfigForm({ config, onChange }: { config: ColumnsBlockConf
       </div>
       <div className="space-y-3">
         <Label className="text-xs font-medium">Columns ({config.columns.length})</Label>
-        {config.columns.map((col, i) => (
-          <div key={i} className="rounded-md border border-border p-3 space-y-2.5 bg-muted/20">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold text-muted-foreground">Column {i + 1}</p>
-              <button type="button" onClick={() => removeColumn(i)} disabled={config.columns.length <= 1}
-                className="p-1 rounded text-muted-foreground hover:text-destructive disabled:opacity-30">
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Image URL</Label>
-              <Input className="h-7 text-sm" placeholder="/s3/... or https://..." value={col.imageSrc || ''} onChange={(e) => updateColumn(i, { imageSrc: e.target.value })} />
-              {col.imageSrc && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={col.imageSrc} alt="" className="mt-1 rounded max-h-20 w-full object-cover border border-border" />
+        {config.columns.map((col, i) => {
+          const ct: ColumnContentType = col.contentType ?? 'card';
+          const isCard = ct === 'card';
+          return (
+            <div key={i} className="rounded-md border border-border p-3 space-y-2.5 bg-muted/20">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-muted-foreground">Column {i + 1}</p>
+                <button type="button" onClick={() => removeColumn(i)} disabled={config.columns.length <= 1}
+                  className="p-1 rounded text-muted-foreground hover:text-destructive disabled:opacity-30">
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+
+              {/* Content type selector */}
+              <div className="space-y-1.5">
+                <Label className="text-xs">Content type</Label>
+                <Select value={ct} onValueChange={(v) => changeContentType(i, v as ColumnContentType)}>
+                  <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent className="max-h-64">
+                    {COLUMN_CONTENT_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {isCard ? (
+                /* ── Card fields ── */
+                <>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Image URL</Label>
+                    <Input className="h-7 text-sm" placeholder="/s3/... or https://..." value={col.imageSrc || ''} onChange={(e) => updateColumn(i, { imageSrc: e.target.value })} />
+                    {col.imageSrc && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={col.imageSrc} alt="" className="mt-1 rounded max-h-20 w-full object-cover border border-border" />
+                    )}
+                  </div>
+                  <div className="space-y-1.5"><Label className="text-xs">Image alt text</Label><Input className="h-7 text-sm" value={col.imageAlt || ''} onChange={(e) => updateColumn(i, { imageAlt: e.target.value })} /></div>
+                  {/* Image link / download */}
+                  <div className="space-y-2 rounded-md border border-border p-2.5 bg-background/50">
+                    <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Image link</p>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Link URL</Label>
+                      <Input className="h-7 text-sm" placeholder="/page or https://... (optional)" value={col.imageLink || ''} onChange={(e) => updateColumn(i, { imageLink: e.target.value })} />
+                    </div>
+                    {col.imageLink && (
+                      <div className="flex flex-col gap-1.5">
+                        <label className="flex items-center gap-1.5 cursor-pointer">
+                          <input type="checkbox" checked={!!col.imageLinkNewTab} onChange={(e) => updateColumn(i, { imageLinkNewTab: e.target.checked })} className="h-3.5 w-3.5 rounded" />
+                          <span className="text-xs text-muted-foreground flex items-center gap-0.5"><ExternalLink className="h-3 w-3" /> Open in new tab</span>
+                        </label>
+                        <label className="flex items-center gap-1.5 cursor-pointer">
+                          <input type="checkbox" checked={!!col.imageDownload} onChange={(e) => updateColumn(i, { imageDownload: e.target.checked })} className="h-3.5 w-3.5 rounded" />
+                          <span className="text-xs text-muted-foreground">Download file on click</span>
+                        </label>
+                      </div>
+                    )}
+                  </div>
+                  <div className="space-y-1.5"><Label className="text-xs">Title</Label><Input className="h-7 text-sm" value={col.title || ''} onChange={(e) => updateColumn(i, { title: e.target.value })} /></div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Text</Label>
+                    <Textarea className="text-xs min-h-[60px] resize-none" placeholder="Paragraph text…" value={col.text || ''} onChange={(e) => updateColumn(i, { text: e.target.value })} />
+                  </div>
+                  <div className="space-y-1.5"><Label className="text-xs">Button label</Label><Input className="h-7 text-sm" placeholder="Learn More" value={col.buttonLabel || ''} onChange={(e) => updateColumn(i, { buttonLabel: e.target.value })} /></div>
+                  {col.buttonLabel && (
+                    <>
+                      <div className="space-y-1.5"><Label className="text-xs">Button URL</Label><Input className="h-7 text-sm" placeholder="/page or https://..." value={col.buttonUrl || ''} onChange={(e) => updateColumn(i, { buttonUrl: e.target.value })} /></div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Button style</Label>
+                          <Select value={col.buttonVariant || 'primary'} onValueChange={(v) => updateColumn(i, { buttonVariant: v as ColumnItem['buttonVariant'] })}>
+                            <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                            <SelectContent><SelectItem value="primary">Primary</SelectItem><SelectItem value="outline">Outline</SelectItem><SelectItem value="ghost">Ghost</SelectItem></SelectContent>
+                          </Select>
+                        </div>
+                        <div className="flex items-end pb-1">
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input type="checkbox" checked={!!col.buttonNewTab} onChange={(e) => updateColumn(i, { buttonNewTab: e.target.checked })} className="h-3.5 w-3.5 rounded" />
+                            <span className="text-xs text-muted-foreground flex items-center gap-0.5"><ExternalLink className="h-3 w-3" /> New tab</span>
+                          </label>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </>
+              ) : (
+                /* ── Nested block config ── */
+                <div className="space-y-2">
+                  <SectionConfigForm
+                    section={{ id: `col-cfg-${i}`, type: ct, config: col.nestedConfig ?? defaultConfig(ct) }}
+                    onChange={(newCfg) => updateColumn(i, { nestedConfig: newCfg })}
+                    categories={categories}
+                  />
+                </div>
               )}
             </div>
-            <div className="space-y-1.5"><Label className="text-xs">Image alt text</Label><Input className="h-7 text-sm" value={col.imageAlt || ''} onChange={(e) => updateColumn(i, { imageAlt: e.target.value })} /></div>
-            <div className="space-y-1.5"><Label className="text-xs">Title</Label><Input className="h-7 text-sm" value={col.title || ''} onChange={(e) => updateColumn(i, { title: e.target.value })} /></div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Text</Label>
-              <Textarea className="text-xs min-h-[60px] resize-none" placeholder="Paragraph text…" value={col.text || ''} onChange={(e) => updateColumn(i, { text: e.target.value })} />
-            </div>
-            <div className="space-y-1.5"><Label className="text-xs">Button label</Label><Input className="h-7 text-sm" placeholder="Learn More" value={col.buttonLabel || ''} onChange={(e) => updateColumn(i, { buttonLabel: e.target.value })} /></div>
-            {col.buttonLabel && (
-              <>
-                <div className="space-y-1.5"><Label className="text-xs">Button URL</Label><Input className="h-7 text-sm" placeholder="/page or https://..." value={col.buttonUrl || ''} onChange={(e) => updateColumn(i, { buttonUrl: e.target.value })} /></div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1">
-                    <Label className="text-xs">Button style</Label>
-                    <Select value={col.buttonVariant || 'primary'} onValueChange={(v) => updateColumn(i, { buttonVariant: v as ColumnItem['buttonVariant'] })}>
-                      <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent><SelectItem value="primary">Primary</SelectItem><SelectItem value="outline">Outline</SelectItem><SelectItem value="ghost">Ghost</SelectItem></SelectContent>
-                    </Select>
-                  </div>
-                  <div className="flex items-end pb-1">
-                    <label className="flex items-center gap-1.5 cursor-pointer">
-                      <input type="checkbox" checked={!!col.buttonNewTab} onChange={(e) => updateColumn(i, { buttonNewTab: e.target.checked })} className="h-3.5 w-3.5 rounded" />
-                      <span className="text-xs text-muted-foreground flex items-center gap-0.5"><ExternalLink className="h-3 w-3" /> New tab</span>
-                    </label>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        ))}
+          );
+        })}
         {config.columns.length < 4 && (
           <button type="button" onClick={addColumn}
             className="w-full py-2 border border-dashed border-border rounded-md text-xs text-muted-foreground hover:text-foreground hover:border-foreground transition-colors flex items-center justify-center gap-1.5">
@@ -911,7 +1003,7 @@ function SectionConfigForm({ section, onChange, categories }: { section: Section
     case 'button_row':      return <ButtonRowConfigForm config={section.config as ButtonRowConfig} onChange={onChange} />;
     case 'file_downloads':  return <FileDownloadsConfigForm config={section.config as FileDownloadsConfig} onChange={onChange} />;
     case 'image_gallery':   return <ImageGalleryConfigForm config={section.config as ImageGalleryConfig} onChange={onChange} />;
-    case 'columns_block':   return <ColumnsBlockConfigForm config={section.config as ColumnsBlockConfig} onChange={onChange} />;
+    case 'columns_block':   return <ColumnsBlockConfigForm config={section.config as ColumnsBlockConfig} onChange={onChange} categories={categories} />;
     default:                return <p className="text-sm text-muted-foreground">No config for this block.</p>;
   }
 }

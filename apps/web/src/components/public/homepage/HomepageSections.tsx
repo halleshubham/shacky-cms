@@ -1,3 +1,4 @@
+import type React from 'react';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { BookOpen, ArrowRight, Download as DownloadIcon } from 'lucide-react';
@@ -361,6 +362,27 @@ function ImageGallerySection({ config }: { config: ImageGalleryConfig }) {
   );
 }
 
+function ColumnNestedSection({ col }: { col: ColumnItem }) {
+  if (!col.contentType || col.contentType === 'card' || !col.nestedConfig) return null;
+  const cfg = col.nestedConfig;
+  switch (col.contentType) {
+    case 'hero':            return <HeroSection config={cfg as HeroConfig} /> as React.ReactNode;
+    case 'post_grid':       return <PostGridSection config={cfg as PostGridConfig} /> as React.ReactNode;
+    case 'latest_issue':    return <LatestIssueSection config={cfg as LatestIssueConfig} /> as React.ReactNode;
+    case 'category_row':    return <CategoryRowSection config={cfg as CategoryRowConfig} /> as React.ReactNode;
+    case 'download_banner': return <DownloadBannerSection config={cfg as DownloadBannerConfig} />;
+    case 'html_embed':      return <HtmlEmbedSection config={cfg as HtmlEmbedConfig} />;
+    case 'divider':         return <DividerSection config={cfg as DividerConfig} />;
+    case 'image_block':     return <ImageBlockSection config={cfg as ImageBlockConfig} />;
+    case 'rich_text':       return <RichTextSection config={cfg as RichTextConfig} />;
+    case 'heading_block':   return <HeadingBlockSection config={cfg as HeadingBlockConfig} />;
+    case 'button_row':      return <ButtonRowSection config={cfg as ButtonRowConfig} />;
+    case 'file_downloads':  return <FileDownloadsSection config={cfg as FileDownloadsConfig} />;
+    case 'image_gallery':   return <ImageGallerySection config={cfg as ImageGalleryConfig} />;
+    default:                return null;
+  }
+}
+
 function ColumnsBlockSection({ config }: { config: ColumnsBlockConfig }) {
   if (!config.columns || config.columns.length === 0) return null;
   const colClass: Record<number, string> = { 1: 'grid-cols-1', 2: 'sm:grid-cols-2', 3: 'sm:grid-cols-2 md:grid-cols-3', 4: 'sm:grid-cols-2 md:grid-cols-4' };
@@ -373,32 +395,54 @@ function ColumnsBlockSection({ config }: { config: ColumnsBlockConfig }) {
   };
   return (
     <div className={`grid grid-cols-1 ${gridClass} gap-6 lg:gap-8`}>
-      {config.columns.map((col: ColumnItem, i: number) => (
-        <div key={i} className={`flex flex-col gap-3 ${alignClass}`}>
-          {col.imageSrc && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={col.imageSrc}
-              alt={col.imageAlt || col.title || ''}
-              className="w-full rounded-lg object-cover aspect-video"
-            />
-          )}
-          {col.title && <h3 className="font-bold text-lg leading-snug">{col.title}</h3>}
-          {col.text && <p className="text-muted-foreground leading-relaxed text-sm">{col.text}</p>}
-          {col.buttonLabel && col.buttonUrl && (
-            <div className={`mt-auto pt-1 flex ${config.textAlign === 'center' ? 'justify-center' : config.textAlign === 'right' ? 'justify-end' : 'justify-start'}`}>
-              <a
-                href={col.buttonUrl}
-                target={col.buttonNewTab ? '_blank' : '_self'}
-                rel={col.buttonNewTab ? 'noopener noreferrer' : undefined}
-                className={`inline-flex items-center px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors ${variantClass[col.buttonVariant || 'primary'] ?? variantClass.primary}`}
-              >
-                {col.buttonLabel}
-              </a>
+      {config.columns.map((col: ColumnItem, i: number) => {
+        // Nested block mode
+        if (col.contentType && col.contentType !== 'card') {
+          return (
+            <div key={i} className="flex flex-col min-w-0">
+              <ColumnNestedSection col={col} />
             </div>
-          )}
-        </div>
-      ))}
+          );
+        }
+
+        // Card mode (default)
+        const imgEl = col.imageSrc ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={col.imageSrc} alt={col.imageAlt || col.title || ''} className="w-full rounded-lg object-cover aspect-video" />
+        ) : null;
+
+        return (
+          <div key={i} className={`flex flex-col gap-3 ${alignClass}`}>
+            {imgEl && (
+              col.imageLink ? (
+                <a
+                  href={col.imageLink}
+                  target={col.imageLinkNewTab ? '_blank' : '_self'}
+                  rel={col.imageLinkNewTab ? 'noopener noreferrer' : undefined}
+                  download={col.imageDownload ? true : undefined}
+                  className="block hover:opacity-90 transition-opacity"
+                >
+                  {imgEl}
+                </a>
+              ) : imgEl
+            )}
+            {col.title && <h3 className="font-bold text-lg leading-snug">{col.title}</h3>}
+            {col.text && <p className="text-muted-foreground leading-relaxed text-sm">{col.text}</p>}
+            {col.buttonLabel && col.buttonUrl && (
+              <div className={`mt-auto pt-1 flex ${config.textAlign === 'center' ? 'justify-center' : config.textAlign === 'right' ? 'justify-end' : 'justify-start'}`}>
+                <a
+                  href={col.buttonUrl}
+                  target={col.buttonNewTab ? '_blank' : '_self'}
+                  rel={col.buttonNewTab ? 'noopener noreferrer' : undefined}
+                  className={`inline-flex items-center px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors ${variantClass[col.buttonVariant || 'primary'] ?? variantClass.primary}`}
+                >
+                  {col.buttonLabel}
+                </a>
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
