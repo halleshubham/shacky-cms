@@ -4,7 +4,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   ArrowLeft, Plus, Upload, Loader2, Eye, CheckCircle,
-  Link2, Search, X, Zap, Pencil, Check,
+  Link2, Search, X, Zap, Pencil, Check, GripVertical, Save,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -31,6 +31,12 @@ export default function IssueDetailPage() {
   const [attaching, setAttaching] = useState(false);
   const [autoAttaching, setAutoAttaching] = useState(false);
 
+  // Article drag-and-drop order
+  const [orderedPosts, setOrderedPosts] = useState<any[]>([]);
+  const [orderDirty, setOrderDirty] = useState(false);
+  const [savingOrder, setSavingOrder] = useState(false);
+  const dragIndexRef = useRef<number | null>(null);
+
   // Inline edit for vol/issue/title/publishDate
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({ volumeNumber: '', issueNumber: '', title: '', publishDate: '' });
@@ -39,10 +45,44 @@ export default function IssueDetailPage() {
   const load = useCallback(async () => {
     const issueData = await api.get<any>(`/api/issues/${id}`);
     setIssue(issueData);
+    setOrderedPosts(issueData.posts ?? []);
+    setOrderDirty(false);
     setLoading(false);
   }, [id]);
 
   useEffect(() => { load(); }, [load]);
+
+  const handleDragStart = (index: number) => { dragIndexRef.current = index; };
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    const from = dragIndexRef.current;
+    if (from === null || from === index) return;
+    setOrderedPosts((prev) => {
+      const next = [...prev];
+      const [moved] = next.splice(from, 1);
+      next.splice(index, 0, moved);
+      dragIndexRef.current = index;
+      return next;
+    });
+    setOrderDirty(true);
+  };
+  const handleDragEnd = () => { dragIndexRef.current = null; };
+
+  const saveOrder = async () => {
+    setSavingOrder(true);
+    try {
+      await api.put(`/api/issues/${id}/article-order`, {
+        order: orderedPosts.map((p, i) => ({ postId: p.id, order: i + 1 })),
+      });
+      toast.success('Order saved — update the publish date to re-sync article timestamps');
+      setOrderDirty(false);
+      await load();
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to save order');
+    } finally {
+      setSavingOrder(false);
+    }
+  };
 
   // Debounced search for unassigned posts
   useEffect(() => {
@@ -188,7 +228,7 @@ export default function IssueDetailPage() {
   if (loading) return <div className="text-muted-foreground">Loading…</div>;
   if (!issue) return <div className="text-destructive">Issue not found</div>;
 
-  const posts = issue.posts || [];
+  const posts = issue.posts || []; // used for non-list references (counts, ingest)
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -403,35 +443,52 @@ export default function IssueDetailPage() {
 
       {/* Article list */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">{posts.length} Article{posts.length !== 1 ? 's' : ''}</CardTitle>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-base">{orderedPosts.length} Article{orderedPosts.length !== 1 ? 's' : ''}</CardTitle>
+          {orderDirty && (
+            <Button size="sm" onClick={saveOrder} disabled={savingOrder} className="gap-1.5">
+              {savingOrder ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+              Save order
+            </Button>
+          )}
         </CardHeader>
         <CardContent>
-          {posts.length === 0 ? (
+          {orderedPosts.length === 0 ? (
             <p className="text-sm text-muted-foreground">No articles yet.</p>
           ) : (
-            <div className="divide-y">
-              {posts.map((post: any) => (
-                <div key={post.id} className="flex items-center justify-between py-3 gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span className="text-sm font-mono text-muted-foreground w-6 shrink-0">{post.issueOrder}</span>
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">{post.title}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {post.authors?.[0]?.displayName || '—'}
-                        {post.publishedAt && ` · ${formatDate(post.publishedAt)}`}
-                      </p>
+            <>
+              <p className="text-xs text-muted-foreground mb-3">Drag rows to reorder. After saving order, update the issue publish date to re-sync article timestamps.</p>
+              <div className="divide-y">
+                {orderedPosts.map((post: any, index: number) => (
+                  <div
+                    key={post.id}
+                    draggable
+                    onDragStart={() => handleDragStart(index)}
+                    onDragOver={(e) => handleDragOver(e, index)}
+                    onDragEnd={handleDragEnd}
+                    className="flex items-center justify-between py-3 gap-3 cursor-grab active:cursor-grabbing select-none"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <span className="text-sm font-mono text-muted-foreground w-5 shrink-0">{index + 1}</span>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{post.title}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {post.authors?.[0]?.displayName || '—'}
+                          {post.publishedAt && ` · ${formatDate(post.publishedAt)}`}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor(post.status)}`}>{post.status}</span>
+                      <Button variant="ghost" size="sm" asChild>
+                        <Link href={`/admin/posts/${post.id}`}><Eye className="h-3 w-3" /></Link>
+                      </Button>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor(post.status)}`}>{post.status}</span>
-                    <Button variant="ghost" size="sm" asChild>
-                      <Link href={`/admin/posts/${post.id}`}><Eye className="h-3 w-3" /></Link>
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
