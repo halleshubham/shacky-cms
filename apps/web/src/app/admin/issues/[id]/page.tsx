@@ -1,22 +1,26 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   ArrowLeft, Plus, Upload, Loader2, Eye, CheckCircle,
-  Link2, Search, X, Zap, Pencil, Check, GripVertical, Save, ArrowUpDown,
+  Link2, Search, X, Zap, Pencil, Check, GripVertical, Save, ArrowUpDown, Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { api } from '@/lib/api';
 import { formatDate, statusColor } from '@/lib/utils';
 import toast from 'react-hot-toast';
 
 export default function IssueDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const [issue, setIssue] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // ZIP ingest
   const [ingesting, setIngesting] = useState(false);
@@ -225,6 +229,19 @@ export default function IssueDetailPage() {
     }
   };
 
+  const deleteIssue = async (deleteArticles: boolean) => {
+    setDeleting(true);
+    const toastId = toast.loading('Deleting issue…');
+    try {
+      await api.delete(`/api/issues/${id}?deleteArticles=${deleteArticles}`);
+      toast.success('Issue deleted', { id: toastId });
+      router.push('/admin/issues');
+    } catch (err: any) {
+      toast.error(err?.message || 'Delete failed', { id: toastId });
+      setDeleting(false);
+    }
+  };
+
   if (loading) return <div className="text-muted-foreground">Loading…</div>;
   if (!issue) return <div className="text-destructive">Issue not found</div>;
 
@@ -285,9 +302,14 @@ export default function IssueDetailPage() {
                 Vol. {issue.volumeNumber}, No. {issue.issueNumber} · {formatDate(issue.publishDate)} · {issue.type}
               </p>
             </div>
-            <Button variant="ghost" size="sm" onClick={openEdit} className="gap-1 shrink-0 mt-1">
-              <Pencil className="h-3.5 w-3.5" /> Edit
-            </Button>
+            <div className="flex items-center gap-1 shrink-0 mt-1">
+              <Button variant="ghost" size="sm" onClick={openEdit} className="gap-1">
+                <Pencil className="h-3.5 w-3.5" /> Edit
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setDeleteOpen(true)} className="gap-1 text-destructive hover:text-destructive hover:bg-destructive/10">
+                <Trash2 className="h-3.5 w-3.5" /> Delete
+              </Button>
+            </div>
           </div>
         )}
       </div>
@@ -440,6 +462,38 @@ export default function IssueDetailPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Delete issue dialog */}
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete "{issue.title}"</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            This issue has <strong>{issue.posts?.length ?? 0}</strong> article{(issue.posts?.length ?? 0) !== 1 ? 's' : ''} attached. What would you like to do with them?
+          </p>
+          <DialogFooter className="flex-col sm:flex-row gap-2 mt-2">
+            <Button
+              variant="outline"
+              onClick={() => deleteIssue(false)}
+              disabled={deleting}
+              className="flex-1"
+            >
+              {deleting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Delete issue, keep articles
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => deleteIssue(true)}
+              disabled={deleting}
+              className="flex-1"
+            >
+              {deleting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Delete issue &amp; all articles
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Article list */}
       <Card>

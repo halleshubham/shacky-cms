@@ -110,11 +110,27 @@ const issuesRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  // DELETE /issues/:id
+  // DELETE /issues/:id?deleteArticles=true|false
+  // deleteArticles=true  → permanently deletes all attached posts, then deletes the issue
+  // deleteArticles=false → detaches posts (nulls issueId + issueOrder) so they can be reused, then deletes the issue
   fastify.delete('/:id', { preHandler: [authenticate, requireAdmin] }, async (req, reply) => {
     const { id } = req.params as { id: string };
+    const { deleteArticles } = req.query as { deleteArticles?: string };
+
+    const issue = await prisma.issue.findUnique({ where: { id }, select: { id: true } });
+    if (!issue) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Issue not found' });
+
+    if (deleteArticles === 'true') {
+      await prisma.post.deleteMany({ where: { issueId: id } });
+    } else {
+      await prisma.post.updateMany({
+        where: { issueId: id },
+        data: { issueId: null, issueOrder: null },
+      });
+    }
+
     await prisma.issue.delete({ where: { id } });
-    await audit(req, 'issue.deleted', { entity: 'issue', entityId: id });
+    await audit(req, 'issue.deleted', { entity: 'issue', entityId: id, meta: { deleteArticles: deleteArticles === 'true' } });
     return reply.send({ success: true });
   });
 

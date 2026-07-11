@@ -1,10 +1,10 @@
 'use client';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Plus, Upload, Settings, CheckCircle, XCircle, Eye } from 'lucide-react';
+import { Plus, Settings, CheckCircle, XCircle, Trash2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { api } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
 import toast from 'react-hot-toast';
@@ -13,6 +13,8 @@ export default function IssuesPage() {
   const [issues, setIssues] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [deleteTarget, setDeleteTarget] = useState<any>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -35,6 +37,22 @@ export default function IssuesPage() {
       toast.success(`All articles ${status === 'published' ? 'published' : 'reverted to draft'}`, { id: toastId });
     } catch (err: any) {
       toast.error(err?.message || 'Failed', { id: toastId });
+    }
+  };
+
+  const deleteIssue = async (deleteArticles: boolean) => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    const toastId = toast.loading('Deleting issue…');
+    try {
+      await api.delete(`/api/issues/${deleteTarget.id}?deleteArticles=${deleteArticles}`);
+      toast.success('Issue deleted', { id: toastId });
+      setDeleteTarget(null);
+      await load();
+    } catch (err: any) {
+      toast.error(err?.message || 'Delete failed', { id: toastId });
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -82,6 +100,13 @@ export default function IssuesPage() {
                     <Button variant="ghost" size="sm" onClick={() => bulkAction(issue.id, 'draft')}>
                       <XCircle className="h-3 w-3" /> Unpublish All
                     </Button>
+                    <Button
+                      variant="ghost" size="sm"
+                      onClick={() => setDeleteTarget(issue)}
+                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
                   </div>
                 </div>
               </CardContent>
@@ -89,6 +114,38 @@ export default function IssuesPage() {
           ))}
         </div>
       )}
+
+      {/* Delete issue dialog */}
+      <Dialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete "{deleteTarget?.title}"</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            This issue has <strong>{deleteTarget?._count?.posts ?? 0}</strong> article{(deleteTarget?._count?.posts ?? 0) !== 1 ? 's' : ''} attached. What would you like to do with them?
+          </p>
+          <DialogFooter className="flex-col sm:flex-row gap-2 mt-2">
+            <Button
+              variant="outline"
+              onClick={() => deleteIssue(false)}
+              disabled={deleting}
+              className="flex-1"
+            >
+              {deleting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Delete issue, keep articles
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => deleteIssue(true)}
+              disabled={deleting}
+              className="flex-1"
+            >
+              {deleting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Delete issue &amp; all articles
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

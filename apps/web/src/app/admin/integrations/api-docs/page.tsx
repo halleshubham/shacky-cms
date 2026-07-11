@@ -265,7 +265,7 @@ function EndpointRow({
 
 function GroupCard({ group, baseUrl, token, forceOpen }: { group: Group; baseUrl: string; token: string; forceOpen?: boolean }) {
   const [open, setOpen] = useState(true);
-  const isOpen = forceOpen ?? open;
+  const isOpen = forceOpen !== undefined ? forceOpen : open;
 
   return (
     <div className="border border-border rounded-lg overflow-hidden">
