@@ -16,6 +16,32 @@ const CSS_MARKER_START = '/* ====== AI-GENERATED THEMES START ====== */';
 const CSS_MARKER_END   = '/* ====== AI-GENERATED THEMES END ====== */';
 const BUILT_IN_THEMES  = ['classic', 'medusa', 'coppper'];
 
+// Fallback used when THEMES_DIR is not accessible (e.g. production Docker where
+// only the API image is present, not the Next.js source tree).
+const BUILT_IN_META: ThemeMetaJson[] = [
+  {
+    id: 'classic', label: 'Classic',
+    description: 'Playfair Display serif typeface, cobalt blue accents, editorial magazine layout',
+    dataTheme: null, wrapperClass: 'min-h-screen flex flex-col bg-background text-foreground',
+    mainClass: 'flex-1 max-w-6xl mx-auto w-full px-4 py-8',
+    adminPreview: { background: '#F0F4F8', primaryBar: '#0F172A', secondaryBar: '#94A3B8', accentBar: '#2563EB' },
+  },
+  {
+    id: 'medusa', label: 'Medusa',
+    description: 'Inter sans-serif, black & white palette, premium minimal SaaS aesthetic',
+    dataTheme: 'medusa', wrapperClass: 'min-h-screen flex flex-col bg-background text-foreground',
+    mainClass: 'flex-1 w-full px-4 sm:px-6 md:px-10 max-w-[1280px] mx-auto',
+    adminPreview: { background: '#FFFFFF', border: '#E5E7EB', primaryBar: '#111111', secondaryBar: '#888888', accentBar: '#4f46e5' },
+  },
+  {
+    id: 'coppper', label: 'Coppper',
+    description: 'A premium digital magazine theme inspired by the warm elegance of copper.',
+    dataTheme: 'coppper', wrapperClass: 'min-h-screen flex flex-col bg-background text-foreground',
+    mainClass: 'max-w-7xl mx-auto flex-1 p-6',
+    adminPreview: { background: '#FAF8F5', primaryBar: '#B87333', secondaryBar: '#F3EEE8', accentBar: '#D49A6A' },
+  },
+];
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface ThemeMetaJson {
@@ -55,7 +81,13 @@ export function toThemeId(label: string): string {
 // ─── Meta scanning ────────────────────────────────────────────────────────────
 
 export async function readAllMeta(): Promise<ThemeMetaJson[]> {
-  const entries = await fs.readdir(THEMES_DIR, { withFileTypes: true });
+  let entries: import('fs').Dirent[];
+  try {
+    entries = await fs.readdir(THEMES_DIR, { withFileTypes: true });
+  } catch {
+    // THEMES_DIR not accessible (production Docker — web source tree not present)
+    return BUILT_IN_META;
+  }
   const metas: ThemeMetaJson[] = [];
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
