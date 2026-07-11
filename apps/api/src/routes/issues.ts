@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../plugins/prisma.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
 import { audit } from '../utils/audit.js';
+import { computePublishTimestamp } from '@shacky/shared';
 
 const issueBodySchema = z.object({
   volumeNumber: z.number().int().positive(),
@@ -72,13 +73,33 @@ const issuesRoutes: FastifyPluginAsync = async (fastify) => {
     const { id } = req.params as { id: string };
     const body = issueBodySchema.partial().parse(req.body);
     try {
+      const newPublishDate = body.publishDate ? new Date(body.publishDate) : null;
       const issue = await prisma.issue.update({
         where: { id },
         data: {
           ...body,
-          ...(body.publishDate && { publishDate: new Date(body.publishDate) }),
+          ...(newPublishDate && { publishDate: newPublishDate }),
+        },
+        include: {
+          posts: { orderBy: { issueOrder: 'asc' }, select: { id: true, issueOrder: true } },
         },
       });
+
+      // When publishDate changes, recompute every post's publishedAt
+      if (newPublishDate && issue.posts.length > 0) {
+        const total = issue.posts.length;
+        await Promise.all(
+          issue.posts.map((post, idx) =>
+            prisma.post.update({
+              where: { id: post.id },
+              data: {
+                publishedAt: computePublishTimestamp(newPublishDate, (post.issueOrder ?? idx + 1), total),
+              },
+            }),
+          ),
+        );
+      }
+
       await audit(req, 'issue.updated', { entity: 'issue', entityId: id });
       return reply.send(issue);
     } catch (e: any) {

@@ -31,9 +31,9 @@ export default function IssueDetailPage() {
   const [attaching, setAttaching] = useState(false);
   const [autoAttaching, setAutoAttaching] = useState(false);
 
-  // Inline edit for vol/issue/title
+  // Inline edit for vol/issue/title/publishDate
   const [editing, setEditing] = useState(false);
-  const [editForm, setEditForm] = useState({ volumeNumber: '', issueNumber: '', title: '' });
+  const [editForm, setEditForm] = useState({ volumeNumber: '', issueNumber: '', title: '', publishDate: '' });
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
@@ -139,11 +139,18 @@ export default function IssueDetailPage() {
       return next;
     });
 
+  const toDatetimeLocal = (iso: string) => {
+    const d = new Date(iso);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
   const openEdit = () => {
     setEditForm({
       volumeNumber: String(issue.volumeNumber),
       issueNumber: String(issue.issueNumber),
       title: issue.title,
+      publishDate: issue.publishDate ? toDatetimeLocal(issue.publishDate) : '',
     });
     setEditing(true);
   };
@@ -155,6 +162,7 @@ export default function IssueDetailPage() {
         volumeNumber: parseInt(editForm.volumeNumber),
         issueNumber: parseInt(editForm.issueNumber),
         title: editForm.title,
+        ...(editForm.publishDate && { publishDate: new Date(editForm.publishDate).toISOString() }),
       });
       toast.success('Issue updated');
       setEditing(false);
@@ -196,7 +204,7 @@ export default function IssueDetailPage() {
               className="text-lg font-semibold h-9"
               placeholder="Issue title"
             />
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <label className="text-xs text-muted-foreground shrink-0">Vol.</label>
               <Input
                 type="number" min="1"
@@ -211,6 +219,13 @@ export default function IssueDetailPage() {
                 onChange={(e) => setEditForm((f) => ({ ...f, issueNumber: e.target.value }))}
                 className="w-20 h-7 text-sm"
               />
+              <label className="text-xs text-muted-foreground shrink-0">Publish date</label>
+              <Input
+                type="datetime-local"
+                value={editForm.publishDate}
+                onChange={(e) => setEditForm((f) => ({ ...f, publishDate: e.target.value }))}
+                className="h-7 text-sm w-auto"
+              />
               <Button size="sm" onClick={saveEdit} disabled={saving || !editForm.title || !editForm.volumeNumber || !editForm.issueNumber} className="gap-1 h-7 px-2">
                 {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />} Save
               </Button>
@@ -218,6 +233,9 @@ export default function IssueDetailPage() {
                 <X className="h-3 w-3" />
               </Button>
             </div>
+            {editForm.publishDate && (
+              <p className="text-xs text-muted-foreground">Saving will recompute publish timestamps for all articles in this issue.</p>
+            )}
           </div>
         ) : (
           <div className="flex-1 flex items-start justify-between gap-2">
