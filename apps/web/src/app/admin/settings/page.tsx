@@ -31,6 +31,7 @@ const SECTIONS = [
   { id: 'tts', label: 'Text to Speech' },
   { id: 'profile', label: 'My Profile' },
   { id: 'stock', label: 'Stock Photos' },
+  { id: 'email', label: 'Email' },
   { id: 'ai', label: 'AI Configuration' },
   { id: '2fa', label: 'Two-Factor Auth' },
   { id: 'danger', label: 'Danger Zone' },
@@ -113,6 +114,18 @@ export default function SettingsPage() {
   const [translationLanguages, setTranslationLanguages] = useState('mr,hi');
   const [savingTranslation, setSavingTranslation] = useState(false);
 
+  // Email configuration
+  const [emailProvider, setEmailProvider] = useState<'smtp' | 'resend'>('smtp');
+  const [emailFrom, setEmailFrom] = useState('');
+  const [emailFromName, setEmailFromName] = useState('');
+  const [smtpHost, setSmtpHost] = useState('');
+  const [smtpPort, setSmtpPort] = useState('587');
+  const [smtpUser, setSmtpUser] = useState('');
+  const [smtpPass, setSmtpPass] = useState('');
+  const [resendApiKey, setResendApiKey] = useState('');
+  const [savingEmail, setSavingEmail] = useState(false);
+  const [sendingTest, setSendingTest] = useState(false);
+
   // AI configuration
   const [aiProvider, setAiProvider] = useState<'openai' | 'gemini' | 'ollama' | 'groq'>('openai');
   const [aiApiKey, setAiApiKey] = useState('');
@@ -159,6 +172,14 @@ export default function SettingsPage() {
       setSocialTelegram(s.social_telegram || '');
       setSocialYoutube(s.social_youtube || '');
       setSocialX(s.social_x || '');
+      setEmailProvider((s.email_provider as 'smtp' | 'resend') || 'smtp');
+      setEmailFrom(s.email_from || '');
+      setEmailFromName(s.email_from_name || '');
+      setSmtpHost(s.smtp_host || '');
+      setSmtpPort(s.smtp_port || '587');
+      setSmtpUser(s.smtp_user || '');
+      setSmtpPass(s.smtp_pass ? '••••••••' : '');
+      setResendApiKey(s.resend_api_key ? '••••••••' : '');
     }).catch(() => {});
     api.get<any>('/api/ai/config').then((cfg) => {
       if (cfg.configured) {
@@ -293,6 +314,41 @@ export default function SettingsPage() {
       }
     } catch (err: any) { toast.error(err?.message || 'Save failed'); }
     finally { setSavingStock(false); }
+  };
+
+  const saveEmailConfig = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingEmail(true);
+    try {
+      const payload: Record<string, string> = {
+        email_provider: emailProvider,
+        email_from: emailFrom,
+        email_from_name: emailFromName,
+      };
+      if (emailProvider === 'smtp') {
+        payload.smtp_host = smtpHost;
+        payload.smtp_port = smtpPort;
+        payload.smtp_user = smtpUser;
+        if (smtpPass && !smtpPass.startsWith('•')) payload.smtp_pass = smtpPass;
+      } else {
+        if (resendApiKey && !resendApiKey.startsWith('•')) payload.resend_api_key = resendApiKey;
+      }
+      await api.patch('/api/settings', payload);
+      if (smtpPass && !smtpPass.startsWith('•')) setSmtpPass('••••••••');
+      if (resendApiKey && !resendApiKey.startsWith('•')) setResendApiKey('••••••••');
+      toast.success('Email settings saved');
+    } catch (err: any) { toast.error(err?.message || 'Save failed'); }
+    finally { setSavingEmail(false); }
+  };
+
+  const sendTestEmail = async () => {
+    if (!user?.email) { toast.error('No email address on your account'); return; }
+    setSendingTest(true);
+    try {
+      await api.post('/api/settings/email/test', { to: user.email });
+      toast.success(`Test email sent to ${user.email}`);
+    } catch (err: any) { toast.error(err?.message || 'Failed to send test email'); }
+    finally { setSendingTest(false); }
   };
 
   const uploadImage = async (file: File, setter: (url: string) => void, setUploading: (v: boolean) => void) => {
@@ -843,6 +899,78 @@ export default function SettingsPage() {
             <Button type="submit" disabled={savingStock} className="gap-2">
               {savingStock ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save API Keys
             </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      {/* Email */}
+      <Card id="email">
+        <CardHeader><CardTitle className="text-base flex items-center gap-2"><Mail className="h-4 w-4" /> Email</CardTitle></CardHeader>
+        <CardContent>
+          <form onSubmit={saveEmailConfig} className="space-y-4">
+            <div className="space-y-1">
+              <Label className="text-xs">Provider</Label>
+              <div className="flex gap-3">
+                {(['smtp', 'resend'] as const).map((p) => (
+                  <label key={p} className={`flex items-center gap-2 px-3 py-2 rounded-md border cursor-pointer text-sm transition-colors ${emailProvider === p ? 'border-primary bg-primary/5 text-primary font-medium' : 'border-border text-muted-foreground hover:border-muted-foreground'}`}>
+                    <input type="radio" name="emailProvider" value={p} checked={emailProvider === p}
+                      onChange={() => setEmailProvider(p)} className="sr-only" />
+                    {p === 'smtp' ? 'SMTP' : 'Resend'}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">From email</Label>
+                <Input className="h-8 text-sm" placeholder="noreply@yourdomain.com" value={emailFrom} onChange={(e) => setEmailFrom(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">From name</Label>
+                <Input className="h-8 text-sm" placeholder="My Publication" value={emailFromName} onChange={(e) => setEmailFromName(e.target.value)} />
+              </div>
+            </div>
+
+            {emailProvider === 'smtp' ? (
+              <>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="col-span-2 space-y-1">
+                    <Label className="text-xs">SMTP Host</Label>
+                    <Input className="h-8 text-sm" placeholder="smtp.example.com" value={smtpHost} onChange={(e) => setSmtpHost(e.target.value)} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Port</Label>
+                    <Input className="h-8 text-sm" type="number" placeholder="587" value={smtpPort} onChange={(e) => setSmtpPort(e.target.value)} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">SMTP Username</Label>
+                    <Input className="h-8 text-sm" placeholder="user@example.com" value={smtpUser} onChange={(e) => setSmtpUser(e.target.value)} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">SMTP Password</Label>
+                    <Input className="h-8 text-sm" type="password" placeholder={smtpPass.startsWith('•') ? 'Saved — type to change' : 'Password'} value={smtpPass} onChange={(e) => setSmtpPass(e.target.value)} />
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="space-y-1">
+                <Label className="text-xs">Resend API Key</Label>
+                <Input className="h-8 text-sm" type="password" placeholder={resendApiKey.startsWith('•') ? 'Saved — type to change' : 're_xxxxxxxxxx'} value={resendApiKey} onChange={(e) => setResendApiKey(e.target.value)} />
+                <p className="text-xs text-muted-foreground">Get a free key at <a href="https://resend.com" target="_blank" rel="noopener noreferrer" className="text-primary underline">resend.com</a></p>
+              </div>
+            )}
+
+            <div className="flex gap-2 pt-1">
+              <Button type="submit" disabled={savingEmail} className="gap-2">
+                {savingEmail ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save
+              </Button>
+              <Button type="button" variant="outline" disabled={sendingTest} onClick={sendTestEmail} className="gap-2">
+                {sendingTest ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />} Send test email
+              </Button>
+            </div>
           </form>
         </CardContent>
       </Card>

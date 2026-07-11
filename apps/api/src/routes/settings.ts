@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../plugins/prisma.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
+import { sendMail } from '../services/email.js';
 
 // Public site settings keys (returned without auth)
 const PUBLIC_KEYS = [
@@ -57,6 +58,18 @@ const settingsRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.delete('/:key', { preHandler: [authenticate, requireAdmin] }, async (req, reply) => {
     const { key } = req.params as { key: string };
     await prisma.setting.deleteMany({ where: { key } });
+    return reply.send({ success: true });
+  });
+
+  // POST /settings/email/test — send a test email to verify config
+  fastify.post('/email/test', { preHandler: [authenticate, requireAdmin] }, async (req, reply) => {
+    const { to } = z.object({ to: z.string().email() }).parse(req.body);
+    await sendMail({
+      to,
+      subject: 'Test email from Shacky CMS',
+      html: '<p>This is a test email to confirm your email configuration is working correctly.</p>',
+      text: 'This is a test email to confirm your email configuration is working correctly.',
+    });
     return reply.send({ success: true });
   });
 
