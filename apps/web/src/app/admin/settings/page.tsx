@@ -932,36 +932,39 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            {emailProvider === 'smtp' ? (
-              <>
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="col-span-2 space-y-1">
-                    <Label className="text-xs">SMTP Host</Label>
-                    <Input className="h-8 text-sm" placeholder="smtp.example.com" value={smtpHost} onChange={(e) => setSmtpHost(e.target.value)} />
+            {/* min-h matches SMTP section height to prevent layout shift when switching providers */}
+            <div className="min-h-[136px]">
+              {emailProvider === 'smtp' ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="col-span-2 space-y-1">
+                      <Label className="text-xs">SMTP Host</Label>
+                      <Input className="h-8 text-sm" placeholder="smtp.example.com" value={smtpHost} onChange={(e) => setSmtpHost(e.target.value)} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Port</Label>
+                      <Input className="h-8 text-sm" type="number" placeholder="587" value={smtpPort} onChange={(e) => setSmtpPort(e.target.value)} />
+                    </div>
                   </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Port</Label>
-                    <Input className="h-8 text-sm" type="number" placeholder="587" value={smtpPort} onChange={(e) => setSmtpPort(e.target.value)} />
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs">SMTP Username</Label>
+                      <Input className="h-8 text-sm" placeholder="user@example.com" value={smtpUser} onChange={(e) => setSmtpUser(e.target.value)} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">SMTP Password</Label>
+                      <Input className="h-8 text-sm" type="password" placeholder={smtpPass.startsWith('•') ? 'Saved — type to change' : 'Password'} value={smtpPass} onChange={(e) => setSmtpPass(e.target.value)} />
+                    </div>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs">SMTP Username</Label>
-                    <Input className="h-8 text-sm" placeholder="user@example.com" value={smtpUser} onChange={(e) => setSmtpUser(e.target.value)} />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">SMTP Password</Label>
-                    <Input className="h-8 text-sm" type="password" placeholder={smtpPass.startsWith('•') ? 'Saved — type to change' : 'Password'} value={smtpPass} onChange={(e) => setSmtpPass(e.target.value)} />
-                  </div>
+              ) : (
+                <div className="space-y-1">
+                  <Label className="text-xs">Resend API Key</Label>
+                  <Input className="h-8 text-sm" type="password" placeholder={resendApiKey.startsWith('•') ? 'Saved — type to change' : 're_xxxxxxxxxx'} value={resendApiKey} onChange={(e) => setResendApiKey(e.target.value)} />
+                  <p className="text-xs text-muted-foreground">Get a free key at <a href="https://resend.com" target="_blank" rel="noopener noreferrer" className="text-primary underline">resend.com</a></p>
                 </div>
-              </>
-            ) : (
-              <div className="space-y-1">
-                <Label className="text-xs">Resend API Key</Label>
-                <Input className="h-8 text-sm" type="password" placeholder={resendApiKey.startsWith('•') ? 'Saved — type to change' : 're_xxxxxxxxxx'} value={resendApiKey} onChange={(e) => setResendApiKey(e.target.value)} />
-                <p className="text-xs text-muted-foreground">Get a free key at <a href="https://resend.com" target="_blank" rel="noopener noreferrer" className="text-primary underline">resend.com</a></p>
-              </div>
-            )}
+              )}
+            </div>
 
             <div className="flex gap-2 pt-1">
               <Button type="submit" disabled={savingEmail} className="gap-2">
