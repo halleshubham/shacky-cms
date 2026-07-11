@@ -4,7 +4,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   ArrowLeft, Plus, Upload, Loader2, Eye, CheckCircle,
-  Link2, Search, X, Zap, Pencil, Check, GripVertical, Save,
+  Link2, Search, X, Zap, Pencil, Check, GripVertical, Save, ArrowUpDown,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -445,12 +445,20 @@ export default function IssueDetailPage() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">{orderedPosts.length} Article{orderedPosts.length !== 1 ? 's' : ''}</CardTitle>
-          {orderDirty && (
-            <Button size="sm" onClick={saveOrder} disabled={savingOrder} className="gap-1.5">
-              {savingOrder ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-              Save order
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            {orderedPosts.length > 1 && (
+              <Button size="sm" variant="outline" className="gap-1.5"
+                onClick={() => { setOrderedPosts((p) => [...p].reverse()); setOrderDirty(true); }}>
+                <ArrowUpDown className="h-3.5 w-3.5" /> Reverse
+              </Button>
+            )}
+            {orderDirty && (
+              <Button size="sm" onClick={saveOrder} disabled={savingOrder} className="gap-1.5">
+                {savingOrder ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                Save order
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           {orderedPosts.length === 0 ? (
