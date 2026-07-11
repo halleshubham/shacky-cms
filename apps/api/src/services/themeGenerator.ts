@@ -1,6 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { getAIConfig, type AIConfig } from './ai.js';
+import { prisma } from '../plugins/prisma.js';
 import OpenAI from 'openai';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
@@ -12,9 +13,10 @@ const THEME_META_FILE     = path.join(WEB_SRC, 'lib/theme-meta.ts');
 const THEME_REGISTRY_FILE = path.join(WEB_SRC, 'lib/theme-registry.tsx');
 const GLOBALS_CSS_FILE    = path.join(WEB_SRC, 'styles/globals.css');
 
-const CSS_MARKER_START = '/* ====== AI-GENERATED THEMES START ====== */';
-const CSS_MARKER_END   = '/* ====== AI-GENERATED THEMES END ====== */';
-const BUILT_IN_THEMES  = ['classic', 'medusa', 'coppper'];
+const CSS_MARKER_START        = '/* ====== AI-GENERATED THEMES START ====== */';
+const CSS_MARKER_END          = '/* ====== AI-GENERATED THEMES END ====== */';
+const BUILT_IN_THEMES         = ['classic', 'medusa', 'coppper'];
+const GENERATED_THEMES_DB_KEY = 'generated_themes_meta';
 
 // Fallback used when THEMES_DIR is not accessible (e.g. production Docker where
 // only the API image is present, not the Next.js source tree).
@@ -78,6 +80,25 @@ export function toThemeId(label: string): string {
   return label.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }
 
+// ─── DB persistence for generated themes ──────────────────────────────────────
+
+async function loadGeneratedFromDB(): Promise<ThemeMetaJson[]> {
+  try {
+    const row = await prisma.setting.findUnique({ where: { key: GENERATED_THEMES_DB_KEY } });
+    if (!row?.value) return [];
+    return JSON.parse(row.value) as ThemeMetaJson[];
+  } catch { return []; }
+}
+
+async function saveGeneratedToDB(themes: ThemeMetaJson[]): Promise<void> {
+  const value = JSON.stringify(themes);
+  await prisma.setting.upsert({
+    where:  { key: GENERATED_THEMES_DB_KEY },
+    update: { value },
+    create: { key: GENERATED_THEMES_DB_KEY, value },
+  });
+}
+
 // ─── Meta scanning ────────────────────────────────────────────────────────────
 
 export async function readAllMeta(): Promise<ThemeMetaJson[]> {
@@ -85,8 +106,10 @@ export async function readAllMeta(): Promise<ThemeMetaJson[]> {
   try {
     entries = await fs.readdir(THEMES_DIR, { withFileTypes: true });
   } catch {
-    // THEMES_DIR not accessible (production Docker — web source tree not present)
-    return BUILT_IN_META;
+    // THEMES_DIR not accessible (production Docker — web source tree not present).
+    // Merge built-in metadata with any AI-generated themes persisted in the DB.
+    const generated = await loadGeneratedFromDB();
+    return [...BUILT_IN_META, ...generated];
   }
   const metas: ThemeMetaJson[] = [];
   for (const entry of entries) {
@@ -482,6 +505,11 @@ export async function generateTheme(label: string, userPrompt: string): Promise<
   ]);
 
   await regenerateRegistry();
+
+  // Persist metadata to DB so the theme survives container redeploys.
+  const existing = await loadGeneratedFromDB();
+  await saveGeneratedToDB([...existing.filter((m) => m.id !== result.meta.id), result.meta]);
+
   return result.meta;
 }
 
@@ -489,6 +517,10 @@ export async function deleteTheme(id: string): Promise<void> {
   if (BUILT_IN_THEMES.includes(id)) throw new Error(`Cannot delete built-in theme "${id}".`);
   await fs.rm(path.join(THEMES_DIR, id), { recursive: true, force: true });
   await regenerateRegistry();
+
+  // Remove from DB persistence.
+  const existing = await loadGeneratedFromDB();
+  await saveGeneratedToDB(existing.filter((m) => m.id !== id));
 }
 
 export async function listThemes(): Promise<Array<ThemeMetaJson & { isBuiltIn: boolean }>> {
