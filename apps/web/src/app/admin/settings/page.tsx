@@ -953,14 +953,14 @@ export default function SettingsPage() {
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs">SMTP Password</Label>
-                      <Input className="h-8 text-sm" type="password" placeholder={smtpPass.startsWith('•') ? 'Saved — type to change' : 'Password'} value={smtpPass} onChange={(e) => setSmtpPass(e.target.value)} />
+                      <Input className="h-8 text-sm" type="password" placeholder={smtpPass.startsWith('•') ? 'Saved — type to change' : 'Password'} value={smtpPass} onFocus={(e) => { if (e.target.value.startsWith('•')) setSmtpPass(''); }} onChange={(e) => setSmtpPass(e.target.value)} />
                     </div>
                   </div>
                 </div>
               ) : (
                 <div className="space-y-1">
                   <Label className="text-xs">Resend API Key</Label>
-                  <Input className="h-8 text-sm" type="password" placeholder={resendApiKey.startsWith('•') ? 'Saved — type to change' : 're_xxxxxxxxxx'} value={resendApiKey} onChange={(e) => setResendApiKey(e.target.value)} />
+                  <Input className="h-8 text-sm" type="password" placeholder={resendApiKey.startsWith('•') ? 'Saved — type to change' : 're_xxxxxxxxxx'} value={resendApiKey} onFocus={(e) => { if (e.target.value.startsWith('•')) setResendApiKey(''); }} onChange={(e) => setResendApiKey(e.target.value)} />
                   <p className="text-xs text-muted-foreground">Get a free key at <a href="https://resend.com" target="_blank" rel="noopener noreferrer" className="text-primary underline">resend.com</a></p>
                 </div>
               )}

@@ -44,11 +44,19 @@ export function PublicFooter({ navItems, categories, siteName, settings }: Publi
             <div>
               <h3 className="font-semibold text-sm mb-3">Links</h3>
               <ul className="space-y-2 text-sm text-muted-foreground">
-                {navItems.map((item) => (
-                  <li key={item.label + item.value}>
-                    <Link href={navItemHref(item)} className="hover:text-foreground transition-colors">{item.label}</Link>
-                  </li>
-                ))}
+                {navItems.flatMap((item) =>
+                  item.type === 'dropdown'
+                    ? (item.children ?? []).map((child) => (
+                        <li key={child.label + child.value}>
+                          <Link href={navItemHref(child)} className="hover:text-foreground transition-colors">{child.label}</Link>
+                        </li>
+                      ))
+                    : [
+                        <li key={item.label + item.value}>
+                          <Link href={navItemHref(item)} className="hover:text-foreground transition-colors">{item.label}</Link>
+                        </li>,
+                      ]
+                )}
               </ul>
             </div>
           ) : (

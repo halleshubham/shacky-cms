@@ -7,7 +7,7 @@ import {
   generateWhatsAppDigest,
   generateWhatsAppChannelMessages,
 } from '../services/newsletter.js';
-import { sendMail } from '../services/email.js';
+import { sendMail, getEmailConfig } from '../services/email.js';
 import { sendMessagesToGroups } from '../services/botsab.js';
 import { audit } from '../utils/audit.js';
 
@@ -184,11 +184,12 @@ const campaignsRoutes: FastifyPluginAsync = async (fastify) => {
       },
     });
 
+    const emailCfg = await getEmailConfig();
     let sent = 0;
     for (const sub of subscribers) {
       try {
         const html = await generateNewsletterHtml(issue as any, { subscriberToken: sub.unsubscribeToken });
-        await sendMail({ to: sub.email!, subject: issue!.title, html });
+        await sendMail({ to: sub.email!, subject: issue!.title, html }, emailCfg);
         sent++;
       } catch (err) {
         console.error(`Failed to send to ${sub.email}:`, err);

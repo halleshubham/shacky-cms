@@ -19,7 +19,7 @@ interface EmailConfig {
   resendApiKey?: string;
 }
 
-async function getEmailConfig(): Promise<EmailConfig> {
+export async function getEmailConfig(): Promise<EmailConfig> {
   const rows = await prisma.setting.findMany({
     where: {
       key: { in: ['email_provider', 'email_from', 'email_from_name', 'smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass', 'resend_api_key'] },
@@ -28,7 +28,7 @@ async function getEmailConfig(): Promise<EmailConfig> {
   const s: Record<string, string> = {};
   for (const r of rows) s[r.key] = r.value;
 
-  const provider = (s.email_provider === 'resend' ? 'resend' : 'smtp') as EmailConfig['provider'];
+  const provider = (s.email_provider === 'smtp' ? 'smtp' : 'resend') as EmailConfig['provider'];
   const from = s.email_from || 'noreply@localhost';
   const fromName = s.email_from_name || '';
 
@@ -75,10 +75,10 @@ async function sendViaSmtp(cfg: EmailConfig, opts: SendMailOptions): Promise<voi
   });
 }
 
-export async function sendMail(opts: SendMailOptions): Promise<void> {
-  const cfg = await getEmailConfig();
-  if (cfg.provider === 'resend') {
-    return sendViaResend(cfg, opts);
+export async function sendMail(opts: SendMailOptions, cfg?: EmailConfig): Promise<void> {
+  const emailCfg = cfg ?? await getEmailConfig();
+  if (emailCfg.provider === 'resend') {
+    return sendViaResend(emailCfg, opts);
   }
-  return sendViaSmtp(cfg, opts);
+  return sendViaSmtp(emailCfg, opts);
 }
