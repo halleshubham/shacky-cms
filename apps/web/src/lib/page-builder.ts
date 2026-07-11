@@ -21,6 +21,8 @@ export interface HeroConfig {
   categorySlug?: string;
   layout: 'single' | 'split';
   showExcerpt: boolean;
+  heroCount: number;
+  sidebarCount: number;
 }
 
 export interface PostGridConfig {
@@ -201,7 +203,7 @@ export const SECTION_META: Record<SectionType, SectionMeta> = {
 
 export function defaultConfig(type: SectionType): SectionConfig {
   switch (type) {
-    case 'hero':            return { source: 'latest_issue', layout: 'split', showExcerpt: true } as HeroConfig;
+    case 'hero':            return { source: 'latest_issue', layout: 'split', showExcerpt: true, heroCount: 1, sidebarCount: 3 } as HeroConfig;
     case 'post_grid':       return { title: 'Recent Articles', source: 'latest', count: 8, columns: 4, size: 'default' } as PostGridConfig;
     case 'latest_issue':    return { showPosts: true, postCount: 4 } as LatestIssueConfig;
     case 'category_row':    return { categorySlug: '', label: '', count: 4, layout: 'row' } as CategoryRowConfig;

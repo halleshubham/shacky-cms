@@ -93,26 +93,34 @@ function SkeletonCompactCard() {
 // ─── Visual previews ───────────────────────────────────────────────────────────
 function HeroPreview({ config }: { config: HeroConfig }) {
   const sourceLabel = config.source === 'category' ? `Category: ${config.categorySlug || '…'}` : config.source === 'latest_issue' ? 'Latest Issue' : 'Latest Posts';
+  const heroCount = config.heroCount ?? 1;
+  const sidebarCount = config.sidebarCount ?? 3;
   if (config.layout === 'single') {
     return (
       <div className="space-y-2">
-        <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-widest">{sourceLabel} · Single hero</p>
-        <SkeletonBox className="aspect-[21/9] w-full" />
-        <SkeletonBox className="h-6 w-3/4 mt-2" />
-        {config.showExcerpt && <><SkeletonBox className="h-3 w-full" /><SkeletonBox className="h-3 w-5/6" /></>}
+        <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-widest">{sourceLabel} · {heroCount} hero article{heroCount > 1 ? 's' : ''}</p>
+        {Array.from({ length: heroCount }).map((_, i) => (
+          <div key={i} className="space-y-1">
+            <SkeletonBox className="aspect-[21/9] w-full" />
+            <SkeletonBox className="h-6 w-3/4 mt-1" />
+          </div>
+        ))}
       </div>
     );
   }
   return (
     <div className="space-y-2">
-      <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-widest">{sourceLabel} · Split layout</p>
+      <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-widest">{sourceLabel} · {heroCount} hero + {sidebarCount} sidebar</p>
       <div className="grid grid-cols-3 gap-4">
-        <div className="col-span-2 space-y-2">
-          <SkeletonBox className="aspect-[16/10] w-full" />
-          <SkeletonBox className="h-5 w-3/4" />
-          {config.showExcerpt && <><SkeletonBox className="h-3 w-full" /><SkeletonBox className="h-3 w-5/6" /></>}
+        <div className="col-span-2 space-y-3">
+          {Array.from({ length: heroCount }).map((_, i) => (
+            <div key={i} className="space-y-1">
+              <SkeletonBox className="aspect-[16/10] w-full" />
+              <SkeletonBox className="h-5 w-3/4" />
+            </div>
+          ))}
         </div>
-        <div className="space-y-4"><SkeletonCard /><SkeletonCard /></div>
+        <div className="space-y-4">{Array.from({ length: Math.min(sidebarCount, 4) }).map((_, i) => <SkeletonCard key={i} />)}</div>
       </div>
     </div>
   );
@@ -467,6 +475,8 @@ function CategorySelect({ value, onChange, categories, placeholder = 'Choose cat
 
 // ─── Config forms ──────────────────────────────────────────────────────────────
 function HeroConfigForm({ config, onChange, categories }: { config: HeroConfig; onChange: (c: HeroConfig) => void; categories: Category[] }) {
+  const heroCount = config.heroCount ?? 1;
+  const sidebarCount = config.sidebarCount ?? 3;
   return (
     <div className="space-y-4">
       <div className="space-y-1.5">
@@ -495,6 +505,20 @@ function HeroConfigForm({ config, onChange, categories }: { config: HeroConfig; 
             <SelectItem value="single">Single hero only</SelectItem>
           </SelectContent>
         </Select>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label className="text-xs font-medium">Hero articles</Label>
+          <Input type="number" min={1} max={5} className="h-8 text-sm" value={heroCount}
+            onChange={(e) => onChange({ ...config, heroCount: Math.max(1, Math.min(5, Number(e.target.value) || 1)) })} />
+        </div>
+        {config.layout === 'split' && (
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium">Sidebar articles</Label>
+            <Input type="number" min={0} max={6} className="h-8 text-sm" value={sidebarCount}
+              onChange={(e) => onChange({ ...config, sidebarCount: Math.max(0, Math.min(6, Number(e.target.value) || 0)) })} />
+          </div>
+        )}
       </div>
       <div className="flex items-center gap-2">
         <input type="checkbox" id="hero-excerpt" checked={config.showExcerpt} onChange={(e) => onChange({ ...config, showExcerpt: e.target.checked })} className="h-4 w-4 rounded" />

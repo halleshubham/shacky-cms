@@ -35,37 +35,42 @@ async function fetchLatestIssue(): Promise<any | null> {
 // ─── Section renderers ─────────────────────────────────────────────────────────
 
 async function HeroSection({ config }: { config: HeroConfig }) {
-  let posts: any[] = [];
+  const heroCount = config.heroCount ?? 1;
+  const sidebarCount = config.layout === 'split' ? (config.sidebarCount ?? 3) : 0;
+  const total = heroCount + sidebarCount;
 
+  let posts: any[] = [];
   if (config.source === 'latest_issue') {
     const issue = await fetchLatestIssue();
-    posts = issue?.posts?.slice(0, 4) ?? [];
+    posts = issue?.posts?.slice(0, total) ?? [];
   } else if (config.source === 'category' && config.categorySlug) {
-    posts = await fetchPosts({ category: config.categorySlug, pageSize: 4 });
+    posts = await fetchPosts({ category: config.categorySlug, pageSize: total });
   } else {
-    posts = await fetchPosts({ pageSize: 4 });
+    posts = await fetchPosts({ pageSize: total });
   }
 
-  const hero = posts[0];
-  if (!hero) return null;
+  const heroes = posts.slice(0, heroCount);
+  if (!heroes.length) return null;
 
   if (config.layout === 'single') {
     return (
-      <section>
-        <ArticleCard post={hero} size="large" />
+      <section className="space-y-8">
+        {heroes.map((p: any) => <ArticleCard key={p.id} post={p} size="large" />)}
       </section>
     );
   }
 
-  const side = posts.slice(1, 4);
+  const side = posts.slice(heroCount, heroCount + sidebarCount);
   return (
     <section className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-      <div className="lg:col-span-2">
-        <ArticleCard post={hero} size="large" />
+      <div className="lg:col-span-2 space-y-8">
+        {heroes.map((p: any) => <ArticleCard key={p.id} post={p} size="large" />)}
       </div>
-      <div className="space-y-6">
-        {side.map((p: any) => <ArticleCard key={p.id} post={p} size="default" />)}
-      </div>
+      {side.length > 0 && (
+        <div className="space-y-6">
+          {side.map((p: any) => <ArticleCard key={p.id} post={p} size="default" />)}
+        </div>
+      )}
     </section>
   );
 }
