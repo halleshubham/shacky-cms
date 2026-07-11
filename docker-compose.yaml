@@ -87,13 +87,6 @@ services:
       APP_URL: ${APP_URL}
       API_URL: ${API_URL}
       CORS_ORIGIN: ${APP_URL}
-      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-smtp}
-      RESEND_API_KEY: ${RESEND_API_KEY:-}
-      SMTP_HOST: ${SMTP_HOST:-}
-      SMTP_PORT: ${SMTP_PORT:-587}
-      SMTP_USER: ${SMTP_USER:-}
-      SMTP_PASS: ${SMTP_PASS:-}
-      EMAIL_FROM: ${EMAIL_FROM:-noreply@example.com}
     healthcheck:
       test: ['CMD', 'node', '-e', 'require("http").get("http://127.0.0.1:4000/health",(r)=>{process.exit(r.statusCode<400?0:1)}).on("error",()=>process.exit(1))']
       interval: 15s

@@ -1,6 +1,6 @@
 export interface NavItem {
   label: string;
-  type: 'url' | 'category' | 'tag' | 'page';
+  type: 'url' | 'category' | 'tag' | 'page' | 'dropdown';
   value: string;
   children?: Omit<NavItem, 'children'>[];
 }
@@ -17,13 +17,22 @@ export interface SiteSettings {
   tts_enabled?: boolean;
   tts_language?: string;
   header_show_title?: boolean;
+  homepage_sections?: import('./page-builder').Section[];
+  // Social links
+  social_facebook?: string;
+  social_instagram?: string;
+  social_whatsapp?: string;
+  social_telegram?: string;
+  social_youtube?: string;
+  social_x?: string;
 }
 
-export function navItemHref(item: NavItem): string {
+export function navItemHref(item: NavItem | Omit<NavItem, 'children'>): string {
   switch (item.type) {
     case 'category': return `/category/${item.value}`;
     case 'tag':      return `/tag/${item.value}`;
     case 'page':     return `/${item.value}`;
+    case 'dropdown': return '#';
     default:         return item.value;
   }
 }

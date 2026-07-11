@@ -28,8 +28,8 @@ ARG API_INTERNAL_URL=http://api:4000
 ENV API_INTERNAL_URL=$API_INTERNAL_URL
 ARG MINIO_INTERNAL_URL=http://minio:9000
 ENV MINIO_INTERNAL_URL=$MINIO_INTERNAL_URL
-# Cap heap and serialise static-page workers to avoid OOM on constrained build hosts
-ENV NODE_OPTIONS="--max-old-space-size=1536"
+# Cap heap to avoid OOM on constrained build hosts
+ENV NODE_OPTIONS="--max-old-space-size=1024"
 RUN pnpm --filter @shacky/web build
 
 # ── Runtime image (Next.js standalone) ───────────────────────────────────────

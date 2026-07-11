@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Plus, Search, Trash2, Globe, EyeOff } from 'lucide-react';
+import { Plus, Search, Trash2, Globe, EyeOff, LayoutTemplate } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -104,6 +104,11 @@ export default function PagesPage() {
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
+                <Link href={`/admin/pages/${page.id}/builder`}
+                  className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                  title="Open page builder">
+                  <LayoutTemplate className="h-3.5 w-3.5" />
+                </Link>
                 <button
                   onClick={() => toggleStatus(page)}
                   title={page.status === 'published' ? 'Click to unpublish' : 'Click to publish'}

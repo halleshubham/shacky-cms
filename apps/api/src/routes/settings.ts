@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../plugins/prisma.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
+import { sendMail } from '../services/email.js';
 
 // Public site settings keys (returned without auth)
 const PUBLIC_KEYS = [
@@ -11,17 +12,22 @@ const PUBLIC_KEYS = [
   'translation_enabled', 'translation_languages',
   'tts_enabled', 'tts_language',
   'header_show_title',
+  'homepage_sections',
+  'social_facebook', 'social_instagram', 'social_whatsapp',
+  'social_telegram', 'social_youtube', 'social_x',
 ];
 
 const settingsRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /settings/public — no auth required (used by public frontend)
   fastify.get('/public', async (_req, reply) => {
     const rows = await prisma.setting.findMany({ where: { key: { in: PUBLIC_KEYS } } });
-    const out: Record<string, string> = {};
-    for (const r of rows) out[r.key] = r.value;
-    // Parse nav JSON
-    if (out.nav_primary) { try { out.nav_primary = JSON.parse(out.nav_primary); } catch { /* keep raw */ } }
-    if (out.nav_secondary) { try { out.nav_secondary = JSON.parse(out.nav_secondary); } catch { /* keep raw */ } }
+    const raw: Record<string, string> = {};
+    for (const r of rows) raw[r.key] = r.value;
+    const out: Record<string, unknown> = { ...raw };
+    // Parse JSON fields
+    if (raw.nav_primary) { try { out.nav_primary = JSON.parse(raw.nav_primary); } catch { /* keep raw */ } }
+    if (raw.nav_secondary) { try { out.nav_secondary = JSON.parse(raw.nav_secondary); } catch { /* keep raw */ } }
+    if (raw.homepage_sections) { try { out.homepage_sections = JSON.parse(raw.homepage_sections); } catch { out.homepage_sections = []; } }
     return reply.send(out);
   });
 
@@ -52,6 +58,18 @@ const settingsRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.delete('/:key', { preHandler: [authenticate, requireAdmin] }, async (req, reply) => {
     const { key } = req.params as { key: string };
     await prisma.setting.deleteMany({ where: { key } });
+    return reply.send({ success: true });
+  });
+
+  // POST /settings/email/test — send a test email to verify config
+  fastify.post('/email/test', { preHandler: [authenticate, requireAdmin] }, async (req, reply) => {
+    const { to } = z.object({ to: z.string().email() }).parse(req.body);
+    await sendMail({
+      to,
+      subject: 'Test email from Shacky CMS',
+      html: '<p>This is a test email to confirm your email configuration is working correctly.</p>',
+      text: 'This is a test email to confirm your email configuration is working correctly.',
+    });
     return reply.send({ success: true });
   });
 

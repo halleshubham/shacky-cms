@@ -25,11 +25,13 @@ function migrateNavItems(items: any[]): NavItem[] {
 const SECTIONS = [
   { id: 'site', label: 'Site & Branding' },
   { id: 'navigation', label: 'Navigation' },
+  { id: 'social', label: 'Social Links' },
   { id: 'newsletter', label: 'Newsletter' },
   { id: 'translation', label: 'Translation' },
   { id: 'tts', label: 'Text to Speech' },
   { id: 'profile', label: 'My Profile' },
   { id: 'stock', label: 'Stock Photos' },
+  { id: 'email', label: 'Email' },
   { id: 'ai', label: 'AI Configuration' },
   { id: '2fa', label: 'Two-Factor Auth' },
   { id: 'danger', label: 'Danger Zone' },
@@ -71,6 +73,15 @@ export default function SettingsPage() {
   const logoInputRef = useRef<HTMLInputElement>(null);
   const faviconInputRef = useRef<HTMLInputElement>(null);
 
+  // Social links
+  const [socialFacebook, setSocialFacebook] = useState('');
+  const [socialInstagram, setSocialInstagram] = useState('');
+  const [socialWhatsapp, setSocialWhatsapp] = useState('');
+  const [socialTelegram, setSocialTelegram] = useState('');
+  const [socialYoutube, setSocialYoutube] = useState('');
+  const [socialX, setSocialX] = useState('');
+  const [savingSocial, setSavingSocial] = useState(false);
+
   // Profile
   const [profileName, setProfileName] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
@@ -102,6 +113,18 @@ export default function SettingsPage() {
   const [translationEnabled, setTranslationEnabled] = useState(false);
   const [translationLanguages, setTranslationLanguages] = useState('mr,hi');
   const [savingTranslation, setSavingTranslation] = useState(false);
+
+  // Email configuration
+  const [emailProvider, setEmailProvider] = useState<'smtp' | 'resend'>('smtp');
+  const [emailFrom, setEmailFrom] = useState('');
+  const [emailFromName, setEmailFromName] = useState('');
+  const [smtpHost, setSmtpHost] = useState('');
+  const [smtpPort, setSmtpPort] = useState('587');
+  const [smtpUser, setSmtpUser] = useState('');
+  const [smtpPass, setSmtpPass] = useState('');
+  const [resendApiKey, setResendApiKey] = useState('');
+  const [savingEmail, setSavingEmail] = useState(false);
+  const [sendingTest, setSendingTest] = useState(false);
 
   // AI configuration
   const [aiProvider, setAiProvider] = useState<'openai' | 'gemini' | 'ollama' | 'groq'>('openai');
@@ -143,6 +166,20 @@ export default function SettingsPage() {
       setTtsLanguage(s.tts_language || 'mr-IN');
       setTranslationEnabled(s.translation_enabled === 'true');
       setTranslationLanguages(s.translation_languages || 'mr,hi');
+      setSocialFacebook(s.social_facebook || '');
+      setSocialInstagram(s.social_instagram || '');
+      setSocialWhatsapp(s.social_whatsapp || '');
+      setSocialTelegram(s.social_telegram || '');
+      setSocialYoutube(s.social_youtube || '');
+      setSocialX(s.social_x || '');
+      setEmailProvider((s.email_provider as 'smtp' | 'resend') || 'smtp');
+      setEmailFrom(s.email_from || '');
+      setEmailFromName(s.email_from_name || '');
+      setSmtpHost(s.smtp_host || '');
+      setSmtpPort(s.smtp_port || '587');
+      setSmtpUser(s.smtp_user || '');
+      setSmtpPass(s.smtp_pass ? '••••••••' : '');
+      setResendApiKey(s.resend_api_key ? '••••••••' : '');
     }).catch(() => {});
     api.get<any>('/api/ai/config').then((cfg) => {
       if (cfg.configured) {
@@ -200,6 +237,23 @@ export default function SettingsPage() {
       toast.success('Navigation saved');
     } catch (err: any) { toast.error(err?.message || 'Save failed'); }
     finally { setSavingNav(false); }
+  };
+
+  const saveSocialLinks = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingSocial(true);
+    try {
+      await api.patch('/api/settings', {
+        social_facebook: socialFacebook,
+        social_instagram: socialInstagram,
+        social_whatsapp: socialWhatsapp,
+        social_telegram: socialTelegram,
+        social_youtube: socialYoutube,
+        social_x: socialX,
+      });
+      toast.success('Social links saved');
+    } catch (err: any) { toast.error(err?.message || 'Save failed'); }
+    finally { setSavingSocial(false); }
   };
 
   const saveNewsletterSettings = async (e: React.FormEvent) => {
@@ -260,6 +314,41 @@ export default function SettingsPage() {
       }
     } catch (err: any) { toast.error(err?.message || 'Save failed'); }
     finally { setSavingStock(false); }
+  };
+
+  const saveEmailConfig = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingEmail(true);
+    try {
+      const payload: Record<string, string> = {
+        email_provider: emailProvider,
+        email_from: emailFrom,
+        email_from_name: emailFromName,
+      };
+      if (emailProvider === 'smtp') {
+        payload.smtp_host = smtpHost;
+        payload.smtp_port = smtpPort;
+        payload.smtp_user = smtpUser;
+        if (smtpPass && !smtpPass.startsWith('•')) payload.smtp_pass = smtpPass;
+      } else {
+        if (resendApiKey && !resendApiKey.startsWith('•')) payload.resend_api_key = resendApiKey;
+      }
+      await api.patch('/api/settings', payload);
+      if (smtpPass && !smtpPass.startsWith('•')) setSmtpPass('••••••••');
+      if (resendApiKey && !resendApiKey.startsWith('•')) setResendApiKey('••••••••');
+      toast.success('Email settings saved');
+    } catch (err: any) { toast.error(err?.message || 'Save failed'); }
+    finally { setSavingEmail(false); }
+  };
+
+  const sendTestEmail = async () => {
+    if (!user?.email) { toast.error('No email address on your account'); return; }
+    setSendingTest(true);
+    try {
+      await api.post('/api/settings/email/test', { to: user.email });
+      toast.success(`Test email sent to ${user.email}`);
+    } catch (err: any) { toast.error(err?.message || 'Failed to send test email'); }
+    finally { setSendingTest(false); }
   };
 
   const uploadImage = async (file: File, setter: (url: string) => void, setUploading: (v: boolean) => void) => {
@@ -544,6 +633,48 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
+      {/* Social Links */}
+      <Card id="social">
+        <CardHeader><CardTitle className="text-base flex items-center gap-2"><Globe className="h-4 w-4" /> Social Links</CardTitle></CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground mb-4">
+            Social profile URLs shown in the site header and footer. Leave blank to hide an icon.
+          </p>
+          <form onSubmit={saveSocialLinks} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="social_facebook">Facebook</Label>
+                <Input id="social_facebook" placeholder="https://facebook.com/yourpage" value={socialFacebook} onChange={(e) => setSocialFacebook(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="social_instagram">Instagram</Label>
+                <Input id="social_instagram" placeholder="https://instagram.com/yourhandle" value={socialInstagram} onChange={(e) => setSocialInstagram(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="social_whatsapp">WhatsApp</Label>
+                <Input id="social_whatsapp" placeholder="https://wa.me/919876543210" value={socialWhatsapp} onChange={(e) => setSocialWhatsapp(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="social_telegram">Telegram</Label>
+                <Input id="social_telegram" placeholder="https://t.me/yourchannel" value={socialTelegram} onChange={(e) => setSocialTelegram(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="social_youtube">YouTube</Label>
+                <Input id="social_youtube" placeholder="https://youtube.com/@yourchannel" value={socialYoutube} onChange={(e) => setSocialYoutube(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="social_x">X (Twitter)</Label>
+                <Input id="social_x" placeholder="https://x.com/yourhandle" value={socialX} onChange={(e) => setSocialX(e.target.value)} />
+              </div>
+            </div>
+            <Button type="submit" disabled={savingSocial} className="gap-2">
+              {savingSocial ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              Save Social Links
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
       {/* Newsletter & WhatsApp */}
       <Card id="newsletter">
         <CardHeader><CardTitle className="text-base flex items-center gap-2"><Mail className="h-4 w-4" /> Newsletter &amp; WhatsApp</CardTitle></CardHeader>
@@ -768,6 +899,81 @@ export default function SettingsPage() {
             <Button type="submit" disabled={savingStock} className="gap-2">
               {savingStock ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save API Keys
             </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      {/* Email */}
+      <Card id="email">
+        <CardHeader><CardTitle className="text-base flex items-center gap-2"><Mail className="h-4 w-4" /> Email</CardTitle></CardHeader>
+        <CardContent>
+          <form onSubmit={saveEmailConfig} className="space-y-4">
+            <div className="space-y-1">
+              <Label className="text-xs">Provider</Label>
+              <div className="flex gap-3">
+                {(['smtp', 'resend'] as const).map((p) => (
+                  <label key={p} className={`flex items-center gap-2 px-3 py-2 rounded-md border cursor-pointer text-sm transition-colors ${emailProvider === p ? 'border-primary bg-primary/5 text-primary font-medium' : 'border-border text-muted-foreground hover:border-muted-foreground'}`}>
+                    <input type="radio" name="emailProvider" value={p} checked={emailProvider === p}
+                      onChange={() => setEmailProvider(p)} className="sr-only" />
+                    {p === 'smtp' ? 'SMTP' : 'Resend'}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">From email</Label>
+                <Input className="h-8 text-sm" placeholder="noreply@yourdomain.com" value={emailFrom} onChange={(e) => setEmailFrom(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">From name</Label>
+                <Input className="h-8 text-sm" placeholder="My Publication" value={emailFromName} onChange={(e) => setEmailFromName(e.target.value)} />
+              </div>
+            </div>
+
+            {/* min-h matches SMTP section height to prevent layout shift when switching providers */}
+            <div className="min-h-[136px]">
+              {emailProvider === 'smtp' ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="col-span-2 space-y-1">
+                      <Label className="text-xs">SMTP Host</Label>
+                      <Input className="h-8 text-sm" placeholder="smtp.example.com" value={smtpHost} onChange={(e) => setSmtpHost(e.target.value)} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Port</Label>
+                      <Input className="h-8 text-sm" type="number" placeholder="587" value={smtpPort} onChange={(e) => setSmtpPort(e.target.value)} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs">SMTP Username</Label>
+                      <Input className="h-8 text-sm" placeholder="user@example.com" value={smtpUser} onChange={(e) => setSmtpUser(e.target.value)} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">SMTP Password</Label>
+                      <Input className="h-8 text-sm" type="password" placeholder={smtpPass.startsWith('•') ? 'Saved — type to change' : 'Password'} value={smtpPass} onFocus={(e) => { if (e.target.value.startsWith('•')) setSmtpPass(''); }} onChange={(e) => setSmtpPass(e.target.value)} />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <Label className="text-xs">Resend API Key</Label>
+                  <Input className="h-8 text-sm" type="password" placeholder={resendApiKey.startsWith('•') ? 'Saved — type to change' : 're_xxxxxxxxxx'} value={resendApiKey} onFocus={(e) => { if (e.target.value.startsWith('•')) setResendApiKey(''); }} onChange={(e) => setResendApiKey(e.target.value)} />
+                  <p className="text-xs text-muted-foreground">Get a free key at <a href="https://resend.com" target="_blank" rel="noopener noreferrer" className="text-primary underline">resend.com</a></p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <Button type="submit" disabled={savingEmail} className="gap-2">
+                {savingEmail ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save
+              </Button>
+              <Button type="button" variant="outline" disabled={sendingTest} onClick={sendTestEmail} className="gap-2">
+                {sendingTest ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />} Send test email
+              </Button>
+            </div>
           </form>
         </CardContent>
       </Card>

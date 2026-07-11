@@ -199,6 +199,7 @@ model Page {
   title           String
   slug            String     @unique
   content         String
+  sectionsJson    String?
   excerpt         String?
   status          PostStatus @default(draft)
   publishedAt     DateTime?

@@ -8,6 +8,7 @@ const pageBodySchema = z.object({
   title: z.string().min(1),
   slug: z.string().optional(),
   content: z.string().default(''),
+  sectionsJson: z.string().optional().nullable(),
   excerpt: z.string().optional(),
   status: z.enum(['draft', 'scheduled', 'published']).optional(),
   publishedAt: z.string().datetime().optional(),
@@ -59,6 +60,7 @@ const pagesRoutes: FastifyPluginAsync = async (fastify) => {
         title: body.title,
         slug,
         content: body.content,
+        sectionsJson: body.sectionsJson ?? null,
         excerpt: body.excerpt,
         status: (body.status || 'draft') as any,
         publishedAt: body.publishedAt ? new Date(body.publishedAt) : null,
@@ -78,6 +80,7 @@ const pagesRoutes: FastifyPluginAsync = async (fastify) => {
       data: {
         ...body,
         ...(body.publishedAt !== undefined && { publishedAt: body.publishedAt ? new Date(body.publishedAt) : null }),
+        ...(body.sectionsJson !== undefined && { sectionsJson: body.sectionsJson }),
         status: body.status as any,
       },
     });

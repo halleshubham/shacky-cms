@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import { ArticleCard } from '@/components/public/ArticleCard';
+import { HomepageSections } from '@/components/public/homepage/HomepageSections';
+import { getSiteSettings } from '@/lib/site-settings';
 import { BookOpen, ArrowRight } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -22,6 +24,14 @@ async function getRecentPosts() {
 }
 
 export default async function HomePage() {
+  const settings = await getSiteSettings();
+
+  // If sections are configured in builder, use those
+  if (settings.homepage_sections && settings.homepage_sections.length > 0) {
+    return <HomepageSections sections={settings.homepage_sections} />;
+  }
+
+  // Default layout (unchanged)
   const [issue, recent] = await Promise.all([getLatestIssue(), getRecentPosts()]);
   const issuePosts: any[] = issue?.posts || [];
   const recentPosts: any[] = recent?.data || [];
@@ -53,7 +63,6 @@ export default async function HomePage() {
         </div>
       )}
 
-      {/* Hero + grid */}
       {hero && (
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2">
@@ -67,7 +76,6 @@ export default async function HomePage() {
         </div>
       )}
 
-      {/* Recent articles */}
       {listPosts.length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-6">
