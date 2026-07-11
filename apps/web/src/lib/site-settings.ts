@@ -25,6 +25,9 @@ export interface SiteSettings {
   social_telegram?: string;
   social_youtube?: string;
   social_x?: string;
+  // Appearance / theming
+  public_theme?: 'classic' | 'custom';
+  theme_custom_vars?: Record<string, string>;
 }
 
 export function navItemHref(item: NavItem | Omit<NavItem, 'children'>): string {
@@ -54,6 +57,10 @@ export async function getSiteSettings(): Promise<SiteSettings> {
     });
     if (!res.ok) return {};
     const raw = await res.json();
+    let themeVars: Record<string, string> | undefined;
+    if (raw.theme_custom_vars) {
+      try { themeVars = JSON.parse(raw.theme_custom_vars); } catch { /* ignore */ }
+    }
     return {
       ...raw,
       nav_primary: raw.nav_primary ? migrateNavItems(raw.nav_primary) : undefined,
@@ -63,6 +70,8 @@ export async function getSiteSettings(): Promise<SiteSettings> {
       tts_enabled: raw.tts_enabled === 'true',
       tts_language: raw.tts_language || 'mr-IN',
       header_show_title: raw.header_show_title === 'true',
+      public_theme: (raw.public_theme as 'classic' | 'custom') || 'classic',
+      theme_custom_vars: themeVars,
     } as SiteSettings;
   } catch {
     return {};

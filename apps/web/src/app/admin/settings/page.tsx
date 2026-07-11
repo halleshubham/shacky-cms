@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { Save, Key, Loader2, Globe, Camera, Sparkles, Upload, X, Image as ImageIcon, AlertTriangle, Mail, Plug, Trash2, Menu, Languages, Volume2 } from 'lucide-react';
+import { Save, Key, Loader2, Globe, Camera, Sparkles, Upload, X, Image as ImageIcon, AlertTriangle, Mail, Plug, Trash2, Menu, Languages, Volume2, Palette } from 'lucide-react';
 import { useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,6 +24,7 @@ function migrateNavItems(items: any[]): NavItem[] {
 
 const SECTIONS = [
   { id: 'site', label: 'Site & Branding' },
+  { id: 'appearance', label: 'Appearance' },
   { id: 'navigation', label: 'Navigation' },
   { id: 'social', label: 'Social Links' },
   { id: 'newsletter', label: 'Newsletter' },
@@ -126,6 +127,13 @@ export default function SettingsPage() {
   const [savingEmail, setSavingEmail] = useState(false);
   const [sendingTest, setSendingTest] = useState(false);
 
+  // Appearance / theme
+  const [activeTheme, setActiveTheme] = useState<'classic' | 'custom'>('classic');
+  const [themeDescription, setThemeDescription] = useState('');
+  const [generatedVars, setGeneratedVars] = useState<Record<string, string> | null>(null);
+  const [generatingTheme, setGeneratingTheme] = useState(false);
+  const [savingTheme, setSavingTheme] = useState(false);
+
   // AI configuration
   const [aiProvider, setAiProvider] = useState<'openai' | 'gemini' | 'ollama' | 'groq'>('openai');
   const [aiApiKey, setAiApiKey] = useState('');
@@ -172,6 +180,10 @@ export default function SettingsPage() {
       setSocialTelegram(s.social_telegram || '');
       setSocialYoutube(s.social_youtube || '');
       setSocialX(s.social_x || '');
+      setActiveTheme((s.public_theme as 'classic' | 'custom') || 'classic');
+      if (s.theme_custom_vars) {
+        try { setGeneratedVars(JSON.parse(s.theme_custom_vars)); } catch { /* ignore */ }
+      }
       setEmailProvider((s.email_provider as 'smtp' | 'resend') || 'smtp');
       setEmailFrom(s.email_from || '');
       setEmailFromName(s.email_from_name || '');
@@ -225,6 +237,31 @@ export default function SettingsPage() {
       toast.success('Site settings saved');
     } catch (err: any) { toast.error(err?.message || 'Save failed'); }
     finally { setSavingSettings(false); }
+  };
+
+  const generateThemeAI = async () => {
+    if (!themeDescription.trim()) { toast.error('Describe your theme first'); return; }
+    setGeneratingTheme(true);
+    try {
+      const result = await api.post<{ vars: Record<string, string> }>('/api/ai/generate-theme', { description: themeDescription });
+      setGeneratedVars(result.vars);
+      toast.success('Theme generated! Review the colors below, then save.');
+    } catch (err: any) { toast.error(err?.message || 'Generation failed'); }
+    finally { setGeneratingTheme(false); }
+  };
+
+  const saveThemeSettings = async () => {
+    setSavingTheme(true);
+    try {
+      await api.patch('/api/settings', {
+        public_theme: activeTheme,
+        ...(activeTheme === 'custom' && generatedVars
+          ? { theme_custom_vars: JSON.stringify(generatedVars) }
+          : {}),
+      });
+      toast.success('Appearance saved');
+    } catch (err: any) { toast.error(err?.message || 'Save failed'); }
+    finally { setSavingTheme(false); }
   };
 
   const saveNavSettings = async () => {
@@ -603,6 +640,100 @@ export default function SettingsPage() {
               {savingSettings ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save Settings
             </Button>
           </form>
+        </CardContent>
+      </Card>
+
+      {/* Appearance */}
+      <Card id="appearance">
+        <CardHeader><CardTitle className="text-base flex items-center gap-2"><Palette className="h-4 w-4" /> Appearance</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label className="text-xs">Theme</Label>
+            <div className="flex gap-2">
+              {(['classic', 'custom'] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setActiveTheme(t)}
+                  className={`py-2 px-4 rounded-md border text-sm transition-colors ${
+                    activeTheme === t
+                      ? 'border-primary bg-primary/5 text-primary font-medium'
+                      : 'border-border text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {t === 'classic' ? 'Classic (default)' : 'Custom (AI Generated)'}
+                </button>
+              ))}
+            </div>
+            {activeTheme === 'classic' && (
+              <p className="text-xs text-muted-foreground">The default editorial theme with a cobalt blue accent.</p>
+            )}
+          </div>
+
+          {activeTheme === 'custom' && (
+            <div className="space-y-4 border border-border rounded-lg p-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Describe your visual style</Label>
+                <textarea
+                  value={themeDescription}
+                  onChange={(e) => setThemeDescription(e.target.value)}
+                  rows={2}
+                  placeholder="e.g. Modern dark editorial with saffron accent and clean serif headlines"
+                  className="w-full text-sm bg-background border border-input rounded-md p-2 resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={generateThemeAI}
+                disabled={generatingTheme || !themeDescription.trim()}
+                className="gap-2"
+              >
+                {generatingTheme ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                {generatingTheme ? 'Generating…' : 'Generate with AI'}
+              </Button>
+
+              {generatedVars && (
+                <div className="space-y-3">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Generated Palette</p>
+                  <div className="grid grid-cols-4 gap-2">
+                    {[
+                      { key: 'background', label: 'Background' },
+                      { key: 'foreground', label: 'Text' },
+                      { key: 'primary', label: 'Primary' },
+                      { key: 'secondary', label: 'Secondary' },
+                      { key: 'accent', label: 'Accent' },
+                      { key: 'muted', label: 'Muted' },
+                      { key: 'card', label: 'Card' },
+                      { key: 'border', label: 'Border' },
+                    ].map(({ key, label }) =>
+                      generatedVars[key] ? (
+                        <div key={key} className="flex flex-col items-center gap-1">
+                          <div
+                            className="h-8 w-full rounded-md border border-border/50"
+                            style={{ background: `hsl(${generatedVars[key]})` }}
+                          />
+                          <span className="text-[10px] text-muted-foreground">{label}</span>
+                        </div>
+                      ) : null
+                    )}
+                  </div>
+                  <details className="group">
+                    <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground select-none">
+                      View CSS variables
+                    </summary>
+                    <pre className="mt-2 text-[10px] text-muted-foreground font-mono bg-muted rounded-md p-3 overflow-x-auto">
+                      {Object.entries(generatedVars).map(([k, v]) => `--${k}: ${v};`).join('\n')}
+                    </pre>
+                  </details>
+                </div>
+              )}
+            </div>
+          )}
+
+          <Button onClick={saveThemeSettings} disabled={savingTheme} className="gap-2">
+            {savingTheme ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save Appearance
+          </Button>
         </CardContent>
       </Card>
 

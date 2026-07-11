@@ -15,6 +15,7 @@ const PUBLIC_KEYS = [
   'homepage_sections',
   'social_facebook', 'social_instagram', 'social_whatsapp',
   'social_telegram', 'social_youtube', 'social_x',
+  'public_theme', 'theme_custom_vars',
 ];
 
 const settingsRoutes: FastifyPluginAsync = async (fastify) => {

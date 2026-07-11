@@ -9,6 +9,7 @@ import {
   suggestSEO,
   generateFeaturedImage,
   buildImagePrompt,
+  generateTheme,
 } from '../services/ai.js';
 import { audit } from '../utils/audit.js';
 
@@ -154,6 +155,19 @@ const aiRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.send({ prompt });
     } catch (err: any) {
       return reply.status(503).send({ statusCode: 503, error: 'AI Error', message: err.message });
+    }
+  });
+
+  // POST /ai/generate-theme — generate CSS variable theme from a description
+  fastify.post('/generate-theme', { preHandler: [authenticate, requireAdmin] }, async (req, reply) => {
+    const { description } = req.body as { description?: string };
+    if (!description?.trim()) return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'description required' });
+    try {
+      const vars = await generateTheme(description);
+      await audit(req, 'ai.theme.generated', { meta: { description: description.slice(0, 80) } });
+      return reply.send({ vars });
+    } catch (err: any) {
+      return reply.status(503).send({ statusCode: 503, error: 'AI Error', message: err.message || 'Theme generation failed' });
     }
   });
 

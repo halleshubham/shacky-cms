@@ -264,6 +264,50 @@ Output ONLY a comma-separated list of tags (1–3 words each), no explanations.`
   return raw.split(',').map((s) => s.trim()).filter((s) => s.length > 0 && s.length < 60);
 }
 
+export async function generateTheme(description: string): Promise<Record<string, string>> {
+  const config = await getAIConfig();
+  if (!config) throw new Error('AI not configured. Please add your API key in Settings → AI.');
+
+  const prompt = `Generate a complete CSS color theme for a news publication website.
+Description: "${description}"
+
+Return ONLY a valid JSON object. Keys are CSS variable names (no "--" prefix), values are HSL in shadcn/ui format: space-separated "H S% L%" without any hsl() wrapper. For radius, use a CSS length.
+
+{
+  "background": "H S% L%",
+  "foreground": "H S% L%",
+  "card": "H S% L%",
+  "card-foreground": "H S% L%",
+  "primary": "H S% L%",
+  "primary-foreground": "H S% L%",
+  "secondary": "H S% L%",
+  "secondary-foreground": "H S% L%",
+  "muted": "H S% L%",
+  "muted-foreground": "H S% L%",
+  "accent": "H S% L%",
+  "accent-foreground": "H S% L%",
+  "border": "H S% L%",
+  "input": "H S% L%",
+  "ring": "H S% L%",
+  "radius": "0.375rem"
+}
+
+Rules: WCAG AA contrast between background/foreground. Card must be white or near-white (L > 95%). Primary-foreground must contrast well against primary. Output ONLY the JSON, no explanation.`;
+
+  const raw = await chatOnce(config, prompt, 600);
+  const jsonMatch = raw.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) throw new Error('AI did not return valid theme JSON');
+
+  let vars: Record<string, string>;
+  try { vars = JSON.parse(jsonMatch[0]); }
+  catch { throw new Error('AI returned malformed JSON for theme'); }
+
+  for (const key of ['background', 'foreground', 'primary', 'card']) {
+    if (!vars[key]) throw new Error(`Theme missing required key: ${key}`);
+  }
+  return vars;
+}
+
 export async function buildImagePrompt(title: string, excerpt?: string): Promise<string> {
   const config = await getAIConfig();
   if (!config) return title;
