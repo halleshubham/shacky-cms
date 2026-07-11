@@ -144,7 +144,7 @@ export async function generateNewsletterHtml(
   const header = `
   <tr><td bgcolor="#1e2537" align="center" style="padding:28px 32px 22px">
     ${s.siteLogo ? `<img src="${esc(s.siteLogo)}" alt="${esc(s.siteName)}" height="48" style="height:48px;width:auto;max-width:200px;display:block;margin:0 auto 14px" />` : ''}
-    <h1 style="margin:0 0 7px;font-family:Georgia,'Times New Roman',serif;font-size:26px;font-weight:700;color:#ffffff;letter-spacing:0.3px">${esc(s.siteName)}</h1>
+    <h1 style="margin:0 0 7px;font-family:Georgia,'Times New Roman',serif;font-size:52px;font-weight:700;color:#ffffff;letter-spacing:0.3px">${esc(s.siteName)}</h1>
     ${s.tagline ? `<p style="margin:0 0 12px;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#aaaaaa;font-style:italic">${esc(s.tagline)}</p>` : ''}
     <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#888888">Volume ${issue.volumeNumber}, Issue ${issue.issueNumber} &bull; ${fmtDateLong(issue.publishDate)}</p>
   </td></tr>`;
