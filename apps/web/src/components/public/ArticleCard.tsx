@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import Image from 'next/image';
-import { formatDistanceToNow } from 'date-fns';
+import { format } from 'date-fns';
 import { Star, Clock } from 'lucide-react';
 
 interface ArticleCardProps {
@@ -22,8 +22,8 @@ interface ArticleCardProps {
 export function ArticleCard({ post, size = 'default' }: ArticleCardProps) {
   const author = post.authors?.[0];
   const category = post.categories?.[0];
-  const timeAgo = post.publishedAt
-    ? formatDistanceToNow(new Date(post.publishedAt), { addSuffix: true })
+  const dateLabel = post.publishedAt
+    ? format(new Date(post.publishedAt), 'MMM d, yyyy')
     : null;
 
   if (size === 'compact') {
@@ -41,7 +41,7 @@ export function ArticleCard({ post, size = 'default' }: ArticleCardProps) {
           <h3 className="text-sm font-semibold leading-snug group-hover:text-primary transition-colors line-clamp-2 mt-0.5">
             {post.title}
           </h3>
-          {timeAgo && <p className="text-xs text-muted-foreground mt-1">{timeAgo}</p>}
+          {dateLabel && <p className="text-xs text-muted-foreground mt-1">{dateLabel}</p>}
         </div>
       </Link>
     );
@@ -67,8 +67,8 @@ export function ArticleCard({ post, size = 'default' }: ArticleCardProps) {
         <div className="flex items-center gap-2 mt-3 text-sm text-muted-foreground">
           {post.isFeatured && <span className="flex items-center gap-1 text-amber-500"><Star className="h-3.5 w-3.5 fill-current" /> Featured</span>}
           {author && <span>{author.displayName}</span>}
-          {author && timeAgo && <span>·</span>}
-          {timeAgo && <span>{timeAgo}</span>}
+          {author && dateLabel && <span>·</span>}
+          {dateLabel && <span>{dateLabel}</span>}
           {post.readingTime && <><span>·</span><span className="flex items-center gap-1"><Clock className="h-3 w-3" />{post.readingTime} min</span></>}
         </div>
       </Link>
@@ -94,8 +94,8 @@ export function ArticleCard({ post, size = 'default' }: ArticleCardProps) {
       <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground flex-wrap">
         {post.isFeatured && <span className="flex items-center gap-0.5 text-amber-500"><Star className="h-3 w-3 fill-current" /></span>}
         {author && <span>{author.displayName}</span>}
-        {author && timeAgo && <span>·</span>}
-        {timeAgo && <span>{timeAgo}</span>}
+        {author && dateLabel && <span>·</span>}
+        {dateLabel && <span>{dateLabel}</span>}
         {post.readingTime && <><span>·</span><span>{post.readingTime} min</span></>}
       </div>
     </Link>
