@@ -307,9 +307,16 @@ const postsRoutes: FastifyPluginAsync = async (fastify) => {
     if (action === 'delete') {
       await prisma.post.deleteMany({ where: { id: { in: postIds } } });
     } else if (action === 'publish') {
+      const now = new Date();
+      // Set status for all; only set publishedAt for posts that don't already have one
+      // (preserves the original ingest/scheduled timestamp)
       await prisma.post.updateMany({
         where: { id: { in: postIds } },
-        data: { status: 'published', publishedAt: new Date() },
+        data: { status: 'published' },
+      });
+      await prisma.post.updateMany({
+        where: { id: { in: postIds }, publishedAt: null },
+        data: { publishedAt: now },
       });
       fireWebhook('post.published', { ids: postIds });
     } else if (action === 'unpublish') {
