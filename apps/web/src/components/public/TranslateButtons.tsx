@@ -33,28 +33,35 @@ export function TranslateButtons({ languages }: { languages: string }) {
   const active = getActiveLang();
 
   return (
-    <div className="flex items-center gap-1.5 flex-wrap">
-      <span className="text-xs text-muted-foreground">Translate:</span>
-      {langs.map((lang) => (
-        <button
-          key={lang}
-          onClick={() => setLang(lang)}
-          className={`px-2.5 py-0.5 rounded-full text-xs font-medium transition-colors border ${
-            active === lang
-              ? 'bg-primary text-primary-foreground border-primary'
-              : 'text-muted-foreground border-border hover:text-foreground hover:border-foreground'
-          }`}
-        >
-          {LANG_LABELS[lang] || lang}
-        </button>
-      ))}
+    <div className="space-y-1.5">
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <span className="text-xs text-muted-foreground">Translate:</span>
+        {langs.map((lang) => (
+          <button
+            key={lang}
+            onClick={() => setLang(lang)}
+            className={`px-2.5 py-0.5 rounded-full text-xs font-medium transition-colors border ${
+              active === lang
+                ? 'bg-primary text-primary-foreground border-primary'
+                : 'text-muted-foreground border-border hover:text-foreground hover:border-foreground'
+            }`}
+          >
+            {LANG_LABELS[lang] || lang}
+          </button>
+        ))}
+        {active && (
+          <button
+            onClick={() => setLang('')}
+            className="px-2.5 py-0.5 rounded-full text-xs font-medium border border-border text-muted-foreground hover:text-foreground hover:border-foreground transition-colors"
+          >
+            Original
+          </button>
+        )}
+      </div>
       {active && (
-        <button
-          onClick={() => setLang('')}
-          className="px-2.5 py-0.5 rounded-full text-xs font-medium border border-border text-muted-foreground hover:text-foreground hover:border-foreground transition-colors"
-        >
-          Original
-        </button>
+        <p className="text-xs text-muted-foreground/80 italic">
+          This is a machine translation and may not be accurate. Use it only for understanding the gist — not for formal publishing. Original article language remains English.
+        </p>
       )}
     </div>
   );
