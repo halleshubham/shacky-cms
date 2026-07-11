@@ -26,7 +26,7 @@ export interface SiteSettings {
   social_youtube?: string;
   social_x?: string;
   // Appearance / theming
-  public_theme?: 'classic' | 'custom';
+  public_theme?: string;
   theme_custom_vars?: Record<string, string>;
 }
 
@@ -70,7 +70,7 @@ export async function getSiteSettings(): Promise<SiteSettings> {
       tts_enabled: raw.tts_enabled === 'true',
       tts_language: raw.tts_language || 'mr-IN',
       header_show_title: raw.header_show_title === 'true',
-      public_theme: (raw.public_theme as 'classic' | 'custom') || 'classic',
+      public_theme: raw.public_theme || 'classic',
       theme_custom_vars: themeVars,
     } as SiteSettings;
   } catch {
