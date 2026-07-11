@@ -246,7 +246,7 @@ export function PublicHeader({
           </div>
         )}
 
-        <nav className="hidden md:flex items-center gap-0 pb-0 -mb-px overflow-x-auto">
+        <nav className="hidden md:flex flex-wrap items-center gap-0 -mb-px">
           {links.map((link) => <DesktopNavItem key={link.href + link.label} item={link} />)}
         </nav>
       </div>
