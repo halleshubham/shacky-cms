@@ -16,12 +16,14 @@ const TYPE_META: Record<ItemType, { label: string; icon: React.ReactNode; color:
   tag:      { label: 'Tag',      icon: <Tag className="h-3 w-3" />,         color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300' },
   page:     { label: 'Page',     icon: <FileText className="h-3 w-3" />,    color: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' },
   url:      { label: 'Link',     icon: <Link2 className="h-3 w-3" />,       color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300' },
+  dropdown: { label: 'Dropdown', icon: <ChevronDown className="h-3 w-3" />, color: 'bg-slate-100 text-slate-700 dark:bg-slate-900/40 dark:text-slate-300' },
 };
 
 function typeHref(type: ItemType, value: string): string {
   if (type === 'category') return `/category/${value}`;
   if (type === 'tag')      return `/tag/${value}`;
   if (type === 'page')     return `/${value}`;
+  if (type === 'dropdown') return '';
   return value;
 }
 
@@ -40,7 +42,7 @@ export function NavMenuEditor({ value, onChange }: NavMenuEditorProps) {
   const [search, setSearch] = useState('');
   const [customLabel, setCustomLabel] = useState('');
   const [customUrl, setCustomUrl] = useState('');
-  const [pickerItems, setPickerItems] = useState<Record<ItemType, PickerItem[]>>({
+  const [pickerItems, setPickerItems] = useState<Record<Exclude<ItemType, 'dropdown'>, PickerItem[]>>({
     category: [], tag: [], page: [], url: [],
   });
   const [loadingPicker, setLoadingPicker] = useState(false);
@@ -65,6 +67,9 @@ export function NavMenuEditor({ value, onChange }: NavMenuEditorProps) {
   const openAdd = (target: number | null) => {
     setAddTarget(target);
     setSearch('');
+    setCustomLabel('');
+    setCustomUrl('');
+    setActiveTab('category');
     setAddOpen(true);
   };
 
@@ -127,13 +132,22 @@ export function NavMenuEditor({ value, onChange }: NavMenuEditorProps) {
     setCustomUrl('');
   };
 
-  const filtered = activeTab === 'url'
+  const addDropdown = () => {
+    if (!customLabel.trim()) return;
+    onChange([...value, { label: customLabel.trim(), type: 'dropdown', value: '' }]);
+    setCustomLabel('');
+  };
+
+  const filtered = (activeTab === 'url' || activeTab === 'dropdown')
     ? []
-    : pickerItems[activeTab].filter((item) =>
+    : (pickerItems as any)[activeTab].filter((item: PickerItem) =>
         (item.name || item.title || '').toLowerCase().includes(search.toLowerCase())
       );
 
-  const tabs: ItemType[] = ['category', 'tag', 'page', 'url'];
+  // Dropdown tab only available at top level (children can't be dropdowns)
+  const tabs: ItemType[] = addTarget === null
+    ? ['category', 'tag', 'page', 'url', 'dropdown']
+    : ['category', 'tag', 'page', 'url'];
 
   const renderItemRow = (
     item: NavItem | ChildItem,
@@ -145,6 +159,7 @@ export function NavMenuEditor({ value, onChange }: NavMenuEditorProps) {
     addChild?: () => void,
   ) => {
     const meta = TYPE_META[item.type] ?? TYPE_META.url;
+    const href = typeHref(item.type, item.value);
     return (
       <div className="flex items-center gap-2 p-2.5 border border-border rounded-md bg-card group">
         <GripVertical className="h-4 w-4 text-muted-foreground/40 shrink-0" />
@@ -152,9 +167,11 @@ export function NavMenuEditor({ value, onChange }: NavMenuEditorProps) {
           {meta.icon} {meta.label}
         </span>
         <span className="text-sm font-medium flex-1 truncate">{item.label}</span>
-        <span className="text-xs text-muted-foreground hidden sm:block truncate max-w-[140px]">
-          {typeHref(item.type, item.value)}
-        </span>
+        {href && (
+          <span className="text-xs text-muted-foreground hidden sm:block truncate max-w-[140px]">
+            {href}
+          </span>
+        )}
         <div className="flex items-center gap-0.5 shrink-0">
           {addChild && (
             <button
@@ -229,7 +246,7 @@ export function NavMenuEditor({ value, onChange }: NavMenuEditorProps) {
             </DialogTitle>
           </DialogHeader>
 
-          <div className="flex gap-1 border-b border-border pb-0 -mb-px">
+          <div className="flex gap-1 border-b border-border pb-0 -mb-px overflow-x-auto">
             {tabs.map((tab) => {
               const meta = TYPE_META[tab];
               return (
@@ -237,7 +254,7 @@ export function NavMenuEditor({ value, onChange }: NavMenuEditorProps) {
                   key={tab}
                   type="button"
                   onClick={() => { setActiveTab(tab); setSearch(''); }}
-                  className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors -mb-px ${
+                  className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors -mb-px whitespace-nowrap ${
                     activeTab === tab ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
                   }`}
                 >
@@ -248,7 +265,30 @@ export function NavMenuEditor({ value, onChange }: NavMenuEditorProps) {
           </div>
 
           <div className="pt-1 space-y-3">
-            {activeTab === 'url' ? (
+            {activeTab === 'dropdown' ? (
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Label</Label>
+                  <Input
+                    value={customLabel}
+                    onChange={(e) => setCustomLabel(e.target.value)}
+                    placeholder="e.g. Topics, Science, More…"
+                    onKeyDown={(e) => { if (e.key === 'Enter') { addDropdown(); setAddOpen(false); } }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Creates a dropdown group with no URL. After adding, use the <ListPlus className="inline h-3 w-3" /> icon to add child links.
+                </p>
+                <Button
+                  type="button"
+                  onClick={() => { addDropdown(); setAddOpen(false); }}
+                  disabled={!customLabel.trim()}
+                  className="w-full"
+                >
+                  Add Dropdown
+                </Button>
+              </div>
+            ) : activeTab === 'url' ? (
               <div className="space-y-3">
                 <div className="space-y-1">
                   <Label className="text-xs">Label</Label>
@@ -276,7 +316,7 @@ export function NavMenuEditor({ value, onChange }: NavMenuEditorProps) {
                   ) : filtered.length === 0 ? (
                     <li className="text-sm text-muted-foreground text-center py-6">No results</li>
                   ) : (
-                    filtered.map((item) => {
+                    filtered.map((item: PickerItem) => {
                       const label = item.name || item.title || item.slug;
                       const parentItem = addTarget !== null ? value[addTarget] : null;
                       const already = addTarget === null
