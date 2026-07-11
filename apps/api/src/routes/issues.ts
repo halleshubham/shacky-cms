@@ -129,6 +129,9 @@ const issuesRoutes: FastifyPluginAsync = async (fastify) => {
       });
     }
 
+    // Campaigns are tied to a specific issue and have no meaning without it — delete them
+    await prisma.campaign.deleteMany({ where: { issueId: id } });
+
     await prisma.issue.delete({ where: { id } });
     await audit(req, 'issue.deleted', { entity: 'issue', entityId: id, meta: { deleteArticles: deleteArticles === 'true' } });
     return reply.send({ success: true });
