@@ -94,7 +94,7 @@ function defaultTextModel(provider: AIProvider): string {
 function defaultImageModel(provider: AIProvider): string {
   switch (provider) {
     case 'openai': return 'dall-e-3';
-    case 'gemini': return 'imagen-3.0-generate-002';
+    case 'gemini': return 'gemini-3.1-flash-image';
     default:       return ''; // not supported
   }
 }
@@ -317,9 +317,29 @@ async function generateImageWithOpenAI(config: AIConfig, input: GenerateImageInp
 async function generateImageWithGemini(config: AIConfig, input: GenerateImageInput): Promise<Buffer> {
   const styleSuffix = IMAGE_STYLE_SUFFIXES[input.style || 'photorealistic'];
   const fullPrompt = `${input.prompt}. ${styleSuffix}. No text overlay.`;
+  const base = `https://generativelanguage.googleapis.com/v1beta/models/${config.imageModel}`;
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${config.imageModel}:predict?key=${config.apiKey}`;
-  const res = await fetch(url, {
+  // Gemini-native image models (gemini-*-image, Nano Banana series) use generateContent
+  // with responseModalities. Imagen models use the legacy :predict endpoint.
+  if (config.imageModel.startsWith('gemini-')) {
+    const res = await fetch(`${base}:generateContent?key=${config.apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: fullPrompt }] }],
+        generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
+      }),
+    });
+    if (!res.ok) throw new Error(`Gemini image error: ${await res.text()}`);
+    const data = await res.json() as any;
+    const parts: any[] = data.candidates?.[0]?.content?.parts ?? [];
+    const imgPart = parts.find((p: any) => p.inlineData?.data);
+    if (!imgPart) throw new Error('No image data returned from Gemini');
+    return Buffer.from(imgPart.inlineData.data, 'base64');
+  }
+
+  // Legacy Imagen models use :predict
+  const res = await fetch(`${base}:predict?key=${config.apiKey}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -327,7 +347,6 @@ async function generateImageWithGemini(config: AIConfig, input: GenerateImageInp
       parameters: { sampleCount: 1, aspectRatio: '16:9' },
     }),
   });
-
   if (!res.ok) throw new Error(`Gemini Imagen error: ${await res.text()}`);
   const data = await res.json() as any;
   const b64 = data.predictions?.[0]?.bytesBase64Encoded;
