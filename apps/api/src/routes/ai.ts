@@ -34,12 +34,12 @@ const aiConfigSchema = z.object({
   imageModel: z.string().optional(),
 });
 
-const OPENAI_TEXT_MODELS   = ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo'];
-const OPENAI_IMAGE_MODELS  = ['gpt-image-1', 'dall-e-3', 'dall-e-2'];
-const GEMINI_TEXT_MODELS   = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-pro-exp'];
-const GEMINI_IMAGE_MODELS  = ['imagen-3.0-generate-002', 'imagen-3.0-fast-generate-001'];
-const GROQ_TEXT_MODELS     = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768', 'gemma2-9b-it', 'llama3-70b-8192'];
-const OLLAMA_FALLBACK_MODELS = ['llama3.2', 'llama3.1', 'mistral', 'gemma2', 'phi3', 'qwen2.5', 'deepseek-r1', 'codellama'];
+const OPENAI_TEXT_MODELS   = ['gpt-4.1', 'gpt-4.1-mini', 'gpt-4o', 'gpt-4o-mini', 'o4-mini', 'o3-mini'];
+const OPENAI_IMAGE_MODELS  = ['gpt-image-1', 'dall-e-3'];
+const GEMINI_TEXT_MODELS   = ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash-lite', 'gemini-1.5-flash', 'gemini-1.5-pro'];
+const GEMINI_IMAGE_MODELS  = ['imagen-4.0-generate-preview-06-06', 'imagen-3.0-generate-002', 'imagen-3.0-fast-generate-001'];
+const GROQ_TEXT_MODELS     = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'llama3-8b-8192', 'gemma2-9b-it', 'compound-beta'];
+const OLLAMA_FALLBACK_MODELS = ['llama3.2', 'llama3.1', 'mistral', 'gemma2', 'phi4', 'qwen2.5', 'deepseek-r1', 'codellama'];
 
 async function fetchOllamaModels(baseUrl: string): Promise<string[]> {
   try {
