@@ -390,6 +390,7 @@ export async function generateFeaturedImage(
       height: processed.info.height,
       url,
       altText: input.prompt.slice(0, 120),
+      credit: 'AI Generated',
       uploadedById,
     },
   });
