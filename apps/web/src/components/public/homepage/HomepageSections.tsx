@@ -32,6 +32,14 @@ async function fetchLatestIssue(): Promise<any | null> {
   } catch { return null; }
 }
 
+async function fetchFeaturedPosts(limit: number): Promise<any[]> {
+  try {
+    const res = await fetch(`${API}/api/public/featured?limit=${limit}`, { next: { revalidate: 60 } });
+    if (!res.ok) return [];
+    return res.json();
+  } catch { return []; }
+}
+
 // ─── Section renderers ─────────────────────────────────────────────────────────
 
 async function HeroSection({ config }: { config: HeroConfig }) {
@@ -44,7 +52,7 @@ async function HeroSection({ config }: { config: HeroConfig }) {
     const issue = await fetchLatestIssue();
     posts = issue?.posts?.slice(0, total) ?? [];
   } else if (config.source === 'category' && config.categorySlug) {
-    posts = await fetchPosts({ category: config.categorySlug, pageSize: total });
+    posts = await fetchPosts({ categorySlug: config.categorySlug, pageSize: total });
   } else {
     posts = await fetchPosts({ pageSize: total });
   }
@@ -76,12 +84,15 @@ async function HeroSection({ config }: { config: HeroConfig }) {
 }
 
 async function PostGridSection({ config }: { config: PostGridConfig }) {
-  const params: Record<string, string | number> = { pageSize: config.count };
-  if (config.source === 'featured') params.featured = 'true';
-  if (config.source === 'category' && config.slug) params.category = config.slug;
-  if (config.source === 'tag' && config.slug) params.tag = config.slug;
-
-  const posts = await fetchPosts(params);
+  let posts: any[];
+  if (config.source === 'featured') {
+    posts = await fetchFeaturedPosts(config.count);
+  } else {
+    const params: Record<string, string | number> = { pageSize: config.count };
+    if (config.source === 'category' && config.slug) params.categorySlug = config.slug;
+    if (config.source === 'tag' && config.slug) params.tagSlug = config.slug;
+    posts = await fetchPosts(params);
+  }
   if (!posts.length) return null;
 
   const colClass = { 2: 'sm:grid-cols-2', 3: 'sm:grid-cols-2 lg:grid-cols-3', 4: 'sm:grid-cols-2 lg:grid-cols-4' }[config.columns] ?? 'sm:grid-cols-2 lg:grid-cols-4';
@@ -135,7 +146,7 @@ async function LatestIssueSection({ config }: { config: LatestIssueConfig }) {
 
 async function CategoryRowSection({ config }: { config: CategoryRowConfig }) {
   if (!config.categorySlug) return null;
-  const posts = await fetchPosts({ category: config.categorySlug, pageSize: config.count });
+  const posts = await fetchPosts({ categorySlug: config.categorySlug, pageSize: config.count });
   if (!posts.length) return null;
 
   const label = config.label || config.categorySlug;
