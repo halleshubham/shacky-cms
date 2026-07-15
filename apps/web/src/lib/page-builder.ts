@@ -1,4 +1,13 @@
 import { nanoid } from 'nanoid';
+import {
+  type IssueHeaderConfig, type IssueArticlesConfig,
+  defaultIssueHeaderConfig, defaultIssueArticlesConfig,
+} from '@shacky/shared';
+
+// Re-exported so existing `@/lib/page-builder` imports keep working — the canonical
+// definitions live in @shacky/shared since apps/api's campaign-seeding logic needs
+// the exact same default shapes and can't import from apps/web.
+export type { IssueHeaderConfig, IssueArticlesConfig };
 
 // Which builder surface(s) a block type can be used on. Shared types (e.g. issue_articles,
 // rich_text) are usable on both; some fields on a shared type only do something on one surface
@@ -47,26 +56,9 @@ export interface LatestIssueConfig {
   postCount: number;
 }
 
-export interface IssueArticlesConfig {
-  // homepage-only: which issue to pull from ('specific' + issueId, or the latest issue)
-  source: 'latest_issue' | 'specific';
-  issueId?: string;
-  // shown on both surfaces
-  coverCount: number;
-  // homepage-only: grid column count (email is always rendered as a fixed 2-column table)
-  columns: 2 | 3 | 4;
-  // email-only: homepage reuses <ArticleCard>, which has no per-field image/excerpt toggle
-  showImages: boolean;
-  showExcerpt: boolean;
-  excerptLength: number;
-}
-
-export interface IssueHeaderConfig {
-  showLogo: boolean;
-  showTagline: boolean;
-  showIssueMeta: boolean;
-  showEditors: boolean;
-}
+// IssueArticlesConfig / IssueHeaderConfig: see @shacky/shared re-export above.
+// (source/issueId/columns are homepage-only; showImages/showExcerpt/excerptLength are
+// email-only, since homepage reuses <ArticleCard> which has no such per-field toggle.)
 
 export interface CategoryRowConfig {
   categorySlug: string;
@@ -246,8 +238,8 @@ export function defaultConfig(type: SectionType): SectionConfig {
     case 'hero':            return { source: 'latest_issue', layout: 'split', showExcerpt: true, heroCount: 1, sidebarCount: 3 } as HeroConfig;
     case 'post_grid':       return { title: 'Recent Articles', source: 'latest', count: 8, columns: 4, size: 'default' } as PostGridConfig;
     case 'latest_issue':    return { showPosts: true, postCount: 4 } as LatestIssueConfig;
-    case 'issue_articles':  return { source: 'latest_issue', coverCount: 1, columns: 4, showImages: true, showExcerpt: true, excerptLength: 150 } as IssueArticlesConfig;
-    case 'issue_header':    return { showLogo: true, showTagline: true, showIssueMeta: true, showEditors: true } as IssueHeaderConfig;
+    case 'issue_articles':  return defaultIssueArticlesConfig();
+    case 'issue_header':    return defaultIssueHeaderConfig();
     case 'category_row':    return { categorySlug: '', label: '', count: 4, layout: 'row' } as CategoryRowConfig;
     case 'download_banner': return { title: "Download This Week's Issue", description: '', buttonLabel: 'Download PDF', buttonUrl: '/issues' } as DownloadBannerConfig;
     case 'html_embed':      return { label: 'Custom Widget', code: '' } as HtmlEmbedConfig;

@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
+import { defaultIssueHeaderConfig, defaultIssueArticlesConfig } from '@shacky/shared';
 import { prisma } from '../plugins/prisma.js';
 import { authenticate, requireRoles } from '../middleware/auth.js';
 import {
@@ -30,8 +31,8 @@ const campaignBodySchema = z.object({
 
 export function defaultCampaignBlocks(subscribeUrl: string): EmailBlock[] {
   return [
-    { id: randomUUID(), type: 'issue_header', config: { showLogo: true, showTagline: true, showIssueMeta: true, showEditors: true } },
-    { id: randomUUID(), type: 'issue_articles', config: { coverCount: 1, showImages: true, showExcerpt: true, excerptLength: 150 } },
+    { id: randomUUID(), type: 'issue_header', config: defaultIssueHeaderConfig() },
+    { id: randomUUID(), type: 'issue_articles', config: defaultIssueArticlesConfig() },
     { id: randomUUID(), type: 'button_row', config: { buttons: [{ label: 'Subscribe for Free', url: subscribeUrl, variant: 'primary', newTab: false }], align: 'center' } },
   ];
 }

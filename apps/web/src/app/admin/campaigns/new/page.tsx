@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
 import { api } from '@/lib/api';
+import { fetchIssues, type IssueSummary } from '@/lib/issues';
 import { formatDate } from '@/lib/utils';
 import toast from 'react-hot-toast';
 
@@ -17,16 +18,16 @@ export default function NewCampaignPage() {
   const [name, setName] = useState('');
   const [issueId, setIssueId] = useState('');
   const [listId, setListId] = useState('');
-  const [issues, setIssues] = useState<any[]>([]);
+  const [issues, setIssues] = useState<IssueSummary[]>([]);
   const [lists, setLists] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     Promise.all([
-      api.get<any>('/api/issues?pageSize=50'),
+      fetchIssues(),
       api.get<any>('/api/subscribers/lists'),
     ]).then(([issueData, listData]) => {
-      setIssues(issueData.data);
+      setIssues(issueData);
       setLists(listData);
     });
   }, []);

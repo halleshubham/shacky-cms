@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { PageBuilderCanvas, type Category } from '@/components/admin/PageBuilderCanvas';
 import type { IssueOption } from '@/components/admin/blocks/IssueArticlesBlock';
 import { api } from '@/lib/api';
+import { fetchIssues } from '@/lib/issues';
 import type { Section } from '@/lib/page-builder';
 import toast from 'react-hot-toast';
 
@@ -18,8 +19,8 @@ export default function HomepageBuilderPage() {
     Promise.all([
       api.get<any>('/api/settings'),
       api.get<any>('/api/categories').catch(() => ({ data: [] })),
-      api.get<any>('/api/issues?pageSize=50').catch(() => ({ data: [] })),
-    ]).then(([raw, cats, issueData]) => {
+      fetchIssues(),
+    ]).then(([raw, cats, issueList]) => {
       if (raw.homepage_sections) {
         try {
           const parsed = JSON.parse(raw.homepage_sections);
@@ -27,7 +28,7 @@ export default function HomepageBuilderPage() {
         } catch { /* empty */ }
       }
       setCategories((cats.data ?? cats ?? []).filter((c: any) => !c.parentId));
-      setIssues((issueData.data ?? issueData ?? []).map((i: any) => ({ id: i.id, title: i.title })));
+      setIssues(issueList.map((i) => ({ id: i.id, title: i.title })));
     }).finally(() => setLoading(false));
   }, []);
 
