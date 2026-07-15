@@ -4,8 +4,8 @@ import { format } from 'date-fns';
 import { BookOpen, ArrowRight, Download as DownloadIcon } from 'lucide-react';
 import { ArticleCard } from '@/components/public/ArticleCard';
 import type {
-  Section, HeroConfig, PostGridConfig, LatestIssueConfig,
-  CategoryRowConfig, DownloadBannerConfig, HtmlEmbedConfig, DividerConfig,
+  Section, HeroConfig, PostGridConfig, LatestIssueConfig, IssueArticlesConfig,
+  CategoryRowConfig, DownloadBannerConfig, HtmlEmbedConfig, DividerConfig, SpacerConfig,
   ImageBlockConfig, RichTextConfig, HeadingBlockConfig, ButtonRowConfig,
   FileDownloadsConfig, ImageGalleryConfig, ColumnsBlockConfig, ColumnItem,
 } from '@/lib/page-builder';
@@ -27,6 +27,14 @@ async function fetchPosts(params: Record<string, string | number>): Promise<any[
 async function fetchLatestIssue(): Promise<any | null> {
   try {
     const res = await fetch(`${API}/api/public/issues/latest`, { next: { revalidate: 60 } });
+    if (!res.ok) return null;
+    return res.json();
+  } catch { return null; }
+}
+
+async function fetchIssueById(id: string): Promise<any | null> {
+  try {
+    const res = await fetch(`${API}/api/public/issues/${id}`, { next: { revalidate: 60 } });
     if (!res.ok) return null;
     return res.json();
   } catch { return null; }
@@ -142,6 +150,33 @@ async function LatestIssueSection({ config }: { config: LatestIssueConfig }) {
       )}
     </section>
   );
+}
+
+async function IssueArticlesSection({ config }: { config: IssueArticlesConfig }) {
+  const issue = config.source === 'specific' && config.issueId
+    ? await fetchIssueById(config.issueId)
+    : await fetchLatestIssue();
+  if (!issue?.posts?.length) return null;
+
+  const coverCount = Math.max(0, Math.min(config.coverCount ?? 1, issue.posts.length));
+  const covers = issue.posts.slice(0, coverCount);
+  const rest = issue.posts.slice(coverCount);
+  const colClass = { 2: 'sm:grid-cols-2', 3: 'sm:grid-cols-2 lg:grid-cols-3', 4: 'sm:grid-cols-2 lg:grid-cols-4' }[config.columns] ?? 'sm:grid-cols-2 lg:grid-cols-4';
+
+  return (
+    <section className="space-y-8">
+      {covers.map((p: any) => <ArticleCard key={p.id} post={p} size="large" />)}
+      {rest.length > 0 && (
+        <div className={`grid ${colClass} gap-6`}>
+          {rest.map((p: any) => <ArticleCard key={p.id} post={p} size="default" />)}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function SpacerSection({ config }: { config: SpacerConfig }) {
+  return <div style={{ height: config.height }} aria-hidden="true" />;
 }
 
 async function CategoryRowSection({ config }: { config: CategoryRowConfig }) {
@@ -385,10 +420,12 @@ function ColumnNestedSection({ col }: { col: ColumnItem }) {
     case 'hero':            return <HeroSection config={cfg as HeroConfig} /> as React.ReactNode;
     case 'post_grid':       return <PostGridSection config={cfg as PostGridConfig} /> as React.ReactNode;
     case 'latest_issue':    return <LatestIssueSection config={cfg as LatestIssueConfig} /> as React.ReactNode;
+    case 'issue_articles':  return <IssueArticlesSection config={cfg as IssueArticlesConfig} /> as React.ReactNode;
     case 'category_row':    return <CategoryRowSection config={cfg as CategoryRowConfig} /> as React.ReactNode;
     case 'download_banner': return <DownloadBannerSection config={cfg as DownloadBannerConfig} />;
     case 'html_embed':      return <HtmlEmbedSection config={cfg as HtmlEmbedConfig} />;
     case 'divider':         return <DividerSection config={cfg as DividerConfig} />;
+    case 'spacer':          return <SpacerSection config={cfg as SpacerConfig} />;
     case 'image_block':     return <ImageBlockSection config={cfg as ImageBlockConfig} />;
     case 'rich_text':       return <RichTextSection config={cfg as RichTextConfig} />;
     case 'heading_block':   return <HeadingBlockSection config={cfg as HeadingBlockConfig} />;
@@ -472,10 +509,12 @@ export async function HomepageSections({ sections }: { sections: Section[] }) {
           case 'hero':            return <HeroSection key={section.id} config={section.config as HeroConfig} />;
           case 'post_grid':       return <PostGridSection key={section.id} config={section.config as PostGridConfig} />;
           case 'latest_issue':    return <LatestIssueSection key={section.id} config={section.config as LatestIssueConfig} />;
+          case 'issue_articles':  return <IssueArticlesSection key={section.id} config={section.config as IssueArticlesConfig} />;
           case 'category_row':    return <CategoryRowSection key={section.id} config={section.config as CategoryRowConfig} />;
           case 'download_banner': return <DownloadBannerSection key={section.id} config={section.config as DownloadBannerConfig} />;
           case 'html_embed':      return <HtmlEmbedSection key={section.id} config={section.config as HtmlEmbedConfig} />;
           case 'divider':         return <DividerSection key={section.id} config={section.config as DividerConfig} />;
+          case 'spacer':          return <SpacerSection key={section.id} config={section.config as SpacerConfig} />;
           case 'image_block':     return <ImageBlockSection key={section.id} config={section.config as ImageBlockConfig} />;
           case 'rich_text':       return <RichTextSection key={section.id} config={section.config as RichTextConfig} />;
           case 'heading_block':   return <HeadingBlockSection key={section.id} config={section.config as HeadingBlockConfig} />;

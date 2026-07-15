@@ -9,6 +9,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { api } from '@/lib/api';
 import toast from 'react-hot-toast';
+
+// Public settings are cached (ISR, tag 'site-settings') on the public site — bust it after
+// saving anything that feeds PublicHeader/PublicFooter/the homepage so changes show up immediately.
+function revalidateSiteSettings() {
+  fetch('/api/revalidate?tag=site-settings', { method: 'POST' }).catch(() => {});
+}
 import { useAuth } from '@/lib/auth';
 import { NavMenuEditor } from '@/components/admin/NavMenuEditor';
 import type { NavItem } from '@/lib/site-settings';
@@ -67,6 +73,8 @@ export default function SettingsPage() {
   const [codeHead, setCodeHead] = useState('');
   const [codeFoot, setCodeFoot] = useState('');
   const [headerShowTitle, setHeaderShowTitle] = useState(false);
+  const [headerShowTagline, setHeaderShowTagline] = useState(false);
+  const [headerShowEditors, setHeaderShowEditors] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingFavicon, setUploadingFavicon] = useState(false);
@@ -152,6 +160,8 @@ export default function SettingsPage() {
       setCodeHead(s.code_injection_head || '');
       setCodeFoot(s.code_injection_foot || '');
       setHeaderShowTitle(s.header_show_title === 'true');
+      setHeaderShowTagline(s.header_show_tagline === 'true');
+      setHeaderShowEditors(s.header_show_editors === 'true');
       setStockUnsplash(s.stock_unsplash_key ? '••••••••' : '');
       setStockPexels(s.stock_pexels_key ? '••••••••' : '');
       setStockPixabay(s.stock_pixabay_key ? '••••••••' : '');
@@ -221,7 +231,10 @@ export default function SettingsPage() {
         code_injection_head: codeHead,
         code_injection_foot: codeFoot,
         header_show_title: String(headerShowTitle),
+        header_show_tagline: String(headerShowTagline),
+        header_show_editors: String(headerShowEditors),
       });
+      revalidateSiteSettings();
       toast.success('Site settings saved');
     } catch (err: any) { toast.error(err?.message || 'Save failed'); }
     finally { setSavingSettings(false); }
@@ -234,6 +247,7 @@ export default function SettingsPage() {
         nav_primary: JSON.stringify(navPrimary),
         nav_secondary: JSON.stringify(navSecondary),
       });
+      revalidateSiteSettings();
       toast.success('Navigation saved');
     } catch (err: any) { toast.error(err?.message || 'Save failed'); }
     finally { setSavingNav(false); }
@@ -251,6 +265,7 @@ export default function SettingsPage() {
         social_youtube: socialYoutube,
         social_x: socialX,
       });
+      revalidateSiteSettings();
       toast.success('Social links saved');
     } catch (err: any) { toast.error(err?.message || 'Save failed'); }
     finally { setSavingSocial(false); }
@@ -269,6 +284,7 @@ export default function SettingsPage() {
         newsletter_wa_groups: nlWaGroups,
         newsletter_wa_channels: nlWaChannels,
       });
+      revalidateSiteSettings();
       toast.success('Newsletter settings saved');
     } catch (err: any) { toast.error(err?.message || 'Save failed'); }
     finally { setSavingNl(false); }
@@ -282,6 +298,7 @@ export default function SettingsPage() {
         tts_enabled: String(ttsEnabled),
         tts_language: ttsLanguage,
       });
+      revalidateSiteSettings();
       toast.success('TTS settings saved');
     } catch (err: any) { toast.error(err?.message || 'Save failed'); }
     finally { setSavingTts(false); }
@@ -295,6 +312,7 @@ export default function SettingsPage() {
         translation_enabled: String(translationEnabled),
         translation_languages: translationLanguages,
       });
+      revalidateSiteSettings();
       toast.success('Translation settings saved');
     } catch (err: any) { toast.error(err?.message || 'Save failed'); }
     finally { setSavingTranslation(false); }
@@ -551,6 +569,30 @@ export default function SettingsPage() {
                   </Label>
                 </div>
               )}
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  id="header-show-tagline"
+                  type="checkbox"
+                  checked={headerShowTagline}
+                  onChange={(e) => setHeaderShowTagline(e.target.checked)}
+                  className="h-4 w-4 rounded border-input"
+                />
+                <Label htmlFor="header-show-tagline" className="text-xs cursor-pointer">
+                  Show tagline in site header (uses the tagline set below under Newsletter)
+                </Label>
+              </div>
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  id="header-show-editors"
+                  type="checkbox"
+                  checked={headerShowEditors}
+                  onChange={(e) => setHeaderShowEditors(e.target.checked)}
+                  className="h-4 w-4 rounded border-input"
+                />
+                <Label htmlFor="header-show-editors" className="text-xs cursor-pointer">
+                  Show editors line in site header (uses the editors list set below under Newsletter)
+                </Label>
+              </div>
             </div>
 
             {/* Favicon upload */}

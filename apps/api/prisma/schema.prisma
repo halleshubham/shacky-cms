@@ -295,6 +295,7 @@ model Campaign {
   clickCount       Int            @default(0)
   unsubscribeCount Int            @default(0)
   htmlContent      String?
+  blocks           Json?
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
   issue            Issue          @relation(fields: [issueId], references: [id])

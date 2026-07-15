@@ -17,6 +17,10 @@ export interface SiteSettings {
   tts_enabled?: boolean;
   tts_language?: string;
   header_show_title?: boolean;
+  header_show_tagline?: boolean;
+  header_show_editors?: boolean;
+  newsletter_tagline?: string;
+  newsletter_editors?: string;
   homepage_sections?: import('./page-builder').Section[];
   // Social links
   social_facebook?: string;
@@ -63,6 +67,8 @@ export async function getSiteSettings(): Promise<SiteSettings> {
       tts_enabled: raw.tts_enabled === 'true',
       tts_language: raw.tts_language || 'mr-IN',
       header_show_title: raw.header_show_title === 'true',
+      header_show_tagline: raw.header_show_tagline === 'true',
+      header_show_editors: raw.header_show_editors === 'true',
     } as SiteSettings;
   } catch {
     return {};

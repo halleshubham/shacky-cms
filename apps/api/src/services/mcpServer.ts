@@ -4,8 +4,9 @@ import { z } from 'zod';
 import { env } from '../utils/env.js';
 import { searchAllStock, downloadAndStoreStockImage } from './stockSearch.js';
 import type { StockPhoto } from './stockSearch.js';
-import { generateNewsletterHtml } from './newsletter.js';
+import { generateNewsletterHtml, getNewsletterSettings } from './newsletter.js';
 import { sendMail } from './email.js';
+import { defaultCampaignBlocks } from '../routes/campaigns.js';
 
 export function createMcpServer(prisma: PrismaClient, userId: string, scopes: string[]): McpServer {
   const server = new McpServer({
@@ -592,8 +593,13 @@ export function createMcpServer(prisma: PrismaClient, userId: string, scopes: st
         scheduledAt: z.string().optional().describe('ISO 8601 datetime to schedule (optional)'),
       },
       async ({ name, issueId, subscriberListId, scheduledAt }) => {
+        const settings = await getNewsletterSettings();
         const campaign = await prisma.campaign.create({
-          data: { name, issueId, subscriberListId, scheduledAt: scheduledAt ? new Date(scheduledAt) : null },
+          data: {
+            name, issueId, subscriberListId,
+            scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
+            blocks: defaultCampaignBlocks(settings.subscribeUrl) as any,
+          },
           include: { issue: { select: { title: true } }, subscriberList: { select: { name: true } } },
         });
         return { content: [{ type: 'text' as const, text: JSON.stringify(campaign, null, 2) }] };
@@ -610,7 +616,7 @@ export function createMcpServer(prisma: PrismaClient, userId: string, scopes: st
       async ({ campaignId, email }) => {
         const campaign = await prisma.campaign.findUnique({ where: { id: campaignId }, include: { issue: { include: { posts: { include: { authors: { include: { author: true } }, categories: { include: { category: true } }, tags: { include: { tag: true } }, featuredMedia: true } } } } } });
         if (!campaign) return { content: [{ type: 'text' as const, text: 'Campaign not found.' }], isError: true };
-        const html = await generateNewsletterHtml(campaign.issue as any, { subscriberToken: 'preview' });
+        const html = await generateNewsletterHtml(campaign.issue as any, { subscriberToken: 'preview' }, campaign.blocks as any);
         await sendMail({ to: email, subject: `[TEST] ${campaign.issue.title}`, html });
         return { content: [{ type: 'text' as const, text: JSON.stringify({ success: true, sentTo: email, subject: `[TEST] ${campaign.issue.title}` }, null, 2) }] };
       },
@@ -634,7 +640,7 @@ export function createMcpServer(prisma: PrismaClient, userId: string, scopes: st
         let sent = 0;
         for (const sub of subscribers) {
           try {
-            const html = await generateNewsletterHtml(campaign.issue as any, { subscriberToken: sub.unsubscribeToken });
+            const html = await generateNewsletterHtml(campaign.issue as any, { subscriberToken: sub.unsubscribeToken }, campaign.blocks as any);
             await sendMail({ to: sub.email!, subject: campaign.issue.title, html });
             sent++;
           } catch { /* continue on per-subscriber failure */ }

@@ -17,6 +17,7 @@ async function getCategories() {
 export default async function PublicLayout({ children }: { children: React.ReactNode }) {
   const [categories, settings] = await Promise.all([getCategories(), getSiteSettings()]);
   const siteName = settings.site_title || 'Shacky CMS';
+  const editorsList = (settings.newsletter_editors || '').split('\n').map((s) => s.trim()).filter(Boolean);
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
@@ -26,6 +27,8 @@ export default async function PublicLayout({ children }: { children: React.React
         siteTitle={siteName}
         siteLogo={settings.site_logo}
         showTitle={settings.header_show_title}
+        tagline={settings.header_show_tagline ? settings.newsletter_tagline : undefined}
+        editors={settings.header_show_editors ? editorsList : undefined}
         settings={settings}
       />
 

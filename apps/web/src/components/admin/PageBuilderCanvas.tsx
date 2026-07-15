@@ -13,9 +13,9 @@ import { CSS } from '@dnd-kit/utilities';
 import {
   GripVertical, X, Plus, Save, LayoutTemplate, Grid3X3, Newspaper,
   AlignJustify, Download, Code, Minus, ImageIcon, Type, Heading,
-  MousePointerClick, Trash2, AlignLeft, AlignCenter, AlignRight,
-  ExternalLink, ChevronUp, ChevronDown, BookOpen, ArrowRight,
-  Monitor, Tablet, Smartphone, ArrowLeft, Settings2, Columns2,
+  MousePointerClick, Trash2, ExternalLink, ChevronUp, ChevronDown,
+  BookOpen, ArrowRight, Monitor, Tablet, Smartphone, ArrowLeft,
+  Settings2, Columns2, MoveVertical,
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -24,17 +24,24 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { RichTextEditor } from '@/components/editor/RichTextEditor';
 import {
   type Section, type SectionType, type SectionConfig,
   type HeroConfig, type PostGridConfig, type LatestIssueConfig,
-  type CategoryRowConfig, type DownloadBannerConfig, type HtmlEmbedConfig,
-  type DividerConfig, type ImageBlockConfig, type RichTextConfig,
-  type HeadingBlockConfig, type ButtonRowConfig, type ButtonDef,
+  type IssueArticlesConfig, type CategoryRowConfig, type DownloadBannerConfig, type HtmlEmbedConfig,
+  type DividerConfig, type SpacerConfig, type ImageBlockConfig, type RichTextConfig,
+  type HeadingBlockConfig, type ButtonRowConfig,
   type FileDownloadsConfig, type FileItem, type ImageGalleryConfig, type GalleryImage,
   type ColumnsBlockConfig, type ColumnItem, type ColumnContentType,
   SECTION_META, createSection, defaultConfig,
 } from '@/lib/page-builder';
+import { AlignControl, LinkFields } from './blocks/shared';
+import { RichTextPreview, RichTextConfigForm } from './blocks/RichTextBlock';
+import { HeadingPreview, HeadingBlockConfigForm } from './blocks/HeadingBlock';
+import { ImageBlockPreview, ImageBlockConfigForm } from './blocks/ImageBlock';
+import { ButtonRowPreview, ButtonRowConfigForm } from './blocks/ButtonRowBlock';
+import { DividerPreview, DividerConfigForm } from './blocks/DividerBlock';
+import { SpacerPreview, SpacerConfigForm } from './blocks/SpacerBlock';
+import { IssueArticlesPreview, IssueArticlesConfigForm, type IssueOption } from './blocks/IssueArticlesBlock';
 
 export interface Category { id: string; name: string; slug: string }
 
@@ -43,10 +50,13 @@ const SECTION_ICONS: Record<SectionType, React.ReactNode> = {
   hero:            <LayoutTemplate className="h-4 w-4" />,
   post_grid:       <Grid3X3 className="h-4 w-4" />,
   latest_issue:    <Newspaper className="h-4 w-4" />,
+  issue_articles:  <Newspaper className="h-4 w-4" />,
+  issue_header:    <LayoutTemplate className="h-4 w-4" />,
   category_row:    <AlignJustify className="h-4 w-4" />,
   download_banner: <Download className="h-4 w-4" />,
   html_embed:      <Code className="h-4 w-4" />,
   divider:         <Minus className="h-4 w-4" />,
+  spacer:          <MoveVertical className="h-4 w-4" />,
   image_block:     <ImageIcon className="h-4 w-4" />,
   rich_text:       <Type className="h-4 w-4" />,
   heading_block:   <Heading className="h-4 w-4" />,
@@ -56,12 +66,14 @@ const SECTION_ICONS: Record<SectionType, React.ReactNode> = {
   columns_block:   <Columns2 className="h-4 w-4" />,
 };
 
-const PALETTE_GROUPS = [
-  { label: 'CMS Blocks', types: ['hero', 'post_grid', 'latest_issue', 'category_row'] as SectionType[] },
-  { label: 'Content',    types: ['heading_block', 'rich_text', 'image_block', 'button_row', 'columns_block'] as SectionType[] },
-  { label: 'Layout',     types: ['download_banner', 'divider', 'html_embed'] as SectionType[] },
-  { label: 'Media',      types: ['file_downloads', 'image_gallery'] as SectionType[] },
-];
+const PALETTE_GROUPS = (
+  [
+    { label: 'CMS Blocks',     types: ['hero', 'post_grid', 'latest_issue', 'issue_articles', 'category_row'] },
+    { label: 'Content',        types: ['heading_block', 'rich_text', 'image_block', 'button_row', 'columns_block'] },
+    { label: 'Layout',         types: ['download_banner', 'divider', 'spacer', 'html_embed'] },
+    { label: 'Media',          types: ['file_downloads', 'image_gallery'] },
+  ] as { label: string; types: SectionType[] }[]
+).map((g) => ({ ...g, types: g.types.filter((t) => SECTION_META[t].surfaces.includes('homepage')) }));
 
 // ─── Skeleton primitives ───────────────────────────────────────────────────────
 function SkeletonBox({ className = '' }: { className?: string }) {
@@ -207,75 +219,6 @@ function HtmlEmbedPreview({ config }: { config: HtmlEmbedConfig }) {
   );
 }
 
-function DividerPreview({ config }: { config: DividerConfig }) {
-  if (config.label) {
-    return (
-      <div className="flex items-center gap-4 py-1">
-        <div className="h-px flex-1 bg-border" />
-        <span className="text-xs font-medium text-muted-foreground uppercase tracking-widest">{config.label}</span>
-        <div className="h-px flex-1 bg-border" />
-      </div>
-    );
-  }
-  return <hr className="border-border" />;
-}
-
-function ImageBlockPreview({ config }: { config: ImageBlockConfig }) {
-  const alignClass = { left: 'mr-auto', center: 'mx-auto', right: 'ml-auto', full: 'w-full' }[config.align] ?? 'mx-auto';
-  if (!config.src) {
-    return (
-      <div className="border-2 border-dashed border-border rounded-lg flex items-center justify-center h-40 bg-muted/20">
-        <div className="text-center text-muted-foreground"><ImageIcon className="h-8 w-8 mx-auto mb-1 opacity-40" /><p className="text-xs">No image URL set</p></div>
-      </div>
-    );
-  }
-  return (
-    <figure className="space-y-2">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={config.src} alt={config.alt || ''} style={{ maxWidth: config.maxWidth || '100%' }} className={`block h-auto rounded-md ${alignClass}`} />
-      {config.caption && <figcaption className="text-sm text-muted-foreground text-center">{config.caption}</figcaption>}
-    </figure>
-  );
-}
-
-function RichTextPreview({ config }: { config: RichTextConfig }) {
-  if (!config.html || config.html === '<p></p>') {
-    return (
-      <div className="border-2 border-dashed border-border rounded-lg flex items-center justify-center h-20 bg-muted/20">
-        <p className="text-xs text-muted-foreground">Empty rich text — click Edit to write content</p>
-      </div>
-    );
-  }
-  return <div className="prose prose-sm max-w-none dark:prose-invert [&_a]:text-primary [&_a]:underline pointer-events-none" dangerouslySetInnerHTML={{ __html: config.html }} />;
-}
-
-function HeadingPreview({ config }: { config: HeadingBlockConfig }) {
-  const alignClass = { left: 'text-left', center: 'text-center', right: 'text-right' }[config.align] ?? 'text-left';
-  const sizeClass = { 1: 'text-4xl', 2: 'text-2xl', 3: 'text-xl' }[config.level] ?? 'text-2xl';
-  const Tag = `h${config.level}` as 'h1' | 'h2' | 'h3';
-  return (
-    <div className={`space-y-1 ${alignClass}`}>
-      <Tag className={`font-bold leading-tight ${sizeClass}`}>{config.text || 'Heading'}</Tag>
-      {config.subtext && <p className="text-muted-foreground">{config.subtext}</p>}
-      {config.linkUrl && <p className="text-xs text-primary opacity-70">↗ {config.linkUrl}</p>}
-    </div>
-  );
-}
-
-function ButtonRowPreview({ config }: { config: ButtonRowConfig }) {
-  const alignClass = { left: 'justify-start', center: 'justify-center', right: 'justify-end' }[config.align] ?? 'justify-start';
-  const variantClass = { primary: 'bg-primary text-primary-foreground', outline: 'border border-border text-foreground', ghost: 'text-foreground' };
-  return (
-    <div className={`flex flex-wrap gap-3 ${alignClass}`}>
-      {config.buttons.map((btn, i) => (
-        <span key={i} className={`inline-flex items-center px-5 py-2.5 rounded-lg text-sm font-semibold ${variantClass[btn.variant] ?? variantClass.primary}`}>
-          {btn.label}{btn.newTab && <ExternalLink className="h-3 w-3 ml-1.5 opacity-60" />}
-        </span>
-      ))}
-    </div>
-  );
-}
-
 function FileDownloadsPreview({ config }: { config: FileDownloadsConfig }) {
   const EXT_COLORS: Record<string, string> = { pdf: 'bg-red-100 text-red-700', docx: 'bg-blue-100 text-blue-700', ppt: 'bg-orange-100 text-orange-700', mp4: 'bg-purple-100 text-purple-700', other: 'bg-slate-100 text-slate-700' };
   return (
@@ -365,10 +308,12 @@ function SectionPreview({ section }: { section: Section }) {
     case 'hero':            return <HeroPreview config={section.config as HeroConfig} />;
     case 'post_grid':       return <PostGridPreview config={section.config as PostGridConfig} />;
     case 'latest_issue':    return <LatestIssuePreview config={section.config as LatestIssueConfig} />;
+    case 'issue_articles':  return <IssueArticlesPreview config={section.config as IssueArticlesConfig} />;
     case 'category_row':    return <CategoryRowPreview config={section.config as CategoryRowConfig} />;
     case 'download_banner': return <DownloadBannerPreview config={section.config as DownloadBannerConfig} />;
     case 'html_embed':      return <HtmlEmbedPreview config={section.config as HtmlEmbedConfig} />;
     case 'divider':         return <DividerPreview config={section.config as DividerConfig} />;
+    case 'spacer':          return <SpacerPreview config={section.config as SpacerConfig} />;
     case 'image_block':     return <ImageBlockPreview config={section.config as ImageBlockConfig} />;
     case 'rich_text':       return <RichTextPreview config={section.config as RichTextConfig} />;
     case 'heading_block':   return <HeadingPreview config={section.config as HeadingBlockConfig} />;
@@ -429,35 +374,6 @@ function InsertButton({ onClick }: { onClick: () => void }) {
 }
 
 // ─── Config form helpers ───────────────────────────────────────────────────────
-function LinkFields({ url, newTab, onChange }: { url: string; newTab?: boolean; onChange: (url: string, newTab: boolean) => void }) {
-  return (
-    <div className="space-y-2 rounded-md border border-border p-3 bg-muted/30">
-      <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Hyperlink</p>
-      <div className="space-y-1.5">
-        <Label className="text-xs font-medium">URL</Label>
-        <Input className="h-8 text-sm" placeholder="/page-slug or https://..." value={url} onChange={(e) => onChange(e.target.value, newTab ?? false)} />
-      </div>
-      <div className="flex items-center gap-2">
-        <input type="checkbox" id="link-newtab" checked={!!newTab} onChange={(e) => onChange(url, e.target.checked)} className="h-4 w-4 rounded" />
-        <Label htmlFor="link-newtab" className="text-xs font-medium cursor-pointer flex items-center gap-1"><ExternalLink className="h-3 w-3" /> Open in new tab</Label>
-      </div>
-    </div>
-  );
-}
-
-function AlignControl({ value, onChange }: { value: 'left' | 'center' | 'right'; onChange: (v: 'left' | 'center' | 'right') => void }) {
-  return (
-    <div className="flex gap-1">
-      {(['left', 'center', 'right'] as const).map((a) => {
-        const icons = { left: <AlignLeft className="h-3.5 w-3.5" />, center: <AlignCenter className="h-3.5 w-3.5" />, right: <AlignRight className="h-3.5 w-3.5" /> };
-        return (
-          <button key={a} type="button" onClick={() => onChange(a)} className={`p-1.5 rounded border transition-colors ${value === a ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground hover:bg-muted'}`}>{icons[a]}</button>
-        );
-      })}
-    </div>
-  );
-}
-
 function CategorySelect({ value, onChange, categories, placeholder = 'Choose category' }: { value: string; onChange: (slug: string) => void; categories: Category[]; placeholder?: string }) {
   if (categories.length === 0) {
     return <Input className="h-8 text-sm" placeholder="category-slug" value={value} onChange={(e) => onChange(e.target.value)} />;
@@ -651,113 +567,6 @@ function HtmlEmbedConfigForm({ config, onChange }: { config: HtmlEmbedConfig; on
   );
 }
 
-function DividerConfigForm({ config, onChange }: { config: DividerConfig; onChange: (c: DividerConfig) => void }) {
-  return (
-    <div className="space-y-4">
-      <div className="space-y-1.5"><Label className="text-xs font-medium">Label (optional)</Label><Input className="h-8 text-sm" placeholder="e.g. More from this week" value={config.label || ''} onChange={(e) => onChange({ ...config, label: e.target.value })} /></div>
-    </div>
-  );
-}
-
-function ImageBlockConfigForm({ config, onChange }: { config: ImageBlockConfig; onChange: (c: ImageBlockConfig) => void }) {
-  return (
-    <div className="space-y-4">
-      <div className="space-y-1.5">
-        <Label className="text-xs font-medium">Image URL</Label>
-        <Input className="h-8 text-sm" placeholder="https://… or /s3/…" value={config.src} onChange={(e) => onChange({ ...config, src: e.target.value })} />
-        {config.src && <img src={config.src} alt="" className="mt-2 rounded-md max-h-32 object-contain border border-border" />}
-      </div>
-      <div className="space-y-1.5"><Label className="text-xs font-medium">Alt Text</Label><Input className="h-8 text-sm" value={config.alt || ''} onChange={(e) => onChange({ ...config, alt: e.target.value })} /></div>
-      <div className="space-y-1.5"><Label className="text-xs font-medium">Caption</Label><Input className="h-8 text-sm" value={config.caption || ''} onChange={(e) => onChange({ ...config, caption: e.target.value })} /></div>
-      <div className="space-y-1.5"><Label className="text-xs font-medium">Max Width</Label><Input className="h-8 text-sm" placeholder="100% or 600px" value={config.maxWidth || '100%'} onChange={(e) => onChange({ ...config, maxWidth: e.target.value })} /></div>
-      <div className="space-y-1.5">
-        <Label className="text-xs font-medium">Alignment</Label>
-        <Select value={config.align} onValueChange={(v) => onChange({ ...config, align: v as ImageBlockConfig['align'] })}>
-          <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
-          <SelectContent><SelectItem value="left">Left</SelectItem><SelectItem value="center">Center</SelectItem><SelectItem value="right">Right</SelectItem><SelectItem value="full">Full width</SelectItem></SelectContent>
-        </Select>
-      </div>
-      <LinkFields url={config.linkUrl || ''} newTab={config.linkNewTab} onChange={(linkUrl, linkNewTab) => onChange({ ...config, linkUrl, linkNewTab })} />
-    </div>
-  );
-}
-
-function RichTextConfigForm({ config, onChange }: { config: RichTextConfig; onChange: (c: RichTextConfig) => void }) {
-  return (
-    <div className="space-y-2">
-      <Label className="text-xs font-medium">Content</Label>
-      <p className="text-[11px] text-muted-foreground">Use the toolbar to add links, bold, headings, etc.</p>
-      <RichTextEditor value={config.html} onChange={(html) => onChange({ ...config, html })} className="min-h-[200px] text-sm" />
-    </div>
-  );
-}
-
-function HeadingBlockConfigForm({ config, onChange }: { config: HeadingBlockConfig; onChange: (c: HeadingBlockConfig) => void }) {
-  return (
-    <div className="space-y-4">
-      <div className="space-y-1.5"><Label className="text-xs font-medium">Heading Text</Label><Input className="h-8 text-sm" value={config.text} onChange={(e) => onChange({ ...config, text: e.target.value })} /></div>
-      <div className="space-y-1.5"><Label className="text-xs font-medium">Subtext</Label><Input className="h-8 text-sm" placeholder="Optional subtitle" value={config.subtext || ''} onChange={(e) => onChange({ ...config, subtext: e.target.value })} /></div>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <Label className="text-xs font-medium">Level</Label>
-          <Select value={String(config.level)} onValueChange={(v) => onChange({ ...config, level: Number(v) as 1|2|3 })}>
-            <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="1">H1 — Page title</SelectItem><SelectItem value="2">H2 — Section</SelectItem><SelectItem value="3">H3 — Sub-section</SelectItem></SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs font-medium">Alignment</Label>
-          <AlignControl value={config.align} onChange={(align) => onChange({ ...config, align })} />
-        </div>
-      </div>
-      <LinkFields url={config.linkUrl || ''} newTab={config.linkNewTab} onChange={(linkUrl, linkNewTab) => onChange({ ...config, linkUrl, linkNewTab })} />
-    </div>
-  );
-}
-
-function ButtonRowConfigForm({ config, onChange }: { config: ButtonRowConfig; onChange: (c: ButtonRowConfig) => void }) {
-  const updateButton = (i: number, patch: Partial<ButtonDef>) => onChange({ ...config, buttons: config.buttons.map((b, idx) => idx === i ? { ...b, ...patch } : b) });
-  const addButton = () => { if (config.buttons.length < 3) onChange({ ...config, buttons: [...config.buttons, { label: 'Button', url: '/', variant: 'outline', newTab: false }] }); };
-  const removeButton = (i: number) => onChange({ ...config, buttons: config.buttons.filter((_, idx) => idx !== i) });
-  return (
-    <div className="space-y-4">
-      <div className="space-y-1.5"><Label className="text-xs font-medium">Row Alignment</Label><AlignControl value={config.align} onChange={(align) => onChange({ ...config, align })} /></div>
-      <div className="space-y-3">
-        {config.buttons.map((btn, i) => (
-          <div key={i} className="rounded-md border border-border p-3 space-y-2.5 bg-muted/20">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold text-muted-foreground">Button {i + 1}</p>
-              <button type="button" onClick={() => removeButton(i)} disabled={config.buttons.length <= 1} className="p-1 rounded text-muted-foreground hover:text-destructive disabled:opacity-30"><Trash2 className="h-3.5 w-3.5" /></button>
-            </div>
-            <div className="space-y-1.5"><Label className="text-xs">Label</Label><Input className="h-7 text-sm" value={btn.label} onChange={(e) => updateButton(i, { label: e.target.value })} /></div>
-            <div className="space-y-1.5"><Label className="text-xs">URL</Label><Input className="h-7 text-sm" placeholder="/page or https://..." value={btn.url} onChange={(e) => updateButton(i, { url: e.target.value })} /></div>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1">
-                <Label className="text-xs">Style</Label>
-                <Select value={btn.variant} onValueChange={(v) => updateButton(i, { variant: v as ButtonDef['variant'] })}>
-                  <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
-                  <SelectContent><SelectItem value="primary">Primary</SelectItem><SelectItem value="outline">Outline</SelectItem><SelectItem value="ghost">Ghost</SelectItem></SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-end pb-1">
-                <label className="flex items-center gap-1.5 cursor-pointer">
-                  <input type="checkbox" checked={!!btn.newTab} onChange={(e) => updateButton(i, { newTab: e.target.checked })} className="h-3.5 w-3.5 rounded" />
-                  <span className="text-xs text-muted-foreground flex items-center gap-0.5"><ExternalLink className="h-3 w-3" /> New tab</span>
-                </label>
-              </div>
-            </div>
-          </div>
-        ))}
-        {config.buttons.length < 3 && (
-          <button type="button" onClick={addButton} className="w-full py-2 border border-dashed border-border rounded-md text-xs text-muted-foreground hover:text-foreground hover:border-foreground transition-colors flex items-center justify-center gap-1.5">
-            <Plus className="h-3.5 w-3.5" /> Add button
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
-
 function FileDownloadsConfigForm({ config, onChange }: { config: FileDownloadsConfig; onChange: (c: FileDownloadsConfig) => void }) {
   const updateFile = (i: number, patch: Partial<FileItem>) => onChange({ ...config, files: config.files.map((f, idx) => idx === i ? { ...f, ...patch } : f) });
   const addFile = () => onChange({ ...config, files: [...config.files, { label: '', url: '', lang: '', fileType: 'pdf' }] });
@@ -853,18 +662,20 @@ const COLUMN_CONTENT_OPTIONS: { value: ColumnContentType; label: string }[] = [
   { value: 'rich_text',      label: 'Rich Text' },
   { value: 'image_block',    label: 'Image' },
   { value: 'button_row',     label: 'Buttons' },
-  { value: 'html_embed',     label: 'HTML Embed' },
   { value: 'divider',        label: 'Divider' },
+  { value: 'spacer',         label: 'Spacer' },
+  { value: 'html_embed',     label: 'HTML Embed' },
   { value: 'file_downloads', label: 'Downloads' },
   { value: 'image_gallery',  label: 'Gallery' },
   { value: 'download_banner',label: 'Download Banner' },
   { value: 'hero',           label: 'Hero (CMS)' },
   { value: 'post_grid',      label: 'Post Grid (CMS)' },
   { value: 'latest_issue',   label: 'Latest Issue (CMS)' },
+  { value: 'issue_articles', label: 'Issue Articles (CMS)' },
   { value: 'category_row',   label: 'Category Row (CMS)' },
 ];
 
-function ColumnsBlockConfigForm({ config, onChange, categories }: { config: ColumnsBlockConfig; onChange: (c: ColumnsBlockConfig) => void; categories: Category[] }) {
+function ColumnsBlockConfigForm({ config, onChange, categories, issues }: { config: ColumnsBlockConfig; onChange: (c: ColumnsBlockConfig) => void; categories: Category[]; issues?: IssueOption[] }) {
   const updateColumn = (i: number, patch: Partial<ColumnItem>) =>
     onChange({ ...config, columns: config.columns.map((col, idx) => idx === i ? { ...col, ...patch } : col) });
   const addColumn = () => {
@@ -995,6 +806,7 @@ function ColumnsBlockConfigForm({ config, onChange, categories }: { config: Colu
                     section={{ id: `col-cfg-${i}`, type: ct, config: col.nestedConfig ?? defaultConfig(ct) }}
                     onChange={(newCfg) => updateColumn(i, { nestedConfig: newCfg })}
                     categories={categories}
+                    issues={issues}
                   />
                 </div>
               )}
@@ -1012,22 +824,24 @@ function ColumnsBlockConfigForm({ config, onChange, categories }: { config: Colu
   );
 }
 
-function SectionConfigForm({ section, onChange, categories }: { section: Section; onChange: (config: SectionConfig) => void; categories: Category[] }) {
+function SectionConfigForm({ section, onChange, categories, issues }: { section: Section; onChange: (config: SectionConfig) => void; categories: Category[]; issues?: IssueOption[] }) {
   switch (section.type) {
     case 'hero':            return <HeroConfigForm config={section.config as HeroConfig} onChange={onChange} categories={categories} />;
     case 'post_grid':       return <PostGridConfigForm config={section.config as PostGridConfig} onChange={onChange} categories={categories} />;
     case 'latest_issue':    return <LatestIssueConfigForm config={section.config as LatestIssueConfig} onChange={onChange} />;
+    case 'issue_articles':  return <IssueArticlesConfigForm config={section.config as IssueArticlesConfig} onChange={onChange} surface="homepage" issues={issues} />;
     case 'category_row':    return <CategoryRowConfigForm config={section.config as CategoryRowConfig} onChange={onChange} categories={categories} />;
     case 'download_banner': return <DownloadBannerConfigForm config={section.config as DownloadBannerConfig} onChange={onChange} />;
     case 'html_embed':      return <HtmlEmbedConfigForm config={section.config as HtmlEmbedConfig} onChange={onChange} />;
     case 'divider':         return <DividerConfigForm config={section.config as DividerConfig} onChange={onChange} />;
+    case 'spacer':          return <SpacerConfigForm config={section.config as SpacerConfig} onChange={onChange} />;
     case 'image_block':     return <ImageBlockConfigForm config={section.config as ImageBlockConfig} onChange={onChange} />;
     case 'rich_text':       return <RichTextConfigForm config={section.config as RichTextConfig} onChange={onChange} />;
     case 'heading_block':   return <HeadingBlockConfigForm config={section.config as HeadingBlockConfig} onChange={onChange} />;
-    case 'button_row':      return <ButtonRowConfigForm config={section.config as ButtonRowConfig} onChange={onChange} />;
+    case 'button_row':      return <ButtonRowConfigForm config={section.config as ButtonRowConfig} onChange={onChange} maxButtons={3} />;
     case 'file_downloads':  return <FileDownloadsConfigForm config={section.config as FileDownloadsConfig} onChange={onChange} />;
     case 'image_gallery':   return <ImageGalleryConfigForm config={section.config as ImageGalleryConfig} onChange={onChange} />;
-    case 'columns_block':   return <ColumnsBlockConfigForm config={section.config as ColumnsBlockConfig} onChange={onChange} categories={categories} />;
+    case 'columns_block':   return <ColumnsBlockConfigForm config={section.config as ColumnsBlockConfig} onChange={onChange} categories={categories} issues={issues} />;
     default:                return <p className="text-sm text-muted-foreground">No config for this block.</p>;
   }
 }
@@ -1076,6 +890,7 @@ export interface PageBuilderCanvasProps {
   sections: Section[];
   onSectionsChange: (sections: Section[]) => void;
   categories: Category[];
+  issues?: IssueOption[];
   title: string;
   backHref: string;
   previewHref?: string;
@@ -1085,7 +900,7 @@ export interface PageBuilderCanvasProps {
 }
 
 export function PageBuilderCanvas({
-  sections, onSectionsChange, categories,
+  sections, onSectionsChange, categories, issues,
   title, backHref, previewHref,
   onSave, saving, savedOk,
 }: PageBuilderCanvasProps) {
@@ -1264,7 +1079,7 @@ export function PageBuilderCanvas({
                 </div>
                 <button type="button" onClick={() => setSelectedId(null)} className="p-1 rounded hover:bg-muted text-muted-foreground"><X className="h-4 w-4" /></button>
               </div>
-              <SectionConfigForm section={selectedSection} onChange={(config) => updateConfig(selectedSection.id, config)} categories={categories} />
+              <SectionConfigForm section={selectedSection} onChange={(config) => updateConfig(selectedSection.id, config)} categories={categories} issues={issues} />
             </div>
           )}
         </div>

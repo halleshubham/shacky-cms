@@ -1,22 +1,40 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
+import { randomUUID } from 'node:crypto';
 import { prisma } from '../plugins/prisma.js';
 import { authenticate, requireRoles } from '../middleware/auth.js';
 import {
   generateNewsletterHtml,
   generateWhatsAppDigest,
   generateWhatsAppChannelMessages,
+  getNewsletterSettings,
+  type EmailBlock,
 } from '../services/newsletter.js';
 import { sendMail, getEmailConfig } from '../services/email.js';
 import { sendMessagesToGroups } from '../services/botsab.js';
 import { audit } from '../utils/audit.js';
+
+const emailBlockSchema = z.object({
+  id: z.string(),
+  type: z.string(),
+  config: z.record(z.any()),
+});
 
 const campaignBodySchema = z.object({
   name: z.string().min(1),
   issueId: z.string(),
   subscriberListId: z.string(),
   scheduledAt: z.string().datetime().optional(),
+  blocks: z.array(emailBlockSchema).optional(),
 });
+
+export function defaultCampaignBlocks(subscribeUrl: string): EmailBlock[] {
+  return [
+    { id: randomUUID(), type: 'issue_header', config: { showLogo: true, showTagline: true, showIssueMeta: true, showEditors: true } },
+    { id: randomUUID(), type: 'issue_articles', config: { coverCount: 1, showImages: true, showExcerpt: true, excerptLength: 150 } },
+    { id: randomUUID(), type: 'button_row', config: { buttons: [{ label: 'Subscribe for Free', url: subscribeUrl, variant: 'primary', newTab: false }], align: 'center' } },
+  ];
+}
 
 const canManage = requireRoles('superadmin', 'editor', 'subscriber_manager');
 
@@ -57,12 +75,18 @@ const campaignsRoutes: FastifyPluginAsync = async (fastify) => {
   // POST /campaigns
   fastify.post('/', { preHandler: [authenticate, canManage] }, async (req, reply) => {
     const body = campaignBodySchema.parse(req.body);
+    let blocks = body.blocks;
+    if (!blocks || blocks.length === 0) {
+      const settings = await getNewsletterSettings();
+      blocks = defaultCampaignBlocks(settings.subscribeUrl);
+    }
     const campaign = await prisma.campaign.create({
       data: {
         name: body.name,
         issueId: body.issueId,
         subscriberListId: body.subscriberListId,
         scheduledAt: body.scheduledAt ? new Date(body.scheduledAt) : null,
+        blocks: blocks as any,
       },
     });
     await audit(req, 'campaign.created', { entity: 'campaign', entityId: campaign.id });
@@ -85,6 +109,7 @@ const campaignsRoutes: FastifyPluginAsync = async (fastify) => {
         ...(body.issueId && { issueId: body.issueId }),
         ...(body.subscriberListId && { subscriberListId: body.subscriberListId }),
         ...(body.scheduledAt !== undefined && { scheduledAt: body.scheduledAt ? new Date(body.scheduledAt) : null }),
+        ...(body.blocks !== undefined && { blocks: body.blocks as any }),
       },
     });
     await audit(req, 'campaign.updated', { entity: 'campaign', entityId: id });
@@ -102,9 +127,24 @@ const campaignsRoutes: FastifyPluginAsync = async (fastify) => {
     const issue = await fetchIssueWithPosts(campaign.issueId);
     if (!issue) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Issue not found' });
 
-    const html = await generateNewsletterHtml(issue, { subscriberToken: 'test-preview' });
+    const html = await generateNewsletterHtml(issue, { subscriberToken: 'test-preview' }, campaign.blocks as any);
     await sendMail({ to: email, subject: `[TEST] ${issue.title}`, html });
     return reply.send({ success: true, sentTo: email });
+  });
+
+  // POST /campaigns/:id/preview-blocks — render draft (unsaved) blocks for the builder's live preview
+  fastify.post('/:id/preview-blocks', { preHandler: [authenticate, canManage] }, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const { blocks } = z.object({ blocks: z.array(emailBlockSchema) }).parse(req.body);
+
+    const campaign = await prisma.campaign.findUnique({ where: { id } });
+    if (!campaign) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Not found' });
+
+    const issue = await fetchIssueWithPosts(campaign.issueId);
+    if (!issue) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Issue not found' });
+
+    const html = await generateNewsletterHtml(issue as any, { subscriberToken: 'preview-token' }, blocks as any);
+    return reply.send({ html });
   });
 
   // GET /campaigns/:id/newsletter — return HTML for copy-paste
@@ -116,7 +156,7 @@ const campaignsRoutes: FastifyPluginAsync = async (fastify) => {
     const issue = await fetchIssueWithPosts(campaign.issueId);
     if (!issue) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Issue not found' });
 
-    const html = await generateNewsletterHtml(issue, { subscriberToken: 'preview-token' });
+    const html = await generateNewsletterHtml(issue, { subscriberToken: 'preview-token' }, campaign.blocks as any);
 
     // Cache on the campaign record
     if (campaign.htmlContent !== html) {
@@ -135,7 +175,7 @@ const campaignsRoutes: FastifyPluginAsync = async (fastify) => {
     const issue = await fetchIssueWithPosts(campaign.issueId);
     if (!issue) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Issue not found' });
 
-    const html = await generateNewsletterHtml(issue, { subscriberToken: 'preview-token' });
+    const html = await generateNewsletterHtml(issue, { subscriberToken: 'preview-token' }, campaign.blocks as any);
 
     if (campaign.htmlContent !== html) {
       await prisma.campaign.update({ where: { id }, data: { htmlContent: html } });
@@ -188,7 +228,7 @@ const campaignsRoutes: FastifyPluginAsync = async (fastify) => {
     let sent = 0;
     for (const sub of subscribers) {
       try {
-        const html = await generateNewsletterHtml(issue as any, { subscriberToken: sub.unsubscribeToken });
+        const html = await generateNewsletterHtml(issue as any, { subscriberToken: sub.unsubscribeToken }, campaign.blocks as any);
         await sendMail({ to: sub.email!, subject: issue!.title, html }, emailCfg);
         sent++;
       } catch (err) {

@@ -17,6 +17,8 @@ interface PublicHeaderProps {
   siteTitle?: string;
   siteLogo?: string;
   showTitle?: boolean;
+  tagline?: string;
+  editors?: string[];
   settings?: Pick<SiteSettings, 'social_facebook' | 'social_instagram' | 'social_whatsapp' | 'social_telegram' | 'social_youtube' | 'social_x'>;
 }
 
@@ -184,7 +186,7 @@ function MobileNavItem({ item, onClose }: { item: ResolvedItem; onClose: () => v
 export function PublicHeader({
   navItems, categories,
   siteTitle = 'Shacky CMS',
-  siteLogo, showTitle = false, settings,
+  siteLogo, showTitle = false, tagline, editors, settings,
 }: PublicHeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -234,6 +236,14 @@ export function PublicHeader({
             </button>
           </div>
         </div>
+
+        {(tagline || (editors && editors.length > 0)) && (
+          <div className="pb-2 -mt-1 text-xs text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-0.5">
+            {tagline && <span className="italic">{tagline}</span>}
+            {tagline && editors && editors.length > 0 && <span className="opacity-50">&middot;</span>}
+            {editors && editors.length > 0 && <span>{editors.join(' · ')}</span>}
+          </div>
+        )}
 
         {searchOpen && (
           <div className="pb-3">

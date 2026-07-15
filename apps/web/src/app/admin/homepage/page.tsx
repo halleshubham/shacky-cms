@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { PageBuilderCanvas, type Category } from '@/components/admin/PageBuilderCanvas';
+import type { IssueOption } from '@/components/admin/blocks/IssueArticlesBlock';
 import { api } from '@/lib/api';
 import type { Section } from '@/lib/page-builder';
 import toast from 'react-hot-toast';
@@ -8,6 +9,7 @@ import toast from 'react-hot-toast';
 export default function HomepageBuilderPage() {
   const [sections, setSections] = useState<Section[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [issues, setIssues] = useState<IssueOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savedOk, setSavedOk] = useState(false);
@@ -16,7 +18,8 @@ export default function HomepageBuilderPage() {
     Promise.all([
       api.get<any>('/api/settings'),
       api.get<any>('/api/categories').catch(() => ({ data: [] })),
-    ]).then(([raw, cats]) => {
+      api.get<any>('/api/issues?pageSize=50').catch(() => ({ data: [] })),
+    ]).then(([raw, cats, issueData]) => {
       if (raw.homepage_sections) {
         try {
           const parsed = JSON.parse(raw.homepage_sections);
@@ -24,6 +27,7 @@ export default function HomepageBuilderPage() {
         } catch { /* empty */ }
       }
       setCategories((cats.data ?? cats ?? []).filter((c: any) => !c.parentId));
+      setIssues((issueData.data ?? issueData ?? []).map((i: any) => ({ id: i.id, title: i.title })));
     }).finally(() => setLoading(false));
   }, []);
 
@@ -46,6 +50,7 @@ export default function HomepageBuilderPage() {
       sections={sections}
       onSectionsChange={setSections}
       categories={categories}
+      issues={issues}
       title="Homepage Builder"
       backHref="/admin"
       previewHref="/"

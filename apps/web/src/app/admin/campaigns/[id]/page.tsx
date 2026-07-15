@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import {
-  ArrowLeft, Send, MessageSquare, Copy, Check,
+  ArrowLeft, Send, MessageSquare, Copy, Check, Pencil,
   FlaskConical, Mail, ChevronLeft, ChevronRight, Loader2, CheckCircle2, AlertCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -241,15 +241,22 @@ export default function CampaignDetailPage() {
             <CardTitle className="text-base flex items-center gap-2">
               <Mail className="h-4 w-4" /> HTML Newsletter
             </CardTitle>
-            <Button
-              onClick={copyNewsletter}
-              disabled={!newsletterHtml}
-              size="sm"
-              className="gap-2"
-            >
-              {copiedHtml ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-              {copiedHtml ? 'Copied!' : 'Copy Newsletter'}
-            </Button>
+            <div className="flex items-center gap-2">
+              {campaign.status !== 'sent' && (
+                <Button variant="outline" size="sm" className="gap-2" asChild>
+                  <Link href={`/admin/campaigns/${id}/builder`}><Pencil className="h-4 w-4" /> Edit Content</Link>
+                </Button>
+              )}
+              <Button
+                onClick={copyNewsletter}
+                disabled={!newsletterHtml}
+                size="sm"
+                className="gap-2"
+              >
+                {copiedHtml ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                {copiedHtml ? 'Copied!' : 'Copy Newsletter'}
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
