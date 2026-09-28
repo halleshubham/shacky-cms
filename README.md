@@ -27,13 +27,18 @@ Write → Ingest → Publish → Send — all in one place.
 | Feature | Description |
 |---|---|
 | **Rich editor** | TipTap-based editor with an AI writing panel, inline formatting, and image embeds |
+| **Visual page builder** | Drag-and-drop block canvas for the homepage and any custom page — Hero, Post Grid, Category Row, Latest Issue, Issue Articles, Columns, Image Gallery, File Downloads, Buttons, Rich Text, Heading, Divider, Spacer, HTML Embed |
+| **Campaign email builder** | The same drag-and-drop block system, retargeted for email — Masthead, Issue Articles, rich text, buttons, images — with an unsubscribe footer auto-appended and an on-demand HTML preview |
+| **Navigation menus** | Header & footer menu builder — link to categories, tags, or pages, with dropdown submenus |
 | **DOCX ingest** | Upload a ZIP of `.docx` files — articles are parsed, images extracted, and AI enhancements queued automatically |
 | **AI pipeline** | Provider-agnostic: OpenAI, Gemini, Ollama, or Groq — auto-categorisation, tag generation, featured image creation / stock image search |
 | **Issues & campaigns** | Group posts into magazine-style issues, then send them as email or WhatsApp campaigns to subscriber lists |
 | **Subscribers & forms** | Embeddable subscription forms with entries inbox, CSV export, and bulk actions; email + WhatsApp channels |
 | **MCP server** | Expose your CMS to AI agents via the [Model Context Protocol](https://modelcontextprotocol.io/) with full OAuth2 + PKCE |
 | **n8n automation** | Ready-made workflow: Gmail → ingest → publish → campaign, zero manual steps |
-| **WordPress import** | One-click import from an existing WordPress site; publish posts back to WordPress |
+| **WordPress migration** | Full-site import from an existing WordPress site — posts, authors, categories, tags and media, with legacy URL redirects and year-based volume/issue rollover; publish posts back to WordPress |
+| **Browser translation** | Reader-facing language switcher (Google Translate) with a machine-translation disclaimer |
+| **Text-to-speech** | Browser-native "listen to this article" playback on article pages |
 | **Application Passwords** | Stateless bearer tokens for headless/API access — create and revoke from Admin → Integrations |
 | **Built-in API docs** | Interactive API reference at `/admin/integrations/api-docs` with copy-paste curl commands |
 | **Webhooks** | Outbound events on post publish, configurable per integration |
