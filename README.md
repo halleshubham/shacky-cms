@@ -2,8 +2,10 @@
 
 # Shacky CMS
 
-**A fast, self-hosted headless CMS built for modern publishing workflows.**  
+**A fast, self-hosted CMS built for modern publishing workflows.**  
 Write → Ingest → Publish → Send — all in one place.
+
+🌐 [shackyapps.in/apps/shacky-cms.html](https://shackyapps.in/apps/shacky-cms.html)
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Fastify](https://img.shields.io/badge/Fastify-4.x-000000?logo=fastify&logoColor=white)](https://fastify.dev/)
