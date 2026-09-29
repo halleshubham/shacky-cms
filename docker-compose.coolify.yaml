@@ -35,20 +35,16 @@ services:
     command: server -dir=/data -ip=minio -master.port=9333 -volume.port=8080 -filer -filer.port=8888 -s3 -s3.port=9000
     volumes:
       - minio_data:/data
-    healthcheck:
-      test: ['CMD', 'wget', '-q', '-O', '-', 'http://localhost:9333/cluster/status']
-      interval: 10s
-      timeout: 5s
-      retries: 10
 
   minio_init:
     image: amazon/aws-cli:latest
     restart: 'no'
     depends_on:
       minio:
-        condition: service_healthy
+        condition: service_started
     entrypoint: >
       /bin/sh -c "
+      sleep 5;
       aws --endpoint-url http://minio:9000 s3 mb s3://shacky-media || true;
       exit 0;
       "
@@ -68,7 +64,7 @@ services:
       redis:
         condition: service_healthy
       minio:
-        condition: service_healthy
+        condition: service_started
     environment:
       NODE_ENV: production
       PORT: 4000
