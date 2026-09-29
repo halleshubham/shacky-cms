@@ -25,34 +25,37 @@ services:
       timeout: 5s
       retries: 10
 
+  # MinIO's own images (minio/minio, minio/mc) were pulled from Docker Hub, quay.io
+  # and GHCR in 2025 — none are pullable anonymously anymore. SeaweedFS's S3 gateway
+  # is an actively-maintained, freely-pullable drop-in (app talks to it purely via
+  # the generic S3 SDK, so no code changes needed — see apps/api/src/utils/s3.ts).
   minio:
-    image: minio/minio:latest
+    image: chrislusf/seaweedfs:latest
     restart: unless-stopped
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    command: server -dir=/data -ip=minio -master.port=9333 -volume.port=8080 -filer -filer.port=8888 -s3 -s3.port=9000
     volumes:
       - minio_data:/data
     healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:9000/minio/health/live']
+      test: ['CMD', 'wget', '-q', '-O', '-', 'http://localhost:9333/cluster/status']
       interval: 10s
       timeout: 5s
       retries: 10
 
   minio_init:
-    image: minio/mc:latest
+    image: amazon/aws-cli:latest
     restart: 'no'
     depends_on:
       minio:
         condition: service_healthy
     entrypoint: >
       /bin/sh -c "
-      mc alias set local http://minio:9000 ${MINIO_ROOT_USER:-minioadmin} ${MINIO_ROOT_PASSWORD:-minioadmin};
-      mc mb --ignore-existing local/shacky-media;
-      mc anonymous set download local/shacky-media;
+      aws --endpoint-url http://minio:9000 s3 mb s3://shacky-media || true;
       exit 0;
       "
+    environment:
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      AWS_DEFAULT_REGION: us-east-1
 
   api:
     build:
