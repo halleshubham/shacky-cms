@@ -70,6 +70,16 @@ cp .env.example .env          # fill in JWT_ACCESS_SECRET, JWT_REFRESH_SECRET, A
 docker compose up --build
 ```
 
+### Option C — Coolify (or another host running multiple instances on one box)
+
+`docker-compose.yaml` publishes fixed host ports (3000, 4000, 9000, 9001), which is fine for a
+single instance but collides if a second `shacky-cms` deployment lands on the same server.
+`docker-compose.coolify.yaml` is the same stack with those host port bindings removed — the
+reverse proxy (e.g. Coolify's Traefik) reaches the `web` service over the platform-managed
+Docker network instead. Point your Coolify application's compose file at
+`docker-compose.coolify.yaml`, one deployment per domain, each with its own env vars
+(`APP_URL`, `POSTGRES_*`, `MINIO_ROOT_*`, `JWT_*_SECRET`, `S3_PUBLIC_URL` as `https://<domain>/s3`).
+
 App is at **http://localhost:3000** · API at **http://localhost:4000**
 
 ### Option B — Local dev (recommended for development)
