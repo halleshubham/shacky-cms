@@ -15,6 +15,12 @@ export const s3 = new S3Client({
     secretAccessKey: env.S3_SECRET_KEY,
   },
   forcePathStyle: true,
+  // AWS SDK v3 defaults to sending/validating flexible-checksum trailers
+  // (x-amz-checksum-*) on every request since ~3.729 — many S3-compatible servers
+  // (SeaweedFS included) don't support them and reject the request outright. Only
+  // compute/validate checksums when an operation actually requires one.
+  requestChecksumCalculation: 'WHEN_REQUIRED',
+  responseChecksumValidation: 'WHEN_REQUIRED',
 });
 
 export async function uploadToS3(
