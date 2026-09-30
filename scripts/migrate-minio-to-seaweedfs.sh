@@ -16,12 +16,19 @@ set -u
 BUCKET="${S3_BUCKET:-shacky-media}"
 RESULT=/tmp/result.txt
 
+# force_path_style is explicit here (not left to provider defaults) — the app's own
+# S3 client (apps/api/src/utils/s3.ts) sets forcePathStyle:true because these are
+# self-hosted endpoints with no real DNS entry for virtual-hosted-style bucket
+# subdomains (e.g. shacky-media.minio); relying on rclone's default guess for this
+# was the likely cause of an earlier silent hang (DNS lookup for a name that
+# doesn't exist has no fast failure mode).
 export RCLONE_CONFIG_OLD_TYPE=s3
 export RCLONE_CONFIG_OLD_PROVIDER=Minio
 export RCLONE_CONFIG_OLD_ACCESS_KEY_ID="$MINIO_ROOT_USER"
 export RCLONE_CONFIG_OLD_SECRET_ACCESS_KEY="$MINIO_ROOT_PASSWORD"
 export RCLONE_CONFIG_OLD_ENDPOINT="$OLD_S3_ENDPOINT"
 export RCLONE_CONFIG_OLD_REGION=us-east-1
+export RCLONE_CONFIG_OLD_FORCE_PATH_STYLE=true
 
 export RCLONE_CONFIG_NEW_TYPE=s3
 export RCLONE_CONFIG_NEW_PROVIDER=Other
@@ -29,37 +36,46 @@ export RCLONE_CONFIG_NEW_ACCESS_KEY_ID="$MINIO_ROOT_USER"
 export RCLONE_CONFIG_NEW_SECRET_ACCESS_KEY="$MINIO_ROOT_PASSWORD"
 export RCLONE_CONFIG_NEW_ENDPOINT="$NEW_S3_ENDPOINT"
 export RCLONE_CONFIG_NEW_REGION=us-east-1
+export RCLONE_CONFIG_NEW_FORCE_PATH_STYLE=true
+
+# Never let a single rclone call hang the whole job silently — 45s is generous for
+# a size/copyto on a small object, and the sync/check calls below get their own
+# longer budget.
+timeout_short() { timeout 45 "$@"; }
+
+publish() { timeout_short rclone copyto "$RESULT" old:"$BUCKET/_migration-check/result.txt" 2>>"$RESULT" || true; }
 
 # Checkpoint immediately, before the (potentially slow) sync — lets us tell "still
 # copying" apart from "never started" without any container log access.
 echo "Migration started: $(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$RESULT"
 echo "--- source (old) ---" >> "$RESULT"
-rclone size old:"$BUCKET" >> "$RESULT" 2>&1 || echo "(could not size old bucket)" >> "$RESULT"
-rclone copyto "$RESULT" old:"$BUCKET/_migration-check/result.txt" || true
+timeout_short rclone size old:"$BUCKET" >> "$RESULT" 2>&1 || echo "(could not size old bucket)" >> "$RESULT"
+publish
 
 echo "--- syncing old -> new ---" >> "$RESULT"
-if rclone sync old:"$BUCKET" new:"$BUCKET" -v >> "$RESULT" 2>&1; then
+if timeout 1500 rclone sync old:"$BUCKET" new:"$BUCKET" -v >> "$RESULT" 2>&1; then
   echo "SYNC_OK" >> "$RESULT"
 else
-  echo "SYNC_FAILED" >> "$RESULT"
+  echo "SYNC_FAILED (exit $?)" >> "$RESULT"
 fi
-rclone copyto "$RESULT" old:"$BUCKET/_migration-check/result.txt" || true
+publish
 
 echo "--- destination (new) ---" >> "$RESULT"
-rclone size new:"$BUCKET" >> "$RESULT" 2>&1 || echo "(could not size new bucket)" >> "$RESULT"
+timeout_short rclone size new:"$BUCKET" >> "$RESULT" 2>&1 || echo "(could not size new bucket)" >> "$RESULT"
+publish
 
 echo "--- check (old vs new) ---" >> "$RESULT"
-if rclone check old:"$BUCKET" new:"$BUCKET" >> "$RESULT" 2>&1; then
+if timeout 300 rclone check old:"$BUCKET" new:"$BUCKET" >> "$RESULT" 2>&1; then
   echo "CHECK_PASSED" >> "$RESULT"
   STATUS=0
 else
-  echo "CHECK_FAILED" >> "$RESULT"
+  echo "CHECK_FAILED (exit $?)" >> "$RESULT"
   STATUS=1
 fi
 
 echo "Migration finished: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$RESULT"
 cat "$RESULT"
 
-rclone copyto "$RESULT" old:"$BUCKET/_migration-check/result.txt" || true
+publish
 
 exit "$STATUS"
