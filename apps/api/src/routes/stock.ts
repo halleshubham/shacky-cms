@@ -5,7 +5,11 @@ import { uploadToS3, s3 } from '../utils/s3.js';
 import { env } from '../utils/env.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
 import { createId } from '@paralleldrive/cuid2';
-import { HeadBucketCommand, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { HeadBucketCommand, PutObjectCommand, GetObjectCommand, CreateBucketCommand } from '@aws-sdk/client-s3';
+
+function describeS3Error(e: any) {
+  return `${e?.name}: ${e?.message} (code=${e?.Code ?? e?.code}, http=${e?.$metadata?.httpStatusCode}, fault=${e?.$fault})`;
+}
 import {
   type StockPhoto,
   getStockKeys,
@@ -26,22 +30,28 @@ const stockRoutes: FastifyPluginAsync = async (fastify) => {
     const out: Record<string, string> = {};
     try {
       try {
+        await s3.send(new CreateBucketCommand({ Bucket: env.S3_BUCKET }));
+        out.createBucket = 'ok';
+      } catch (e: any) {
+        out.createBucket = describeS3Error(e);
+      }
+      try {
         await s3.send(new HeadBucketCommand({ Bucket: env.S3_BUCKET }));
         out.headBucket = 'ok';
       } catch (e: any) {
-        out.headBucket = `${e.name}: ${e.message}`;
+        out.headBucket = describeS3Error(e);
       }
       try {
         await s3.send(new PutObjectCommand({ Bucket: env.S3_BUCKET, Key: '_debug/ping.txt', Body: Buffer.from('ping'), ContentType: 'text/plain' }));
         out.putObject = 'ok';
       } catch (e: any) {
-        out.putObject = `${e.name}: ${e.message}`;
+        out.putObject = describeS3Error(e);
       }
       try {
         const res = await s3.send(new GetObjectCommand({ Bucket: env.S3_BUCKET, Key: '_debug/ping.txt' }));
         out.getObject = `ok (${res.ContentLength} bytes)`;
       } catch (e: any) {
-        out.getObject = `${e.name}: ${e.message}`;
+        out.getObject = describeS3Error(e);
       }
       out.s3Endpoint = env.S3_ENDPOINT;
       out.s3Bucket = env.S3_BUCKET;
