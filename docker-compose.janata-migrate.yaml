@@ -103,16 +103,41 @@ services:
         condition: service_healthy
       seaweedfs_init:
         condition: service_completed_successfully
-    entrypoint: ['timeout', '2400', '/bin/sh', '/migrate.sh']
     volumes:
-      - ./scripts/migrate-minio-to-seaweedfs.sh:/migrate.sh:ro
       - staging_data:/staging
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      AWS_DEFAULT_REGION: us-east-1
       OLD_S3_ENDPOINT: http://minio:9000
       NEW_S3_ENDPOINT: http://seaweedfs:9000
       S3_BUCKET: shacky-media
+    # Inline rather than a mounted script file — every prior migration attempt
+    # (rclone-based and aws-cli-based alike) produced zero output at all, including
+    # from steps with their own short timeouts, which a bad bind-mount path would
+    # also explain (unlike seaweedfs_init's inline /bin/sh -c, this service's mount
+    # was never independently confirmed to work). Inlining removes that variable.
+    entrypoint: >
+      /bin/sh -c "
+      RESULT=/tmp/result.txt;
+      mkdir -p /staging;
+      echo 'Migration started: '$$(date -u +%Y-%m-%dT%H:%M:%SZ) > $$RESULT;
+      echo '--- source (old) summary ---' >> $$RESULT;
+      timeout 60 aws --endpoint-url $$OLD_S3_ENDPOINT s3 ls s3://$$S3_BUCKET --recursive --summarize >> $$RESULT 2>&1 || echo '(could not summarize old bucket)' >> $$RESULT;
+      timeout 45 aws --endpoint-url $$OLD_S3_ENDPOINT s3 cp $$RESULT s3://$$S3_BUCKET/_migration-check/result.txt >> $$RESULT 2>&1;
+      echo '--- downloading old -> /staging ---' >> $$RESULT;
+      if timeout 1200 aws --endpoint-url $$OLD_S3_ENDPOINT s3 sync s3://$$S3_BUCKET /staging >> $$RESULT 2>&1; then echo DOWNLOAD_OK >> $$RESULT; else echo DOWNLOAD_FAILED >> $$RESULT; fi;
+      timeout 45 aws --endpoint-url $$OLD_S3_ENDPOINT s3 cp $$RESULT s3://$$S3_BUCKET/_migration-check/result.txt >> $$RESULT 2>&1;
+      echo '--- uploading /staging -> new ---' >> $$RESULT;
+      if timeout 1200 aws --endpoint-url $$NEW_S3_ENDPOINT s3 sync /staging s3://$$S3_BUCKET >> $$RESULT 2>&1; then echo UPLOAD_OK >> $$RESULT; STATUS=0; else echo UPLOAD_FAILED >> $$RESULT; STATUS=1; fi;
+      timeout 45 aws --endpoint-url $$OLD_S3_ENDPOINT s3 cp $$RESULT s3://$$S3_BUCKET/_migration-check/result.txt >> $$RESULT 2>&1;
+      echo '--- destination (new) summary ---' >> $$RESULT;
+      timeout 60 aws --endpoint-url $$NEW_S3_ENDPOINT s3 ls s3://$$S3_BUCKET --recursive --summarize >> $$RESULT 2>&1 || echo '(could not summarize new bucket)' >> $$RESULT;
+      echo 'Migration finished: '$$(date -u +%Y-%m-%dT%H:%M:%SZ) >> $$RESULT;
+      timeout 45 aws --endpoint-url $$OLD_S3_ENDPOINT s3 cp $$RESULT s3://$$S3_BUCKET/_migration-check/result.txt >> $$RESULT 2>&1;
+      cat $$RESULT;
+      exit $$STATUS;
+      "
 
   # UNCHANGED — still serving from the old "minio" service throughout this phase.
   api:
