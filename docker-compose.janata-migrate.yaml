@@ -89,6 +89,30 @@ services:
       AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
       AWS_DEFAULT_REGION: us-east-1
 
+  # TEMP diagnostic: isolates whether reaching the old bucket from a *different*
+  # container hangs specifically in rclone, or is a broader issue — aws-cli is
+  # already proven reliable in this environment (seaweedfs_init uses it
+  # successfully every deploy). Remove once migrate_to_seaweedfs is unblocked.
+  aws_debug:
+    image: amazon/aws-cli:latest
+    restart: 'no'
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      timeout 30 aws --endpoint-url http://minio:9000 s3 ls s3://shacky-media > /tmp/out.txt 2>&1;
+      echo \"ls exit: $$?\" >> /tmp/out.txt;
+      echo hello > /tmp/hello.txt;
+      timeout 30 aws --endpoint-url http://minio:9000 s3 cp /tmp/hello.txt s3://shacky-media/_migration-check/aws-debug.txt >> /tmp/out.txt 2>&1;
+      echo \"cp exit: $$?\" >> /tmp/out.txt;
+      cat /tmp/out.txt;
+      "
+    environment:
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      AWS_DEFAULT_REGION: us-east-1
+
   # One-shot: copies every object from the old bucket to the new one, verifies the
   # copy, and writes a result file back into the OLD bucket for easy checking.
   migrate_to_seaweedfs:
