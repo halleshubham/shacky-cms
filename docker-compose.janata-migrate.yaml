@@ -89,34 +89,14 @@ services:
       AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
       AWS_DEFAULT_REGION: us-east-1
 
-  # TEMP diagnostic: isolates whether reaching the old bucket from a *different*
-  # container hangs specifically in rclone, or is a broader issue — aws-cli is
-  # already proven reliable in this environment (seaweedfs_init uses it
-  # successfully every deploy). Remove once migrate_to_seaweedfs is unblocked.
-  aws_debug:
-    image: amazon/aws-cli:latest
-    restart: 'no'
-    depends_on:
-      minio:
-        condition: service_healthy
-    entrypoint: >
-      /bin/sh -c "
-      timeout 30 aws --endpoint-url http://minio:9000 s3 ls s3://shacky-media > /tmp/out.txt 2>&1;
-      echo \"ls exit: $$?\" >> /tmp/out.txt;
-      echo hello > /tmp/hello.txt;
-      timeout 30 aws --endpoint-url http://minio:9000 s3 cp /tmp/hello.txt s3://shacky-media/_migration-check/aws-debug.txt >> /tmp/out.txt 2>&1;
-      echo \"cp exit: $$?\" >> /tmp/out.txt;
-      cat /tmp/out.txt;
-      "
-    environment:
-      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
-      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
-      AWS_DEFAULT_REGION: us-east-1
-
-  # One-shot: copies every object from the old bucket to the new one, verifies the
-  # copy, and writes a result file back into the OLD bucket for easy checking.
+  # One-shot: copies every object from the old bucket to the new one via a local
+  # staging directory (download then upload — aws-cli only talks to one endpoint
+  # per invocation), verifies the copy, and writes a result file back into the OLD
+  # bucket for easy checking. Uses aws-cli, not rclone: rclone hung with zero
+  # output against this exact bucket for reasons never root-caused, while a
+  # minimal aws-cli diagnostic reached it from a fresh container in seconds.
   migrate_to_seaweedfs:
-    image: rclone/rclone:latest
+    image: amazon/aws-cli:latest
     restart: 'no'
     depends_on:
       minio:
@@ -126,6 +106,7 @@ services:
     entrypoint: ['timeout', '2400', '/bin/sh', '/migrate.sh']
     volumes:
       - ./scripts/migrate-minio-to-seaweedfs.sh:/migrate.sh:ro
+      - staging_data:/staging
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
@@ -196,3 +177,4 @@ volumes:
   redis_data:
   minio_data:
   seaweed_data:
+  staging_data:
