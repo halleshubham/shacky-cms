@@ -1,13 +1,16 @@
 #!/bin/sh
 # Copies every object from the old MinIO-backed bucket to the new SeaweedFS-backed
-# bucket, verifies the copy, and writes a readable result file back into the OLD
-# bucket at _migration-check/result.txt — fetchable via the site's existing public
-# /s3/ proxy (no log access needed to check the outcome).
+# bucket via a local staging directory (download then upload), verifies the copy,
+# and writes a readable result file back into the OLD bucket at
+# _migration-check/result.txt — fetchable via the site's existing public /s3/
+# proxy (no container log access needed to check the outcome).
 #
-# Remotes are configured entirely via RCLONE_CONFIG_* environment variables rather
-# than `rclone config create`, which writes a config file and can hang or fail
-# silently in a minimal container (no interactive terminal, uncertain $HOME
-# writability) — env vars avoid touching disk for config at all.
+# Uses aws-cli rather than rclone: rclone hung with zero output for 15+ minutes
+# against this exact old bucket for reasons never root-caused, while aws-cli
+# (already used successfully elsewhere in this compose for bucket creation)
+# reached the same bucket from a fresh container in seconds. `aws s3 sync`
+# only talks to one endpoint per invocation, hence the two-step staging approach
+# instead of a direct bucket-to-bucket sync.
 #
 # Expects: OLD_S3_ENDPOINT, NEW_S3_ENDPOINT, MINIO_ROOT_USER, MINIO_ROOT_PASSWORD,
 # S3_BUCKET (all passed in as env vars by the compose service).
@@ -15,63 +18,44 @@ set -u
 
 BUCKET="${S3_BUCKET:-shacky-media}"
 RESULT=/tmp/result.txt
+STAGING=/staging
 
-# force_path_style is explicit here (not left to provider defaults) — the app's own
-# S3 client (apps/api/src/utils/s3.ts) sets forcePathStyle:true because these are
-# self-hosted endpoints with no real DNS entry for virtual-hosted-style bucket
-# subdomains (e.g. shacky-media.minio); relying on rclone's default guess for this
-# was the likely cause of an earlier silent hang (DNS lookup for a name that
-# doesn't exist has no fast failure mode).
-export RCLONE_CONFIG_OLD_TYPE=s3
-export RCLONE_CONFIG_OLD_PROVIDER=Minio
-export RCLONE_CONFIG_OLD_ACCESS_KEY_ID="$MINIO_ROOT_USER"
-export RCLONE_CONFIG_OLD_SECRET_ACCESS_KEY="$MINIO_ROOT_PASSWORD"
-export RCLONE_CONFIG_OLD_ENDPOINT="$OLD_S3_ENDPOINT"
-export RCLONE_CONFIG_OLD_REGION=us-east-1
-export RCLONE_CONFIG_OLD_FORCE_PATH_STYLE=true
+export AWS_ACCESS_KEY_ID="$MINIO_ROOT_USER"
+export AWS_SECRET_ACCESS_KEY="$MINIO_ROOT_PASSWORD"
+export AWS_DEFAULT_REGION=us-east-1
 
-export RCLONE_CONFIG_NEW_TYPE=s3
-export RCLONE_CONFIG_NEW_PROVIDER=Other
-export RCLONE_CONFIG_NEW_ACCESS_KEY_ID="$MINIO_ROOT_USER"
-export RCLONE_CONFIG_NEW_SECRET_ACCESS_KEY="$MINIO_ROOT_PASSWORD"
-export RCLONE_CONFIG_NEW_ENDPOINT="$NEW_S3_ENDPOINT"
-export RCLONE_CONFIG_NEW_REGION=us-east-1
-export RCLONE_CONFIG_NEW_FORCE_PATH_STYLE=true
+publish() { timeout 45 aws --endpoint-url "$OLD_S3_ENDPOINT" s3 cp "$RESULT" "s3://$BUCKET/_migration-check/result.txt" >>"$RESULT" 2>&1 || true; }
 
-# Never let a single rclone call hang the whole job silently — 45s is generous for
-# a size/copyto on a small object, and the sync/check calls below get their own
-# longer budget.
-timeout_short() { timeout 45 "$@"; }
+mkdir -p "$STAGING"
 
-publish() { timeout_short rclone copyto "$RESULT" old:"$BUCKET/_migration-check/result.txt" 2>>"$RESULT" || true; }
-
-# Checkpoint immediately, before the (potentially slow) sync — lets us tell "still
-# copying" apart from "never started" without any container log access.
 echo "Migration started: $(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$RESULT"
-echo "--- source (old) ---" >> "$RESULT"
-timeout_short rclone size old:"$BUCKET" >> "$RESULT" 2>&1 || echo "(could not size old bucket)" >> "$RESULT"
+
+echo "--- source (old) summary ---" >> "$RESULT"
+timeout 60 aws --endpoint-url "$OLD_S3_ENDPOINT" s3 ls "s3://$BUCKET" --recursive --summarize >> "$RESULT" 2>&1 \
+  || echo "(could not summarize old bucket)" >> "$RESULT"
 publish
 
-echo "--- syncing old -> new ---" >> "$RESULT"
-if timeout 1500 rclone sync old:"$BUCKET" new:"$BUCKET" -v >> "$RESULT" 2>&1; then
-  echo "SYNC_OK" >> "$RESULT"
+echo "--- downloading old -> $STAGING ---" >> "$RESULT"
+if timeout 1200 aws --endpoint-url "$OLD_S3_ENDPOINT" s3 sync "s3://$BUCKET" "$STAGING" >> "$RESULT" 2>&1; then
+  echo "DOWNLOAD_OK" >> "$RESULT"
 else
-  echo "SYNC_FAILED (exit $?)" >> "$RESULT"
+  echo "DOWNLOAD_FAILED (exit $?)" >> "$RESULT"
 fi
 publish
 
-echo "--- destination (new) ---" >> "$RESULT"
-timeout_short rclone size new:"$BUCKET" >> "$RESULT" 2>&1 || echo "(could not size new bucket)" >> "$RESULT"
-publish
-
-echo "--- check (old vs new) ---" >> "$RESULT"
-if timeout 300 rclone check old:"$BUCKET" new:"$BUCKET" >> "$RESULT" 2>&1; then
-  echo "CHECK_PASSED" >> "$RESULT"
+echo "--- uploading $STAGING -> new ---" >> "$RESULT"
+if timeout 1200 aws --endpoint-url "$NEW_S3_ENDPOINT" s3 sync "$STAGING" "s3://$BUCKET" >> "$RESULT" 2>&1; then
+  echo "UPLOAD_OK" >> "$RESULT"
   STATUS=0
 else
-  echo "CHECK_FAILED (exit $?)" >> "$RESULT"
+  echo "UPLOAD_FAILED (exit $?)" >> "$RESULT"
   STATUS=1
 fi
+publish
+
+echo "--- destination (new) summary ---" >> "$RESULT"
+timeout 60 aws --endpoint-url "$NEW_S3_ENDPOINT" s3 ls "s3://$BUCKET" --recursive --summarize >> "$RESULT" 2>&1 \
+  || echo "(could not summarize new bucket)" >> "$RESULT"
 
 echo "Migration finished: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$RESULT"
 cat "$RESULT"
