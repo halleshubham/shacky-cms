@@ -46,7 +46,8 @@ services:
       /bin/sh -c "
       i=0;
       while [ $$i -lt 30 ]; do
-        aws --endpoint-url http://minio:9000 s3 mb s3://shacky-media && exit 0;
+        aws --endpoint-url http://minio:9000 s3 mb s3://shacky-media;
+        aws --endpoint-url http://minio:9000 s3api head-bucket --bucket shacky-media 2>/dev/null && exit 0;
         echo 'shacky-media bucket not ready yet, retrying...';
         i=$$((i+1));
         sleep 2;
