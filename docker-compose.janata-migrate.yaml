@@ -1,3 +1,13 @@
+# TRANSITIONAL compose for migrating janata's live MinIO data to SeaweedFS.
+# Use this ONLY as a one-time deploy step, then switch janata back to
+# docker-compose.coolify.yaml once scripts/migrate-minio-to-seaweedfs.sh reports
+# CHECK_PASSED (see the result file it writes: /s3/shacky-media/_migration-check/result.txt,
+# publicly fetchable through the site's existing /s3/ proxy).
+#
+# api/web are UNCHANGED here — still pointed at the old "minio" service — so the
+# live site keeps working exactly as before while the migration runs in the
+# background. Delete this file once the migration is complete and janata has
+# cut over.
 services:
   postgres:
     image: postgres:16-alpine
@@ -25,28 +35,47 @@ services:
       timeout: 5s
       retries: 10
 
-  # MinIO's own images (minio/minio, minio/mc) were pulled from Docker Hub, quay.io
-  # and GHCR in 2025 — none are pullable anonymously anymore. SeaweedFS's S3 gateway
-  # is an actively-maintained, freely-pullable drop-in (app talks to it purely via
-  # the generic S3 SDK, so no code changes needed — see apps/api/src/utils/s3.ts).
+  # OLD storage — untouched, still serving the live site. pull_policy: never because
+  # minio/minio is no longer pullable at all; this reuses the image already cached
+  # on the host from when janata was first deployed.
   minio:
+    image: minio/minio:latest
+    pull_policy: never
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:9000/minio/health/live']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # NEW storage target — fresh, empty SeaweedFS on its own volume.
+  seaweedfs:
     image: chrislusf/seaweedfs:latest
     restart: unless-stopped
-    command: server -dir=/data -ip=minio -master.port=9333 -volume.port=8080 -filer -filer.port=8888 -s3 -s3.port=9000
+    command: server -dir=/data -ip=seaweedfs -master.port=9333 -volume.port=8080 -filer -filer.port=8888 -s3 -s3.port=9000
     volumes:
       - seaweed_data:/data
 
-  minio_init:
+  seaweedfs_init:
     image: amazon/aws-cli:latest
     restart: 'no'
     depends_on:
-      minio:
+      seaweedfs:
         condition: service_started
     entrypoint: >
       /bin/sh -c "
       i=0;
       while [ $$i -lt 30 ]; do
-        aws --endpoint-url http://minio:9000 s3 mb s3://shacky-media && exit 0;
+        aws --endpoint-url http://seaweedfs:9000 s3 mb s3://shacky-media && exit 0;
         echo 'shacky-media bucket not ready yet, retrying...';
         i=$$((i+1));
         sleep 2;
@@ -59,6 +88,27 @@ services:
       AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
       AWS_DEFAULT_REGION: us-east-1
 
+  # One-shot: copies every object from the old bucket to the new one, verifies the
+  # copy, and writes a result file back into the OLD bucket for easy checking.
+  migrate_to_seaweedfs:
+    image: rclone/rclone:latest
+    restart: 'no'
+    depends_on:
+      minio:
+        condition: service_healthy
+      seaweedfs_init:
+        condition: service_completed_successfully
+    entrypoint: ['/bin/sh', '/migrate.sh']
+    volumes:
+      - ./scripts/migrate-minio-to-seaweedfs.sh:/migrate.sh:ro
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      OLD_S3_ENDPOINT: http://minio:9000
+      NEW_S3_ENDPOINT: http://seaweedfs:9000
+      S3_BUCKET: shacky-media
+
+  # UNCHANGED — still serving from the old "minio" service throughout this phase.
   api:
     build:
       context: .
@@ -70,7 +120,9 @@ services:
       redis:
         condition: service_healthy
       minio:
-        condition: service_started
+        condition: service_healthy
+    ports:
+      - '4000:4000'
     environment:
       NODE_ENV: production
       PORT: 4000
@@ -106,6 +158,8 @@ services:
     depends_on:
       api:
         condition: service_healthy
+    ports:
+      - '3000:3000'
     environment:
       NODE_ENV: production
       PORT: '3000'
@@ -115,4 +169,5 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  minio_data:
   seaweed_data:

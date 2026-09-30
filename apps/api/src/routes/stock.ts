@@ -1,15 +1,9 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../plugins/prisma.js';
-import { uploadToS3, s3 } from '../utils/s3.js';
-import { env } from '../utils/env.js';
-import { authenticate, requireAdmin } from '../middleware/auth.js';
+import { uploadToS3 } from '../utils/s3.js';
+import { authenticate } from '../middleware/auth.js';
 import { createId } from '@paralleldrive/cuid2';
-import { HeadBucketCommand, PutObjectCommand, GetObjectCommand, CreateBucketCommand } from '@aws-sdk/client-s3';
-
-function describeS3Error(e: any) {
-  return `${e?.name}: ${e?.message} (code=${e?.Code ?? e?.code}, http=${e?.$metadata?.httpStatusCode}, fault=${e?.$fault})`;
-}
 import {
   type StockPhoto,
   getStockKeys,
@@ -24,45 +18,6 @@ export type { StockPhoto };
 // ─── Route plugin ─────────────────────────────────────────────────────────────
 
 const stockRoutes: FastifyPluginAsync = async (fastify) => {
-  // TEMP diagnostic route for the SeaweedFS storage migration — remove before
-  // merging to a permanent instance. Admin-only; reports S3 op errors, no secrets.
-  fastify.get('/s3-debug', { preHandler: [authenticate, requireAdmin] }, async (_req, reply) => {
-    const out: Record<string, string> = {};
-    try {
-      try {
-        await s3.send(new CreateBucketCommand({ Bucket: env.S3_BUCKET }));
-        out.createBucket = 'ok';
-      } catch (e: any) {
-        out.createBucket = describeS3Error(e);
-      }
-      try {
-        await s3.send(new HeadBucketCommand({ Bucket: env.S3_BUCKET }));
-        out.headBucket = 'ok';
-      } catch (e: any) {
-        out.headBucket = describeS3Error(e);
-      }
-      try {
-        await s3.send(new PutObjectCommand({ Bucket: env.S3_BUCKET, Key: '_debug/ping.txt', Body: Buffer.from('ping'), ContentType: 'text/plain' }));
-        out.putObject = 'ok';
-      } catch (e: any) {
-        out.putObject = describeS3Error(e);
-      }
-      try {
-        const res = await s3.send(new GetObjectCommand({ Bucket: env.S3_BUCKET, Key: '_debug/ping.txt' }));
-        out.getObject = `ok (${res.ContentLength} bytes)`;
-      } catch (e: any) {
-        out.getObject = describeS3Error(e);
-      }
-      out.s3Endpoint = env.S3_ENDPOINT;
-      out.s3Bucket = env.S3_BUCKET;
-      return out;
-    } catch (e: any) {
-      // Belt-and-braces: never let this route fall through to the generic
-      // production error handler, which hides the message we need.
-      return reply.status(200).send({ unexpectedError: `${e?.name}: ${e?.message}`, stack: String(e?.stack).slice(0, 1500) });
-    }
-  });
-
   // GET /stock/search?q=...&source=...&page=1  (q optional — omit for browse/popular)
   fastify.get('/search', { preHandler: [authenticate] }, async (req, reply) => {
     const { q, source = 'all', page = 1 } = z.object({
