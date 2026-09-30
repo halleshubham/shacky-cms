@@ -1,8 +1,9 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../plugins/prisma.js';
-import { uploadToS3 } from '../utils/s3.js';
-import { authenticate } from '../middleware/auth.js';
+import { uploadToS3, s3 } from '../utils/s3.js';
+import { env } from '../utils/env.js';
+import { authenticate, requireAdmin } from '../middleware/auth.js';
 import { createId } from '@paralleldrive/cuid2';
 import {
   type StockPhoto,
@@ -18,6 +19,34 @@ export type { StockPhoto };
 // ─── Route plugin ─────────────────────────────────────────────────────────────
 
 const stockRoutes: FastifyPluginAsync = async (fastify) => {
+  // TEMP diagnostic route for the SeaweedFS storage migration — remove before
+  // merging to a permanent instance. Admin-only; reports S3 op errors, no secrets.
+  fastify.get('/s3-debug', { preHandler: [authenticate, requireAdmin] }, async () => {
+    const { HeadBucketCommand, PutObjectCommand, GetObjectCommand } = await import('@aws-sdk/client-s3');
+    const out: Record<string, string> = {};
+    try {
+      await s3.send(new HeadBucketCommand({ Bucket: env.S3_BUCKET }));
+      out.headBucket = 'ok';
+    } catch (e: any) {
+      out.headBucket = `${e.name}: ${e.message}`;
+    }
+    try {
+      await s3.send(new PutObjectCommand({ Bucket: env.S3_BUCKET, Key: '_debug/ping.txt', Body: Buffer.from('ping'), ContentType: 'text/plain' }));
+      out.putObject = 'ok';
+    } catch (e: any) {
+      out.putObject = `${e.name}: ${e.message}`;
+    }
+    try {
+      const res = await s3.send(new GetObjectCommand({ Bucket: env.S3_BUCKET, Key: '_debug/ping.txt' }));
+      out.getObject = `ok (${res.ContentLength} bytes)`;
+    } catch (e: any) {
+      out.getObject = `${e.name}: ${e.message}`;
+    }
+    out.s3Endpoint = env.S3_ENDPOINT;
+    out.s3Bucket = env.S3_BUCKET;
+    return out;
+  });
+
   // GET /stock/search?q=...&source=...&page=1  (q optional — omit for browse/popular)
   fastify.get('/search', { preHandler: [authenticate] }, async (req, reply) => {
     const { q, source = 'all', page = 1 } = z.object({
