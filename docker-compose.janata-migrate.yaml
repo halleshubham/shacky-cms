@@ -126,10 +126,10 @@ services:
       timeout 60 aws --endpoint-url $$OLD_S3_ENDPOINT s3 ls s3://$$S3_BUCKET --recursive --summarize >> $$RESULT 2>&1 || echo '(could not summarize old bucket)' >> $$RESULT;
       timeout 45 aws --endpoint-url $$OLD_S3_ENDPOINT s3 cp $$RESULT s3://$$S3_BUCKET/_migration-check/result.txt >> $$RESULT 2>&1;
       echo '--- downloading old -> /staging ---' >> $$RESULT;
-      if timeout 1200 aws --endpoint-url $$OLD_S3_ENDPOINT s3 sync s3://$$S3_BUCKET /staging >> $$RESULT 2>&1; then echo DOWNLOAD_OK >> $$RESULT; else echo DOWNLOAD_FAILED >> $$RESULT; fi;
+      if timeout 5400 aws --endpoint-url $$OLD_S3_ENDPOINT s3 sync s3://$$S3_BUCKET /staging >> $$RESULT 2>&1; then echo DOWNLOAD_OK >> $$RESULT; else echo DOWNLOAD_FAILED >> $$RESULT; fi;
       timeout 45 aws --endpoint-url $$OLD_S3_ENDPOINT s3 cp $$RESULT s3://$$S3_BUCKET/_migration-check/result.txt >> $$RESULT 2>&1;
       echo '--- uploading /staging -> new ---' >> $$RESULT;
-      if timeout 1200 aws --endpoint-url $$NEW_S3_ENDPOINT s3 sync /staging s3://$$S3_BUCKET >> $$RESULT 2>&1; then echo UPLOAD_OK >> $$RESULT; STATUS=0; else echo UPLOAD_FAILED >> $$RESULT; STATUS=1; fi;
+      if timeout 5400 aws --endpoint-url $$NEW_S3_ENDPOINT s3 sync /staging s3://$$S3_BUCKET >> $$RESULT 2>&1; then echo UPLOAD_OK >> $$RESULT; STATUS=0; else echo UPLOAD_FAILED >> $$RESULT; STATUS=1; fi;
       timeout 45 aws --endpoint-url $$OLD_S3_ENDPOINT s3 cp $$RESULT s3://$$S3_BUCKET/_migration-check/result.txt >> $$RESULT 2>&1;
       echo '--- destination (new) summary ---' >> $$RESULT;
       timeout 60 aws --endpoint-url $$NEW_S3_ENDPOINT s3 ls s3://$$S3_BUCKET --recursive --summarize >> $$RESULT 2>&1 || echo '(could not summarize new bucket)' >> $$RESULT;
