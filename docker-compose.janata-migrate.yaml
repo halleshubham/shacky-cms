@@ -98,7 +98,7 @@ services:
         condition: service_healthy
       seaweedfs_init:
         condition: service_completed_successfully
-    entrypoint: ['/bin/sh', '/migrate.sh']
+    entrypoint: ['timeout', '1800', '/bin/sh', '/migrate.sh']
     volumes:
       - ./scripts/migrate-minio-to-seaweedfs.sh:/migrate.sh:ro
     environment:
