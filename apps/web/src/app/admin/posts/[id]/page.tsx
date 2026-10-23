@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { RichTextEditor } from '@/components/editor/RichTextEditor';
 import { FeaturedImagePicker } from '@/components/editor/FeaturedImagePicker';
+import { FocalPointPicker } from '@/components/editor/FocalPointPicker';
 import { api } from '@/lib/api';
 import { formatDateTime } from '@/lib/utils';
 import toast from 'react-hot-toast';
@@ -35,6 +36,7 @@ export default function EditPostPage() {
   const [authors, setAuthors] = useState<any[]>([]);
   const [selectedAuthors, setSelectedAuthors] = useState<string[]>([]);
   const [featuredMedia, setFeaturedMedia] = useState<any>(null);
+  const [featuredImagePosition, setFeaturedImagePosition] = useState('');
   const [isFeatured, setIsFeatured] = useState(false);
   const [codeInjectionHead, setCodeInjectionHead] = useState('');
   const [codeInjectionFoot, setCodeInjectionFoot] = useState('');
@@ -70,6 +72,7 @@ export default function EditPostPage() {
     setSelectedCategories(postData.categories?.map((c: any) => c.id) || []);
     setSelectedAuthors(postData.authors?.map((a: any) => a.id) || []);
     setFeaturedMedia(postData.featuredMedia || null);
+    setFeaturedImagePosition(postData.featuredImagePosition || '');
     setIsFeatured(postData.isFeatured || false);
     setCodeInjectionHead(postData.codeInjectionHead || '');
     setCodeInjectionFoot(postData.codeInjectionFoot || '');
@@ -92,6 +95,7 @@ export default function EditPostPage() {
         seoTitle: seoTitle || null,
         seoDescription: seoDescription || null,
         featuredMediaId: featuredMedia?.id || null,
+        featuredImagePosition: featuredImagePosition || null,
         isFeatured,
         codeInjectionHead: codeInjectionHead || null,
         codeInjectionFoot: codeInjectionFoot || null,
@@ -113,7 +117,7 @@ export default function EditPostPage() {
     } finally {
       if (!isAuto) setSaving(false);
     }
-  }, [post, id, title, slug, content, excerpt, status, seoTitle, seoDescription, featuredMedia, isFeatured, codeInjectionHead, codeInjectionFoot, selectedCategories, selectedAuthors]);
+  }, [post, id, title, slug, content, excerpt, status, seoTitle, seoDescription, featuredMedia, featuredImagePosition, isFeatured, codeInjectionHead, codeInjectionFoot, selectedCategories, selectedAuthors]);
 
   // Auto-save every 30 seconds
   useEffect(() => {
@@ -349,7 +353,10 @@ export default function EditPostPage() {
           <Card>
             <CardHeader className="pb-3"><CardTitle className="text-sm">Featured Image</CardTitle></CardHeader>
             <CardContent>
-              <FeaturedImagePicker value={featuredMedia} onChange={setFeaturedMedia} />
+              <FeaturedImagePicker value={featuredMedia} onChange={(m: any) => { setFeaturedMedia(m); setFeaturedImagePosition(''); }} />
+              {featuredMedia?.url && (
+                <FocalPointPicker src={featuredMedia.url} value={featuredImagePosition} onChange={setFeaturedImagePosition} />
+              )}
             </CardContent>
           </Card>
 

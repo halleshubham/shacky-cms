@@ -128,6 +128,7 @@ export default async function ArticlePage({ params }: { params: { slug: string }
               alt={post.featuredMedia.altText || post.title}
               fill
               className="object-cover"
+              style={{ objectPosition: post.featuredImagePosition || undefined }}
               priority
             />
           </div>

@@ -137,6 +137,7 @@ model Post {
   status            PostStatus     @default(draft)
   publishedAt       DateTime?
   featuredMediaId   String?
+  featuredImagePosition String?
   seoTitle          String?
   seoDescription    String?
   issueId           String?
