@@ -36,6 +36,16 @@ pnpm typecheck      # tsc --noEmit across all packages
 pnpm lint           # next lint (web only)
 ```
 
+### Tests
+```bash
+pnpm test                         # unit tests (vitest) in packages/shared, apps/api, apps/web
+pnpm --filter @shacky/api test    # one package
+pnpm test:e2e                     # Playwright (e2e/) — needs migrated+seeded Postgres, Redis, and built api + web
+```
+- Unit tests live in each package's `test/` dir. API route tests mock `src/plugins/prisma.js` and build a throwaway Fastify instance (there is no app factory in `server.ts`).
+- E2E starts `pnpm --filter @shacky/api start` and `@shacky/web start` itself (set `E2E_NO_WEBSERVER=1` to use servers you already run; `PW_CHROMIUM_PATH` points at a pre-installed Chromium). Run the API with `NODE_ENV=test` so auth cookies are not `Secure` over plain http.
+- CI: `.github/workflows/ci.yml` (typecheck + unit), `e2e.yml` (Playwright), `docker.yml` (builds `ghcr.io/<repo>-api` and `-web`; pushes from `main`/tags, build-only on PRs).
+
 ### Infrastructure (Docker)
 ```bash
 # Spin up Postgres, Redis, MinIO only (dev: run api/web locally)
