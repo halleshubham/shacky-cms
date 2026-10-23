@@ -10,7 +10,9 @@
     "db:seed": "pnpm --filter api prisma db seed",
     "db:studio": "pnpm --filter api prisma studio",
     "lint": "pnpm --recursive lint",
-    "typecheck": "pnpm --recursive typecheck"
+    "typecheck": "pnpm --recursive typecheck",
+    "test": "pnpm --recursive --filter \"./packages/*\" --filter \"./apps/*\" test",
+    "test:e2e": "pnpm --filter @shacky/e2e test"
   },
   "devDependencies": {
     "typescript": "^5.4.5"
