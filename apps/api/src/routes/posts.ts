@@ -142,7 +142,7 @@ const postsRoutes: FastifyPluginAsync = async (fastify) => {
   // POST /posts
   fastify.post('/', { preHandler: [authenticate] }, async (req, reply) => {
     const body = postBodySchema.parse(req.body);
-    const slug = body.slug || slugify(body.title);
+    const slug = body.slug || slugify(body.title) || `post-${Date.now().toString(36)}`;
 
     const existing = await prisma.post.findUnique({ where: { slug } });
     if (existing) {
@@ -198,6 +198,12 @@ const postsRoutes: FastifyPluginAsync = async (fastify) => {
       if (!isAuthor) return reply.status(403).send({ statusCode: 403, error: 'Forbidden', message: 'Cannot edit this post' });
     }
 
+    const newSlug = body.slug ? slugify(body.slug) : undefined;
+    if (newSlug && newSlug !== existing.slug) {
+      const taken = await prisma.post.findUnique({ where: { slug: newSlug } });
+      if (taken) return reply.status(409).send({ statusCode: 409, error: 'Conflict', message: 'Slug already in use' });
+    }
+
     // Save revision before update
     await prisma.revision.create({
       data: {
@@ -212,7 +218,7 @@ const postsRoutes: FastifyPluginAsync = async (fastify) => {
       where: { id },
       data: {
         ...(body.title && { title: body.title }),
-        ...(body.slug && { slug: body.slug }),
+        ...(newSlug && { slug: newSlug }),
         ...(body.content !== undefined && { content: body.content }),
         ...(body.excerpt !== undefined && { excerpt: body.excerpt }),
         ...(body.status && { status: body.status as any }),
