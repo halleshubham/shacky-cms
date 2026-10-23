@@ -304,7 +304,7 @@ export async function ingestIssue(zipBuffer: Buffer, options: IngestOptions): Pr
       const authorId = summary.authorName ? await resolveAuthor(summary.authorName) : null;
       const publishedAt = computePublishTimestamp(issue.publishDate, summary.number, total, options.publishHour || 1);
 
-      const baseSlug = slugify(summary.title);
+      const baseSlug = slugify(summary.title) || `post-${Date.now().toString(36)}`;
       let slug = baseSlug;
       let attempt = 0;
       while (await prisma.post.findUnique({ where: { slug } })) {

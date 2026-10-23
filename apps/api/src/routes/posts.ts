@@ -142,7 +142,7 @@ const postsRoutes: FastifyPluginAsync = async (fastify) => {
   // POST /posts
   fastify.post('/', { preHandler: [authenticate] }, async (req, reply) => {
     const body = postBodySchema.parse(req.body);
-    const slug = body.slug || slugify(body.title);
+    const slug = body.slug || slugify(body.title) || `post-${Date.now().toString(36)}`;
 
     const existing = await prisma.post.findUnique({ where: { slug } });
     if (existing) {
