@@ -27,7 +27,7 @@ jobs:
           POSTGRES_DB: shacky_e2e
         ports: ['5432:5432']
         options: >-
-          --health-cmd "pg_isready -U shacky"
+          --health-cmd "pg_isready -U shacky -d shacky_e2e"
           --health-interval 5s --health-timeout 5s --health-retries 10
       redis:
         image: redis:7-alpine
@@ -66,6 +66,9 @@ jobs:
 
       - name: Install Playwright Chromium
         run: pnpm --filter @shacky/e2e exec playwright install --with-deps chromium
+
+      - name: Generate Prisma client
+        run: pnpm db:generate
 
       - name: Migrate and seed database
         working-directory: apps/api
