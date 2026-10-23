@@ -60,10 +60,12 @@ services:
       AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
       AWS_DEFAULT_REGION: us-east-1
 
+  # api and web use the images built by .github/workflows/docker.yml (public on GHCR)
+  # instead of building on the Coolify host. Data lives in the named volumes below,
+  # which are unaffected by how these two services get their image.
   api:
-    build:
-      context: .
-      dockerfile: apps/api/Dockerfile
+    image: ghcr.io/halleshubham/shacky-cms-api:${IMAGE_TAG:-latest}
+    pull_policy: always
     restart: unless-stopped
     depends_on:
       postgres:
@@ -95,14 +97,11 @@ services:
       retries: 8
       start_period: 60s
 
+  # NEXT_PUBLIC_API_URL / API_INTERNAL_URL / MINIO_INTERNAL_URL are baked into this image
+  # at build time (http://api:4000, http://minio:9000), matching the service names here.
   web:
-    build:
-      context: .
-      dockerfile: apps/web/Dockerfile
-      args:
-        NEXT_PUBLIC_API_URL: http://api:4000
-        API_INTERNAL_URL: http://api:4000
-        MINIO_INTERNAL_URL: http://minio:9000
+    image: ghcr.io/halleshubham/shacky-cms-web:${IMAGE_TAG:-latest}
+    pull_policy: always
     restart: unless-stopped
     depends_on:
       api:
