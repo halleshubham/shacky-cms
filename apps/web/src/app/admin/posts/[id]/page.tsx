@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { ArrowLeft, Save, Loader2, Clock, History, Star, Code, Sparkles, Wand2, ChevronDown, ChevronUp, Search, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { slugify } from '@shacky/shared';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -22,6 +23,7 @@ export default function EditPostPage() {
   const [content, setContent] = useState('');
   const [excerpt, setExcerpt] = useState('');
   const [status, setStatus] = useState('draft');
+  const [slug, setSlug] = useState('');
   const [seoTitle, setSeoTitle] = useState('');
   const [seoDescription, setSeoDescription] = useState('');
   const [saving, setSaving] = useState(false);
@@ -60,6 +62,7 @@ export default function EditPostPage() {
     setContent(postData.content);
     setExcerpt(postData.excerpt || '');
     setStatus(postData.status);
+    setSlug(postData.slug || '');
     setSeoTitle(postData.seoTitle || '');
     setSeoDescription(postData.seoDescription || '');
     setCategories(catData.data ?? catData);
@@ -78,8 +81,11 @@ export default function EditPostPage() {
     if (!post) return;
     if (!isAuto) setSaving(true);
     try {
+      const newSlug = slugify(slug);
+      const slugChanged = !!newSlug && newSlug !== post.slug;
       await api.patch(`/api/posts/${id}`, {
         title,
+        ...(slugChanged && { slug: newSlug }),
         content,
         excerpt: excerpt || null,
         status,
@@ -93,6 +99,10 @@ export default function EditPostPage() {
         authorIds: selectedAuthors,
         ...(status === 'published' && !post.publishedAt && { publishedAt: new Date().toISOString() }),
       });
+      if (slugChanged) {
+        setPost((p: any) => ({ ...p, slug: newSlug }));
+        setSlug(newSlug);
+      }
       if (isAuto) {
         setAutoSaved(new Date());
       } else {
@@ -103,7 +113,7 @@ export default function EditPostPage() {
     } finally {
       if (!isAuto) setSaving(false);
     }
-  }, [post, id, title, content, excerpt, status, seoTitle, seoDescription, featuredMedia, isFeatured, codeInjectionHead, codeInjectionFoot, selectedCategories, selectedAuthors]);
+  }, [post, id, title, slug, content, excerpt, status, seoTitle, seoDescription, featuredMedia, isFeatured, codeInjectionHead, codeInjectionFoot, selectedCategories, selectedAuthors]);
 
   // Auto-save every 30 seconds
   useEffect(() => {
@@ -430,6 +440,28 @@ export default function EditPostPage() {
               </div>
               {selectedCategories.length > 0 && (
                 <p className="text-xs text-muted-foreground">{selectedCategories.length}/3 selected</p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3"><CardTitle className="text-sm">URL Slug</CardTitle></CardHeader>
+            <CardContent className="space-y-2">
+              <Input
+                value={slug}
+                onChange={(e) => setSlug(e.target.value)}
+                onBlur={() => setSlug((v) => slugify(v))}
+                placeholder="article-url-slug"
+                className="text-sm font-mono"
+              />
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs text-muted-foreground break-all">/articles/{slugify(slug) || '…'}</p>
+                <Button type="button" variant="outline" size="sm" className="h-7 text-xs shrink-0" onClick={() => setSlug(slugify(title))}>
+                  From title
+                </Button>
+              </div>
+              {post?.status === 'published' && slugify(slug) !== post.slug && (
+                <p className="text-xs text-amber-600">Changing the slug of a published article changes its URL.</p>
               )}
             </CardContent>
           </Card>
