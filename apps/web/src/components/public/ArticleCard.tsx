@@ -13,6 +13,7 @@ interface ArticleCardProps {
     isFeatured?: boolean;
     readingTime?: number;
     featuredMedia?: { url: string; altText?: string | null } | null;
+    featuredImagePosition?: string | null;
     authors?: { displayName: string; slug: string }[];
     categories?: { name: string; slug: string }[];
   };
@@ -31,7 +32,7 @@ export function ArticleCard({ post, size = 'default' }: ArticleCardProps) {
       <Link href={`/articles/${post.slug}`} className="flex gap-3 group">
         {post.featuredMedia && (
           <div className="relative w-20 h-16 shrink-0 rounded overflow-hidden bg-muted">
-            <Image src={post.featuredMedia.url} alt={post.featuredMedia.altText || post.title} fill className="object-cover" />
+            <Image src={post.featuredMedia.url} alt={post.featuredMedia.altText || post.title} fill className="object-cover" style={{ objectPosition: post.featuredImagePosition || undefined }} />
           </div>
         )}
         <div className="min-w-0">
@@ -52,7 +53,7 @@ export function ArticleCard({ post, size = 'default' }: ArticleCardProps) {
       <Link href={`/articles/${post.slug}`} className="group block">
         {post.featuredMedia && (
           <div className="relative aspect-[16/9] rounded-lg overflow-hidden bg-muted mb-4">
-            <Image src={post.featuredMedia.url} alt={post.featuredMedia.altText || post.title} fill className="object-cover group-hover:scale-[1.02] transition-transform duration-300" />
+            <Image src={post.featuredMedia.url} alt={post.featuredMedia.altText || post.title} fill className="object-cover group-hover:scale-[1.02] transition-transform duration-300" style={{ objectPosition: post.featuredImagePosition || undefined }} />
           </div>
         )}
         {category && (
@@ -79,7 +80,7 @@ export function ArticleCard({ post, size = 'default' }: ArticleCardProps) {
     <Link href={`/articles/${post.slug}`} className="group block">
       {post.featuredMedia && (
         <div className="relative aspect-[16/9] rounded-md overflow-hidden bg-muted mb-3">
-          <Image src={post.featuredMedia.url} alt={post.featuredMedia.altText || post.title} fill className="object-cover group-hover:scale-[1.02] transition-transform duration-300" />
+          <Image src={post.featuredMedia.url} alt={post.featuredMedia.altText || post.title} fill className="object-cover group-hover:scale-[1.02] transition-transform duration-300" style={{ objectPosition: post.featuredImagePosition || undefined }} />
         </div>
       )}
       {category && (
