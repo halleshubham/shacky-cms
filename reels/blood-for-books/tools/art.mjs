@@ -226,7 +226,7 @@ export const ARTS = {
       `),
       js: (T, D) => `
         tl.fromTo("#${p}-paper", { y: 400, opacity: 0, rotation: -14, transformOrigin: "50% 50%" }, { y: 0, opacity: 1, rotation: -3, duration: .9, ease: "power3.out" }, ${T});
-        tl.fromTo("#${p}-lens", { x: -300, y: -100, opacity: 0 }, { x: 0, y: 0, opacity: 1, duration: 1.2, ease: "power2.out" }, ${T + 1.0});
+        tl.fromTo("#${p}-lens", { x: -300, y: -100, opacity: 0 }, { x: 0, y: 0, opacity: 1, duration: 1.2, ease: "power2.out" }, ${T + 1.0});`,
     };
   },
 
