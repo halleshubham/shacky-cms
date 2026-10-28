@@ -28,10 +28,37 @@ const bg = (p, top, bottom, gx = 540, gy = 600, gr = 700, gc = C.blood2, ga = 0.
     <linearGradient id="${p}-bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${top}"/><stop offset="1" stop-color="${bottom}"/></linearGradient>
     <radialGradient id="${p}-gl" cx="${gx}" cy="${gy}" r="${gr}" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="${gc}" stop-opacity="${ga}"/><stop offset="1" stop-color="${gc}" stop-opacity="0"/></radialGradient>
   </defs>
-  <rect width="1080" height="1920" fill="url(#${p}-bg)"/>
-  <rect id="${p}-glow" width="1080" height="1920" fill="url(#${p}-gl)"/>`;
+  <rect x="0" y="-400" width="1080" height="2500" fill="url(#${p}-bg)"/>
+  <rect id="${p}-glow" x="0" y="-400" width="1080" height="2500" fill="url(#${p}-gl)"/>`;
 
-const wrap = (inner) => `<svg viewBox="0 0 1080 1920" width="1080" height="1920" xmlns="http://www.w3.org/2000/svg">${inner}</svg>`;
+// GSAP rewrites an SVG element's transform attribute when it tweens x/y, which snaps a
+// translate()d group back to the origin. Split `<g id transform>` into a static outer
+// group (position) and an inner animated group (same id) so tweens only add offsets.
+const splitTransforms = (s) => {
+  const re = /<g id="([^"]+)" transform="([^"]+)">/g;
+  let pos = 0;
+  for (;;) {
+    re.lastIndex = pos;
+    const m = re.exec(s);
+    if (!m) break;
+    const bodyStart = m.index + m[0].length;
+    let depth = 1;
+    const tok = /<g[\s>]|<\/g>/g;
+    tok.lastIndex = bodyStart;
+    let close = -1;
+    for (let k; (k = tok.exec(s)); ) {
+      depth += k[0] === "</g>" ? -1 : 1;
+      if (depth === 0) { close = k.index; break; }
+    }
+    const open = `<g transform="${m[2]}"><g id="${m[1]}">`;
+    s = s.slice(0, m.index) + open + s.slice(bodyStart, close) + "</g></g>" + s.slice(close + 4);
+    pos = m.index + open.length;
+  }
+  return s;
+};
+
+const SHIFT = 240; // pushes the whole illustration down so the frame is not top-heavy
+const wrap = (inner) => `<svg viewBox="0 0 1080 1920" width="1080" height="1920" xmlns="http://www.w3.org/2000/svg"><g transform="translate(0 ${SHIFT})">${splitTransforms(inner)}</g></svg>`;
 
 const txt = (id, x, y, size, str, { fill = C.paper, weight = 800, anchor = "middle", family = FONT, ls = 0, opacity = 1 } = {}) =>
   `<text id="${id}" x="${x}" y="${y}" font-family="${family}" font-size="${size}" font-weight="${weight}" fill="${fill}" text-anchor="${anchor}" letter-spacing="${ls}" opacity="${opacity}">${str}</text>`;
@@ -196,12 +223,10 @@ export const ARTS = {
           <circle r="120" fill="none" stroke="${C.gold}" stroke-width="16"/>
           <path d="M84,84 L190,190" stroke="${C.gold}" stroke-width="24" stroke-linecap="round"/>
         </g>
-        ${txt(`${p}-sh`, 540, 1010, 60, "धक्कादायक बाब समोर", { fill: C.paper, weight: 800 })}
       `),
       js: (T, D) => `
         tl.fromTo("#${p}-paper", { y: 400, opacity: 0, rotation: -14, transformOrigin: "50% 50%" }, { y: 0, opacity: 1, rotation: -3, duration: .9, ease: "power3.out" }, ${T});
         tl.fromTo("#${p}-lens", { x: -300, y: -100, opacity: 0 }, { x: 0, y: 0, opacity: 1, duration: 1.2, ease: "power2.out" }, ${T + 1.0});
-        tl.fromTo("#${p}-sh", { opacity: 0 }, { opacity: 1, duration: .6 }, ${T + 1.8});`,
     };
   },
 

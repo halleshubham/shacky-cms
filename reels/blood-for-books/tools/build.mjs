@@ -116,7 +116,7 @@ writeFileSync(join(root, "compositions/captions.html"), `<template>
 <style>
 ${FONTS}
 #root { position:absolute; inset:0; font-family:'NotoSerifDev','Inter',serif; }
-.cg { position:absolute; left:90px; width:900px; top:1010px; height:260px; display:flex; align-items:flex-end; justify-content:center; }
+.cg { position:absolute; left:90px; width:900px; top:1240px; height:260px; display:flex; align-items:flex-end; justify-content:center; }
 .cl { width:100%; text-align:center; font-weight:900; font-size:84px; line-height:1.3; color:#fff;
   text-shadow: 0 4px 0 rgba(0,0,0,.65), 0 0 28px rgba(0,0,0,.9); }
 .cl .ac { color:#ff4653; }
