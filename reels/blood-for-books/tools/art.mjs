@@ -17,7 +17,7 @@ export const C = {
   mute: "#6b6470",
 };
 
-const FONT = "'NotoSansDev','Inter',sans-serif";
+const FONT = "'NotoSerifDev','Inter',serif";
 const SERIF = "'NotoSerifDev','Inter',serif";
 
 const drop = (cx, cy, s = 1) =>

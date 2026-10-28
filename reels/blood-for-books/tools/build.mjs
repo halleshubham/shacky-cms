@@ -23,10 +23,9 @@ const PLAN = {
 const SECTIONS = [["hook", "hook"], ["story", "story"], ["peak", "peak"], ["ending", "ending"]];
 
 const FONTS = `
-@font-face{font-family:'NotoSansDev';font-weight:700;src:url('assets/fonts/noto-sans-devanagari-devanagari-700-normal.woff2') format('woff2')}
-@font-face{font-family:'NotoSansDev';font-weight:800;src:url('assets/fonts/noto-sans-devanagari-devanagari-800-normal.woff2') format('woff2')}
-@font-face{font-family:'NotoSansDev';font-weight:900;src:url('assets/fonts/noto-sans-devanagari-devanagari-900-normal.woff2') format('woff2')}
-@font-face{font-family:'NotoSerifDev';font-weight:700;src:url('assets/fonts/noto-serif-devanagari-devanagari-700-normal.woff2') format('woff2')}`;
+@font-face{font-family:'NotoSerifDev';font-weight:700;src:url('assets/fonts/noto-serif-devanagari-devanagari-700-normal.woff2') format('woff2')}
+@font-face{font-family:'NotoSerifDev';font-weight:800;src:url('assets/fonts/noto-serif-devanagari-devanagari-800-normal.woff2') format('woff2')}
+@font-face{font-family:'NotoSerifDev';font-weight:900;src:url('assets/fonts/noto-serif-devanagari-devanagari-900-normal.woff2') format('woff2')}`;
 
 // ── beats ──
 const beats = []; // {id, art, start, end, section}
@@ -66,7 +65,7 @@ for (const [sec] of SECTIONS) {
   writeFileSync(join(root, `compositions/scene-${sec}.html`), `<template>
 <style>
 ${FONTS}
-#root { position:absolute; inset:0; overflow:hidden; font-family:'NotoSansDev','Inter',sans-serif; }
+#root { position:absolute; inset:0; overflow:hidden; font-family:'NotoSerifDev','Inter',serif; }
 .beat { position:absolute; inset:0; }
 .fx { position:absolute; inset:0; transform-origin:50% 42%; }
 .fx svg { display:block; }
@@ -116,7 +115,7 @@ groups.forEach((g, gi) => {
 writeFileSync(join(root, "compositions/captions.html"), `<template>
 <style>
 ${FONTS}
-#root { position:absolute; inset:0; font-family:'NotoSansDev','Inter',sans-serif; }
+#root { position:absolute; inset:0; font-family:'NotoSerifDev','Inter',serif; }
 .cg { position:absolute; left:90px; width:900px; top:1010px; height:260px; display:flex; align-items:flex-end; justify-content:center; }
 .cl { width:100%; text-align:center; font-weight:900; font-size:84px; line-height:1.3; color:#fff;
   text-shadow: 0 4px 0 rgba(0,0,0,.65), 0 0 28px rgba(0,0,0,.9); }

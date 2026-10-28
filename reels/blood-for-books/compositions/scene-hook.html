@@ -1,11 +1,10 @@
 <template>
 <style>
 
-@font-face{font-family:'NotoSansDev';font-weight:700;src:url('assets/fonts/noto-sans-devanagari-devanagari-700-normal.woff2') format('woff2')}
-@font-face{font-family:'NotoSansDev';font-weight:800;src:url('assets/fonts/noto-sans-devanagari-devanagari-800-normal.woff2') format('woff2')}
-@font-face{font-family:'NotoSansDev';font-weight:900;src:url('assets/fonts/noto-sans-devanagari-devanagari-900-normal.woff2') format('woff2')}
 @font-face{font-family:'NotoSerifDev';font-weight:700;src:url('assets/fonts/noto-serif-devanagari-devanagari-700-normal.woff2') format('woff2')}
-#root { position:absolute; inset:0; overflow:hidden; font-family:'NotoSansDev','Inter',sans-serif; }
+@font-face{font-family:'NotoSerifDev';font-weight:800;src:url('assets/fonts/noto-serif-devanagari-devanagari-800-normal.woff2') format('woff2')}
+@font-face{font-family:'NotoSerifDev';font-weight:900;src:url('assets/fonts/noto-serif-devanagari-devanagari-900-normal.woff2') format('woff2')}
+#root { position:absolute; inset:0; overflow:hidden; font-family:'NotoSerifDev','Inter',serif; }
 .beat { position:absolute; inset:0; }
 .fx { position:absolute; inset:0; transform-origin:50% 42%; }
 .fx svg { display:block; }
@@ -56,8 +55,8 @@
           <rect x="-170" y="-160" width="140" height="8" rx="4" fill="#b9a98a" opacity=".8"/><rect x="30" y="-160" width="140" height="8" rx="4" fill="#b9a98a" opacity=".8"/><rect x="-170" y="-130" width="140" height="8" rx="4" fill="#b9a98a" opacity=".8"/><rect x="30" y="-130" width="140" height="8" rx="4" fill="#b9a98a" opacity=".8"/><rect x="-170" y="-100" width="140" height="8" rx="4" fill="#b9a98a" opacity=".8"/><rect x="30" y="-100" width="140" height="8" rx="4" fill="#b9a98a" opacity=".8"/>
         </g>
         <path id="b1-drop" d="M540,234 C557.6,282 596,320.4 596,360.4 A56,56 0 1 1 484,360.4 C484,320.4 522.4,282 540,234 Z" fill="#d4121f"/>
-        <text id="b1-t1" x="540" y="280" font-family="'NotoSansDev','Inter',sans-serif" font-size="96" font-weight="800" fill="#efe3cc" text-anchor="middle" letter-spacing="0" opacity="1">शिक्षणासाठी</text>
-        <text id="b1-t2" x="540" y="980" font-family="'NotoSansDev','Inter',sans-serif" font-size="112" font-weight="900" fill="#ff3b47" text-anchor="middle" letter-spacing="0" opacity="1">रक्त?</text>
+        <text id="b1-t1" x="540" y="280" font-family="'NotoSerifDev','Inter',serif" font-size="96" font-weight="800" fill="#efe3cc" text-anchor="middle" letter-spacing="0" opacity="1">शिक्षणासाठी</text>
+        <text id="b1-t2" x="540" y="980" font-family="'NotoSerifDev','Inter',serif" font-size="112" font-weight="900" fill="#ff3b47" text-anchor="middle" letter-spacing="0" opacity="1">रक्त?</text>
       </svg></div></div>
   <div id="b2" class="clip beat" data-start="5.538" data-duration="6.038"><div id="b2-fx" class="fx"><svg viewBox="0 0 1080 1920" width="1080" height="1920" xmlns="http://www.w3.org/2000/svg">
   <defs>
@@ -71,10 +70,10 @@
         <clipPath id="b2-clip"><rect x="384" y="304" width="312" height="512" rx="56"/></clipPath>
         <g clip-path="url(#b2-clip)"><rect id="b2-fill" x="384" y="304" width="312" height="512" fill="#d4121f"/></g>
         <rect x="460" y="360" width="160" height="60" rx="8" fill="#fff" opacity=".85"/>
-        <text id="b2-lbl" x="540" y="404" font-family="'NotoSansDev','Inter',sans-serif" font-size="36" font-weight="900" fill="#222" text-anchor="middle" letter-spacing="0" opacity="1">B+  ₹?</text>
+        <text id="b2-lbl" x="540" y="404" font-family="'NotoSerifDev','Inter',serif" font-size="36" font-weight="900" fill="#222" text-anchor="middle" letter-spacing="0" opacity="1">B+  ₹?</text>
         <path d="M540,820 L540,930" stroke="#e8dcd0" stroke-opacity=".6" stroke-width="10"/>
         <path id="b2-dp" d="M540,968 C547.7,989 564.5,1005.8 564.5,1023.3 A24.5,24.5 0 1 1 515.5,1023.3 C515.5,1005.8 532.3,989 540,968 Z" fill="#d4121f"/>
-        <text id="b2-cap" x="540" y="190" font-family="'NotoSansDev','Inter',sans-serif" font-size="54" font-weight="800" fill="#efe3cc" text-anchor="middle" letter-spacing="0" opacity="0">रक्ताची किंमत?</text>
+        <text id="b2-cap" x="540" y="190" font-family="'NotoSerifDev','Inter',serif" font-size="54" font-weight="800" fill="#efe3cc" text-anchor="middle" letter-spacing="0" opacity="0">रक्ताची किंमत?</text>
       </svg></div></div>
   <div id="b3" class="clip beat" data-start="11.326" data-duration="5.354"><div id="b3-fx" class="fx"><svg viewBox="0 0 1080 1920" width="1080" height="1920" xmlns="http://www.w3.org/2000/svg">
   <defs>
@@ -87,7 +86,7 @@
         <ellipse id="b3-r0" cx="540" cy="900" rx="40" ry="12" fill="none" stroke="#ff3b47" stroke-width="5" opacity="0"/><ellipse id="b3-r1" cx="540" cy="900" rx="40" ry="12" fill="none" stroke="#ff3b47" stroke-width="5" opacity="0"/><ellipse id="b3-r2" cx="540" cy="900" rx="40" ry="12" fill="none" stroke="#ff3b47" stroke-width="5" opacity="0"/>
         <path id="b3-d" d="M540,200 C573,290 645,362 645,437 A105,105 0 1 1 435,437 C435,362 507,290 540,200 Z" fill="#d4121f"/>
         <path id="b3-dh" d="M500,330 Q480,380 495,420" stroke="#ff8a90" stroke-width="12" fill="none" stroke-linecap="round" opacity=".7"/>
-        <text id="b3-q" x="540" y="960" font-family="'NotoSansDev','Inter',sans-serif" font-size="66" font-weight="800" fill="#efe3cc" text-anchor="middle" letter-spacing="0" opacity="1">हे पैसे कशासाठी?</text>
+        <text id="b3-q" x="540" y="960" font-family="'NotoSerifDev','Inter',serif" font-size="66" font-weight="800" fill="#efe3cc" text-anchor="middle" letter-spacing="0" opacity="1">हे पैसे कशासाठी?</text>
       </svg></div></div>
   <div id="b4" class="clip beat" data-start="16.43" data-duration="5.178"><div id="b4-fx" class="fx"><svg viewBox="0 0 1080 1920" width="1080" height="1920" xmlns="http://www.w3.org/2000/svg">
   <defs>
@@ -101,7 +100,7 @@
         <rect x="190" y="470" width="300" height="10" rx="5" fill="#b9a98a"/><rect x="590" y="470" width="310" height="10" rx="5" fill="#b9a98a"/><rect x="190" y="522" width="270" height="10" rx="5" fill="#b9a98a"/><rect x="590" y="522" width="270" height="10" rx="5" fill="#b9a98a"/><rect x="190" y="574" width="240" height="10" rx="5" fill="#b9a98a"/><rect x="590" y="574" width="310" height="10" rx="5" fill="#b9a98a"/><rect x="190" y="626" width="300" height="10" rx="5" fill="#b9a98a"/><rect x="590" y="626" width="270" height="10" rx="5" fill="#b9a98a"/><rect x="190" y="678" width="270" height="10" rx="5" fill="#b9a98a"/><rect x="590" y="678" width="310" height="10" rx="5" fill="#b9a98a"/><rect x="190" y="730" width="240" height="10" rx="5" fill="#b9a98a"/><rect x="590" y="730" width="270" height="10" rx="5" fill="#b9a98a"/>
         <path id="b4-stain" d="M700,480 C722,540 770,588 770,638 A70,70 0 1 1 630,638 C630,588 678,540 700,480 Z" fill="#d4121f" opacity="0"/>
         <path id="b4-pour" d="M700,230 L700,470" stroke="#d4121f" stroke-width="14" stroke-linecap="round" opacity="0"/>
-        <text id="b4-t" x="540" y="960" font-family="'NotoSansDev','Inter',sans-serif" font-size="74" font-weight="900" fill="#efe3cc" text-anchor="middle" letter-spacing="0" opacity="1">पैसे शिक्षणासाठी!</text>
+        <text id="b4-t" x="540" y="960" font-family="'NotoSerifDev','Inter',serif" font-size="74" font-weight="900" fill="#efe3cc" text-anchor="middle" letter-spacing="0" opacity="1">पैसे शिक्षणासाठी!</text>
       </svg></div></div>
   <div class="grade" data-layout-ignore></div>
 </div>
