@@ -1,0 +1,11 @@
+{
+  "name": "blood-for-books",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "npx --yes hyperframes@0.8.212 preview",
+    "check": "npx --yes hyperframes@0.8.212 check",
+    "render": "npx --yes hyperframes@0.8.212 render",
+    "publish": "npx --yes hyperframes@0.8.212 publish"
+  }
+}

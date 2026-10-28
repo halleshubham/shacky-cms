@@ -1,0 +1,9 @@
+{
+  "name": "shacky-reels",
+  "private": true,
+  "type": "module",
+  "description": "Instagram reel pipelines (ElevenLabs voiceover + Hyperframes video)",
+  "dependencies": {
+    "@elevenlabs/elevenlabs-js": "^2"
+  }
+}
