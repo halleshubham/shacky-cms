@@ -83,4 +83,39 @@ describe('GET /api/public/posts', () => {
     expect(args.where.status).toBe('published');
     expect(args.where.OR[0].title.contains).toBe('abc');
   });
+
+  it('drops the full article body from list results but still computes reading time', async () => {
+    prisma.post.findMany.mockResolvedValue([dbPost()]);
+    prisma.post.count.mockResolvedValue(1);
+
+    const body = (await app.inject({ url: '/api/public/posts' })).json();
+    expect(body.data[0].content).toBeUndefined();
+    expect(body.data[0].readingTime).toBe(3);
+    expect(body.data[0].slug).toBe('hello');
+  });
+});
+
+describe('GET /api/public/search', () => {
+  it('searches title, excerpt, content, and author/category/tag names', async () => {
+    prisma.post.findMany.mockResolvedValue([dbPost()]);
+    prisma.post.count.mockResolvedValue(1);
+
+    const res = await app.inject({ url: '/api/public/search?q=culture' });
+    const body = res.json();
+    expect(res.statusCode).toBe(200);
+    expect(body.total).toBe(1);
+    expect(body.data[0].content).toBeUndefined();
+    const where = prisma.post.findMany.mock.calls[0][0].where;
+    expect(where.status).toBe('published');
+    expect(where.OR.map((c: any) => Object.keys(c)[0])).toEqual(
+      expect.arrayContaining(['title', 'excerpt', 'content', 'authors', 'categories', 'tags']),
+    );
+  });
+
+  it('skips the query entirely for terms under 2 characters', async () => {
+    const res = await app.inject({ url: '/api/public/search?q=a' });
+    const body = res.json();
+    expect(body).toMatchObject({ data: [], total: 0 });
+    expect(prisma.post.findMany).not.toHaveBeenCalled();
+  });
 });

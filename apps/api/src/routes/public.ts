@@ -25,6 +25,14 @@ function fmt(p: any) {
   };
 }
 
+// For listing/search responses (cards only — title, excerpt, image, meta): drops
+// the full article HTML body and other detail-only fields that the list UI never
+// renders. readingTime is still computed from content before it's stripped.
+function fmtList(p: any) {
+  const { content, seoTitle, seoDescription, codeInjectionHead, codeInjectionFoot, ...rest } = fmt(p);
+  return rest;
+}
+
 const publicRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /public/posts — published posts with search, category, tag, author filters
   fastify.get('/posts', async (req, reply) => {
@@ -65,7 +73,7 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
     ]);
 
     return reply.send({
-      data: posts.map(fmt),
+      data: posts.map(fmtList),
       total,
       page: q.page,
       pageSize: q.pageSize,
@@ -99,7 +107,7 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
 
     return reply.send({
       ...fmt(post),
-      related: related.map(fmt),
+      related: related.map(fmtList),
     });
   });
 
@@ -146,7 +154,7 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
       },
     });
     if (!issue) return reply.send(null);
-    return reply.send({ ...issue, posts: issue.posts.map(fmt) });
+    return reply.send({ ...issue, posts: issue.posts.map(fmtList) });
   });
 
   // GET /public/issues/:id — single issue with all published posts
@@ -163,7 +171,7 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
       },
     });
     if (!issue) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Issue not found' });
-    return reply.send({ ...issue, posts: issue.posts.map(fmt) });
+    return reply.send({ ...issue, posts: issue.posts.map(fmtList) });
   });
 
   // GET /public/categories — all categories with published post count
@@ -210,7 +218,7 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
 
     return reply.send({
       author,
-      posts: { data: posts.map(fmt), total, page: Number(page), pageSize: Number(pageSize), totalPages: Math.ceil(total / Number(pageSize)) },
+      posts: { data: posts.map(fmtList), total, page: Number(page), pageSize: Number(pageSize), totalPages: Math.ceil(total / Number(pageSize)) },
     });
   });
 
@@ -242,7 +250,7 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
     ]);
 
     return reply.send({
-      data: posts.map(fmt),
+      data: posts.map(fmtList),
       total,
       page: Number(page),
       pageSize: Number(pageSize),
@@ -277,7 +285,7 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
 
     return reply.send({
       tag,
-      posts: { data: posts.map(fmt), total, page: Number(page), pageSize: Number(pageSize), totalPages: Math.ceil(total / Number(pageSize)) },
+      posts: { data: posts.map(fmtList), total, page: Number(page), pageSize: Number(pageSize), totalPages: Math.ceil(total / Number(pageSize)) },
     });
   });
 
@@ -290,7 +298,7 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
       orderBy: { publishedAt: 'desc' },
       take: Number(limit),
     });
-    return reply.send(posts.map(fmt));
+    return reply.send(posts.map(fmtList));
   });
 
   // GET /public/pages — list published pages (for nav picker + public display)
