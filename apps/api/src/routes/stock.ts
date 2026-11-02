@@ -2,7 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../plugins/prisma.js';
 import { uploadToS3 } from '../utils/s3.js';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, requireAdmin } from '../middleware/auth.js';
 import { createId } from '@paralleldrive/cuid2';
 import {
   type StockPhoto,
@@ -18,6 +18,38 @@ export type { StockPhoto };
 // ─── Route plugin ─────────────────────────────────────────────────────────────
 
 const stockRoutes: FastifyPluginAsync = async (fastify) => {
+  // TEMP diagnostic for the search-performance fix — remove once confirmed.
+  // Admin-only; runs EXPLAIN ANALYZE on the real search query shape so we can see
+  // whether the new pg_trgm indexes are actually being used.
+  fastify.get('/search-explain', { preHandler: [authenticate, requireAdmin] }, async (req, reply) => {
+    const term = String((req.query as any).q || 'farmer');
+    try {
+      const indexes = await prisma.$queryRaw<{ indexname: string }[]>`
+        SELECT indexname FROM pg_indexes WHERE tablename IN ('posts', 'authors', 'categories', 'tags') AND indexname LIKE '%trgm%'
+      `;
+      const plan = await prisma.$queryRaw<{ 'QUERY PLAN': string }[]>`
+        EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT)
+        SELECT p.id FROM posts p
+        WHERE p.status = 'published' AND (
+          p.title ILIKE '%' || ${term} || '%' OR
+          p.excerpt ILIKE '%' || ${term} || '%' OR
+          p.content ILIKE '%' || ${term} || '%' OR
+          EXISTS (SELECT 1 FROM post_authors pa JOIN authors a ON a.id = pa."authorId" WHERE pa."postId" = p.id AND a."displayName" ILIKE '%' || ${term} || '%') OR
+          EXISTS (SELECT 1 FROM post_categories pc JOIN categories c ON c.id = pc."categoryId" WHERE pc."postId" = p.id AND c.name ILIKE '%' || ${term} || '%') OR
+          EXISTS (SELECT 1 FROM post_tags pt JOIN tags t ON t.id = pt."tagId" WHERE pt."postId" = p.id AND t.name ILIKE '%' || ${term} || '%')
+        )
+        ORDER BY p."publishedAt" DESC
+        LIMIT 12
+      `;
+      return reply.send({
+        trigramIndexesPresent: indexes.map((i) => i.indexname),
+        plan: plan.map((r) => r['QUERY PLAN']).join('\n'),
+      });
+    } catch (e: any) {
+      return reply.send({ error: `${e?.name}: ${e?.message}` });
+    }
+  });
+
   // GET /stock/search?q=...&source=...&page=1  (q optional — omit for browse/popular)
   fastify.get('/search', { preHandler: [authenticate] }, async (req, reply) => {
     const { q, source = 'all', page = 1 } = z.object({
