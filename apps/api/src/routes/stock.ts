@@ -27,84 +27,108 @@ const stockRoutes: FastifyPluginAsync = async (fastify) => {
       const indexes = await prisma.$queryRaw<{ indexname: string }[]>`
         SELECT indexname FROM pg_indexes WHERE tablename IN ('posts', 'authors', 'categories', 'tags') AND indexname LIKE '%trgm%'
       `;
-      const plan = await prisma.$queryRaw<{ 'QUERY PLAN': string }[]>`
+
+      // #26 rewrote /search as a UNION of single-predicate sub-selects on the
+      // theory that each branch gets its own cheap index scan. But production
+      // latency didn't improve (still ~5-7s) for BOTH a common term ("farmer",
+      // 1327/7335 matches) and a rare one ("xenophobia", 68 matches) — ruling
+      // out "common term forces a seq scan" as the sole explanation. EXPLAIN
+      // each branch individually plus the full UNION to see what Postgres is
+      // actually doing now.
+      const titlePlan = await prisma.$queryRaw<{ 'QUERY PLAN': string }[]>`
+        EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT)
+        SELECT id FROM posts WHERE status = 'published' AND title ILIKE '%' || ${term} || '%'
+      `;
+      const excerptPlan = await prisma.$queryRaw<{ 'QUERY PLAN': string }[]>`
+        EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT)
+        SELECT id FROM posts WHERE status = 'published' AND excerpt ILIKE '%' || ${term} || '%'
+      `;
+      const contentPlan = await prisma.$queryRaw<{ 'QUERY PLAN': string }[]>`
+        EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT)
+        SELECT id FROM posts WHERE status = 'published' AND content ILIKE '%' || ${term} || '%'
+      `;
+      const tagPlan = await prisma.$queryRaw<{ 'QUERY PLAN': string }[]>`
         EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT)
         SELECT p.id FROM posts p
-        WHERE p.status = 'published' AND (
-          p.title ILIKE '%' || ${term} || '%' OR
-          p.excerpt ILIKE '%' || ${term} || '%' OR
-          p.content ILIKE '%' || ${term} || '%' OR
-          EXISTS (SELECT 1 FROM post_authors pa JOIN authors a ON a.id = pa."authorId" WHERE pa."postId" = p.id AND a."displayName" ILIKE '%' || ${term} || '%') OR
-          EXISTS (SELECT 1 FROM post_categories pc JOIN categories c ON c.id = pc."categoryId" WHERE pc."postId" = p.id AND c.name ILIKE '%' || ${term} || '%') OR
-          EXISTS (SELECT 1 FROM post_tags pt JOIN tags t ON t.id = pt."tagId" WHERE pt."postId" = p.id AND t.name ILIKE '%' || ${term} || '%')
-        )
-        ORDER BY p."publishedAt" DESC
-        LIMIT 12
+          JOIN post_tags pt ON pt."postId" = p.id
+          JOIN tags t ON t.id = pt."tagId"
+          WHERE p.status = 'published' AND t.name ILIKE '%' || ${term} || '%'
       `;
-
-      // Count-shaped plan: same WHERE, no ORDER BY/LIMIT, matching what
-      // prisma.post.count() executes for the /search endpoint's total.
-      const countPlan = await prisma.$queryRaw<{ 'QUERY PLAN': string }[]>`
+      const unionPlan = await prisma.$queryRaw<{ 'QUERY PLAN': string }[]>`
         EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT)
-        SELECT count(*) FROM posts p
-        WHERE p.status = 'published' AND (
-          p.title ILIKE '%' || ${term} || '%' OR
-          p.excerpt ILIKE '%' || ${term} || '%' OR
-          p.content ILIKE '%' || ${term} || '%' OR
-          EXISTS (SELECT 1 FROM post_authors pa JOIN authors a ON a.id = pa."authorId" WHERE pa."postId" = p.id AND a."displayName" ILIKE '%' || ${term} || '%') OR
-          EXISTS (SELECT 1 FROM post_categories pc JOIN categories c ON c.id = pc."categoryId" WHERE pc."postId" = p.id AND c.name ILIKE '%' || ${term} || '%') OR
-          EXISTS (SELECT 1 FROM post_tags pt JOIN tags t ON t.id = pt."tagId" WHERE pt."postId" = p.id AND t.name ILIKE '%' || ${term} || '%')
-        )
+        SELECT id FROM posts WHERE status = 'published' AND title ILIKE '%' || ${term} || '%'
+        UNION
+        SELECT id FROM posts WHERE status = 'published' AND excerpt ILIKE '%' || ${term} || '%'
+        UNION
+        SELECT id FROM posts WHERE status = 'published' AND content ILIKE '%' || ${term} || '%'
+        UNION
+        SELECT p.id FROM posts p
+          JOIN post_authors pa ON pa."postId" = p.id
+          JOIN authors a ON a.id = pa."authorId"
+          WHERE p.status = 'published' AND a."displayName" ILIKE '%' || ${term} || '%'
+        UNION
+        SELECT p.id FROM posts p
+          JOIN post_categories pc ON pc."postId" = p.id
+          JOIN categories c ON c.id = pc."categoryId"
+          WHERE p.status = 'published' AND c.name ILIKE '%' || ${term} || '%'
+        UNION
+        SELECT p.id FROM posts p
+          JOIN post_tags pt ON pt."postId" = p.id
+          JOIN tags t ON t.id = pt."tagId"
+          WHERE p.status = 'published' AND t.name ILIKE '%' || ${term} || '%'
       `;
 
-      // Time the ACTUAL Prisma calls the /search route makes, including the
-      // postInclude relation loads, to see where real wall-clock time goes
-      // (the hand-written EXPLAINs above don't include Prisma's own relation
-      // queries or query-building overhead).
-      const where = {
-        status: 'published' as const,
-        OR: [
-          { title: { contains: term, mode: 'insensitive' as const } },
-          { excerpt: { contains: term, mode: 'insensitive' as const } },
-          { content: { contains: term, mode: 'insensitive' as const } },
-          { authors: { some: { author: { displayName: { contains: term, mode: 'insensitive' as const } } } } },
-          { categories: { some: { category: { name: { contains: term, mode: 'insensitive' as const } } } } },
-          { tags: { some: { tag: { name: { contains: term, mode: 'insensitive' as const } } } } },
-        ],
-      };
-      const postInclude = {
-        featuredMedia: true,
-        authors: { include: { author: true }, orderBy: { order: 'asc' as const } },
-        categories: { include: { category: true } },
-        tags: { include: { tag: true } },
-        issue: { select: { id: true, title: true, volumeNumber: true, issueNumber: true, publishDate: true } },
-      };
-
+      // Time the real /search code path end-to-end (the $queryRaw UNION plus
+      // the Prisma findMany hydration), exactly as the route executes it.
       const t0 = Date.now();
-      const findManyBare = await prisma.post.findMany({ where, skip: 0, take: 12, orderBy: { publishedAt: 'desc' } });
+      const matches = await prisma.$queryRaw<{ id: string }[]>`
+        SELECT id FROM posts WHERE status = 'published' AND title ILIKE '%' || ${term} || '%'
+        UNION
+        SELECT id FROM posts WHERE status = 'published' AND excerpt ILIKE '%' || ${term} || '%'
+        UNION
+        SELECT id FROM posts WHERE status = 'published' AND content ILIKE '%' || ${term} || '%'
+        UNION
+        SELECT p.id FROM posts p
+          JOIN post_authors pa ON pa."postId" = p.id
+          JOIN authors a ON a.id = pa."authorId"
+          WHERE p.status = 'published' AND a."displayName" ILIKE '%' || ${term} || '%'
+        UNION
+        SELECT p.id FROM posts p
+          JOIN post_categories pc ON pc."postId" = p.id
+          JOIN categories c ON c.id = pc."categoryId"
+          WHERE p.status = 'published' AND c.name ILIKE '%' || ${term} || '%'
+        UNION
+        SELECT p.id FROM posts p
+          JOIN post_tags pt ON pt."postId" = p.id
+          JOIN tags t ON t.id = pt."tagId"
+          WHERE p.status = 'published' AND t.name ILIKE '%' || ${term} || '%'
+      `;
       const t1 = Date.now();
-      const findManyWithInclude = await prisma.post.findMany({ where, include: postInclude, skip: 0, take: 12, orderBy: { publishedAt: 'desc' } });
+      const posts = await prisma.post.findMany({
+        where: { id: { in: matches.map((m) => m.id) } },
+        skip: 0,
+        take: 12,
+        orderBy: { publishedAt: 'desc' },
+      });
       const t2 = Date.now();
-      const count = await prisma.post.count({ where });
-      const t3 = Date.now();
 
-      const [postsTotal, tagsTotal, postTagsTotal] = await Promise.all([
+      const [postsTotal, tagsTotal, postTagsTotal, avgContentLen] = await Promise.all([
         prisma.post.count(),
         prisma.tag.count(),
         prisma.$queryRaw<{ count: bigint }[]>`SELECT count(*) FROM post_tags`.then((r) => r[0].count),
+        prisma.$queryRaw<{ avg: number }[]>`SELECT avg(length(content))::int as avg FROM posts`.then((r) => r[0].avg),
       ]);
 
       return reply.send({
         trigramIndexesPresent: indexes.map((i) => i.indexname),
-        plan: plan.map((r) => r['QUERY PLAN']).join('\n'),
-        countPlan: countPlan.map((r) => r['QUERY PLAN']).join('\n'),
-        timingsMs: {
-          findManyBareNoInclude: t1 - t0,
-          findManyWithPostInclude: t2 - t1,
-          count: t3 - t2,
-        },
-        resultCounts: { findManyBare: findManyBare.length, findManyWithInclude: findManyWithInclude.length, count },
-        tableSizes: { postsTotal, tagsTotal, postTagsTotal: Number(postTagsTotal) },
+        titlePlan: titlePlan.map((r) => r['QUERY PLAN']).join('\n'),
+        excerptPlan: excerptPlan.map((r) => r['QUERY PLAN']).join('\n'),
+        contentPlan: contentPlan.map((r) => r['QUERY PLAN']).join('\n'),
+        tagPlan: tagPlan.map((r) => r['QUERY PLAN']).join('\n'),
+        unionPlan: unionPlan.map((r) => r['QUERY PLAN']).join('\n'),
+        timingsMs: { unionQuery: t1 - t0, hydrateFindMany: t2 - t1 },
+        resultCounts: { matches: matches.length, posts: posts.length },
+        tableSizes: { postsTotal, tagsTotal, postTagsTotal: Number(postTagsTotal), avgContentLenChars: avgContentLen },
       });
     } catch (e: any) {
       return reply.send({ error: `${e?.name}: ${e?.message}` });
