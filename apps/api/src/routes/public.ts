@@ -223,6 +223,17 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   // GET /public/search?q=... — full-text search across posts
+  //
+  // Written as a UNION of single-predicate sub-selects rather than one
+  // `status = published AND (a OR b OR c OR EXISTS(...) OR ...)` clause.
+  // Postgres can give each branch its own cheap index scan (a trgm GIN
+  // index for title/excerpt/content, a join starting from the few matching
+  // authors/categories/tags for the relation branches) and UNION dedupes
+  // the post ids for free. The combined-OR form forced a full sequential
+  // scan of every published post for the count() query (no LIMIT to let it
+  // stop early via the publishedAt index), decompressing the TOASTed
+  // content column for thousands of non-matching rows just to evaluate the
+  // filter — multi-second on production despite the trgm indexes existing.
   fastify.get('/search', async (req, reply) => {
     const { q, page = 1, pageSize = 12 } = req.query as any;
     if (!q || String(q).trim().length < 2) {
@@ -232,22 +243,40 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
     const term = String(q).trim();
     const skip = (Number(page) - 1) * Number(pageSize);
 
-    const where = {
-      status: 'published' as const,
-      OR: [
-        { title: { contains: term, mode: 'insensitive' as const } },
-        { excerpt: { contains: term, mode: 'insensitive' as const } },
-        { content: { contains: term, mode: 'insensitive' as const } },
-        { authors: { some: { author: { displayName: { contains: term, mode: 'insensitive' as const } } } } },
-        { categories: { some: { category: { name: { contains: term, mode: 'insensitive' as const } } } } },
-        { tags: { some: { tag: { name: { contains: term, mode: 'insensitive' as const } } } } },
-      ],
-    };
+    const matches = await prisma.$queryRaw<{ id: string }[]>`
+      SELECT id FROM posts WHERE status = 'published' AND title ILIKE '%' || ${term} || '%'
+      UNION
+      SELECT id FROM posts WHERE status = 'published' AND excerpt ILIKE '%' || ${term} || '%'
+      UNION
+      SELECT id FROM posts WHERE status = 'published' AND content ILIKE '%' || ${term} || '%'
+      UNION
+      SELECT p.id FROM posts p
+        JOIN post_authors pa ON pa."postId" = p.id
+        JOIN authors a ON a.id = pa."authorId"
+        WHERE p.status = 'published' AND a."displayName" ILIKE '%' || ${term} || '%'
+      UNION
+      SELECT p.id FROM posts p
+        JOIN post_categories pc ON pc."postId" = p.id
+        JOIN categories c ON c.id = pc."categoryId"
+        WHERE p.status = 'published' AND c.name ILIKE '%' || ${term} || '%'
+      UNION
+      SELECT p.id FROM posts p
+        JOIN post_tags pt ON pt."postId" = p.id
+        JOIN tags t ON t.id = pt."tagId"
+        WHERE p.status = 'published' AND t.name ILIKE '%' || ${term} || '%'
+    `;
+    const total = matches.length;
+    if (total === 0) {
+      return reply.send({ data: [], total: 0, page: Number(page), pageSize: Number(pageSize), totalPages: 0, query: term });
+    }
 
-    const [posts, total] = await Promise.all([
-      prisma.post.findMany({ where, include: postInclude, skip, take: Number(pageSize), orderBy: { publishedAt: 'desc' } }),
-      prisma.post.count({ where }),
-    ]);
+    const posts = await prisma.post.findMany({
+      where: { id: { in: matches.map((m) => m.id) } },
+      include: postInclude,
+      skip,
+      take: Number(pageSize),
+      orderBy: { publishedAt: 'desc' },
+    });
 
     return reply.send({
       data: posts.map(fmtList),
