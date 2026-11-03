@@ -41,9 +41,70 @@ const stockRoutes: FastifyPluginAsync = async (fastify) => {
         ORDER BY p."publishedAt" DESC
         LIMIT 12
       `;
+
+      // Count-shaped plan: same WHERE, no ORDER BY/LIMIT, matching what
+      // prisma.post.count() executes for the /search endpoint's total.
+      const countPlan = await prisma.$queryRaw<{ 'QUERY PLAN': string }[]>`
+        EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT)
+        SELECT count(*) FROM posts p
+        WHERE p.status = 'published' AND (
+          p.title ILIKE '%' || ${term} || '%' OR
+          p.excerpt ILIKE '%' || ${term} || '%' OR
+          p.content ILIKE '%' || ${term} || '%' OR
+          EXISTS (SELECT 1 FROM post_authors pa JOIN authors a ON a.id = pa."authorId" WHERE pa."postId" = p.id AND a."displayName" ILIKE '%' || ${term} || '%') OR
+          EXISTS (SELECT 1 FROM post_categories pc JOIN categories c ON c.id = pc."categoryId" WHERE pc."postId" = p.id AND c.name ILIKE '%' || ${term} || '%') OR
+          EXISTS (SELECT 1 FROM post_tags pt JOIN tags t ON t.id = pt."tagId" WHERE pt."postId" = p.id AND t.name ILIKE '%' || ${term} || '%')
+        )
+      `;
+
+      // Time the ACTUAL Prisma calls the /search route makes, including the
+      // postInclude relation loads, to see where real wall-clock time goes
+      // (the hand-written EXPLAINs above don't include Prisma's own relation
+      // queries or query-building overhead).
+      const where = {
+        status: 'published' as const,
+        OR: [
+          { title: { contains: term, mode: 'insensitive' as const } },
+          { excerpt: { contains: term, mode: 'insensitive' as const } },
+          { content: { contains: term, mode: 'insensitive' as const } },
+          { authors: { some: { author: { displayName: { contains: term, mode: 'insensitive' as const } } } } },
+          { categories: { some: { category: { name: { contains: term, mode: 'insensitive' as const } } } } },
+          { tags: { some: { tag: { name: { contains: term, mode: 'insensitive' as const } } } } },
+        ],
+      };
+      const postInclude = {
+        featuredMedia: true,
+        authors: { include: { author: true }, orderBy: { order: 'asc' as const } },
+        categories: { include: { category: true } },
+        tags: { include: { tag: true } },
+        issue: { select: { id: true, title: true, volumeNumber: true, issueNumber: true, publishDate: true } },
+      };
+
+      const t0 = Date.now();
+      const findManyBare = await prisma.post.findMany({ where, skip: 0, take: 12, orderBy: { publishedAt: 'desc' } });
+      const t1 = Date.now();
+      const findManyWithInclude = await prisma.post.findMany({ where, include: postInclude, skip: 0, take: 12, orderBy: { publishedAt: 'desc' } });
+      const t2 = Date.now();
+      const count = await prisma.post.count({ where });
+      const t3 = Date.now();
+
+      const [postsTotal, tagsTotal, postTagsTotal] = await Promise.all([
+        prisma.post.count(),
+        prisma.tag.count(),
+        prisma.$queryRaw<{ count: bigint }[]>`SELECT count(*) FROM post_tags`.then((r) => r[0].count),
+      ]);
+
       return reply.send({
         trigramIndexesPresent: indexes.map((i) => i.indexname),
         plan: plan.map((r) => r['QUERY PLAN']).join('\n'),
+        countPlan: countPlan.map((r) => r['QUERY PLAN']).join('\n'),
+        timingsMs: {
+          findManyBareNoInclude: t1 - t0,
+          findManyWithPostInclude: t2 - t1,
+          count: t3 - t2,
+        },
+        resultCounts: { findManyBare: findManyBare.length, findManyWithInclude: findManyWithInclude.length, count },
+        tableSizes: { postsTotal, tagsTotal, postTagsTotal: Number(postTagsTotal) },
       });
     } catch (e: any) {
       return reply.send({ error: `${e?.name}: ${e?.message}` });
