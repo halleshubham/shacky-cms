@@ -3,6 +3,7 @@ import Fastify from 'fastify';
 
 const prisma = vi.hoisted(() => ({
   post: { findFirst: vi.fn(), findMany: vi.fn(), count: vi.fn() },
+  $queryRaw: vi.fn(),
 }));
 vi.mock('../src/plugins/prisma.js', () => ({ prisma }));
 
@@ -96,24 +97,30 @@ describe('GET /api/public/posts', () => {
 });
 
 describe('GET /api/public/search', () => {
-  it('searches title, excerpt, content, and author/category/tag names', async () => {
+  it('searches title, excerpt, content, and author/category/tag names via a UNION of matching post ids', async () => {
+    prisma.$queryRaw.mockResolvedValue([{ id: 'p1' }]);
     prisma.post.findMany.mockResolvedValue([dbPost()]);
-    prisma.post.count.mockResolvedValue(1);
 
     const res = await app.inject({ url: '/api/public/search?q=culture' });
     const body = res.json();
     expect(res.statusCode).toBe(200);
     expect(body.total).toBe(1);
     expect(body.data[0].content).toBeUndefined();
-    const where = prisma.post.findMany.mock.calls[0][0].where;
-    expect(where.status).toBe('published');
-    expect(where.OR.map((c: any) => Object.keys(c)[0])).toEqual(
-      expect.arrayContaining(['title', 'excerpt', 'content', 'authors', 'categories', 'tags']),
-    );
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(prisma.post.findMany.mock.calls[0][0].where).toEqual({ id: { in: ['p1'] } });
   });
 
   it('skips the query entirely for terms under 2 characters', async () => {
     const res = await app.inject({ url: '/api/public/search?q=a' });
+    const body = res.json();
+    expect(body).toMatchObject({ data: [], total: 0 });
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
+    expect(prisma.post.findMany).not.toHaveBeenCalled();
+  });
+
+  it('returns no results without querying findMany when nothing matches', async () => {
+    prisma.$queryRaw.mockResolvedValue([]);
+    const res = await app.inject({ url: '/api/public/search?q=nomatch' });
     const body = res.json();
     expect(body).toMatchObject({ data: [], total: 0 });
     expect(prisma.post.findMany).not.toHaveBeenCalled();
