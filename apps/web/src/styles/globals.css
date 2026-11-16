@@ -30,6 +30,13 @@
     --input: 210 20% 88%;
     --ring: 221 83% 53%;
     --radius: 0.375rem;
+
+    /* Chrome tokens: header / footer. Default = page colours (original look). */
+    --header: var(--background);
+    --header-foreground: var(--foreground);
+    --header-hover: var(--primary);
+    --footer: var(--background);
+    --footer-foreground: var(--muted-foreground);
   }
 
   .dark {
@@ -61,7 +68,7 @@
 
   /* Playfair Display for all headings */
   h1, h2, h3, h4, h5, h6 {
-    font-family: var(--font-playfair), Georgia, serif;
+    font-family: var(--font-heading, var(--font-playfair)), Georgia, serif;
     font-weight: 700;
     letter-spacing: -0.01em;
   }

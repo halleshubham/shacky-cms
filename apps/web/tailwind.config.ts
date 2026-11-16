@@ -18,6 +18,7 @@ const config: Config = {
         sans: ['var(--font-montserrat)', 'system-ui', 'sans-serif'],
         serif: ['var(--font-garamond)', 'Georgia', 'serif'],
         display: ['var(--font-playfair)', 'Georgia', 'serif'],
+        heading: ['var(--font-heading, var(--font-playfair))', 'Georgia', 'serif'],
       },
       colors: {
         border: 'hsl(var(--border))',
@@ -48,6 +49,17 @@ const config: Config = {
         popover: {
           DEFAULT: 'hsl(var(--popover))',
           foreground: 'hsl(var(--popover-foreground))',
+        },
+        // Theme chrome tokens — default to the page background/foreground so the original
+        // look is unchanged; themes override them to colour the header and footer.
+        header: {
+          DEFAULT: 'hsl(var(--header) / <alpha-value>)',
+          foreground: 'hsl(var(--header-foreground) / <alpha-value>)',
+          hover: 'hsl(var(--header-hover) / <alpha-value>)',
+        },
+        footer: {
+          DEFAULT: 'hsl(var(--footer) / <alpha-value>)',
+          foreground: 'hsl(var(--footer-foreground) / <alpha-value>)',
         },
         card: {
           DEFAULT: 'hsl(var(--card))',

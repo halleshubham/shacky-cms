@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { type NavItem, navItemHref, type SiteSettings } from '@/lib/site-settings';
+import { uiStrings } from '@/lib/ui-strings';
 
 interface Category { id: string; name: string; slug: string }
 
@@ -8,6 +9,11 @@ interface PublicFooterProps {
   categories?: Category[];
   siteName: string;
   settings?: Pick<SiteSettings, 'social_facebook' | 'social_instagram' | 'social_whatsapp' | 'social_telegram' | 'social_youtube' | 'social_x'>;
+  lang?: string;
+  /** Overrides the default "© year site. All rights reserved." line. */
+  footerText?: string;
+  /** Show the built-in Home / All Issues column (default true). */
+  showPublication?: boolean;
 }
 
 type SocialKey = 'facebook' | 'instagram' | 'whatsapp' | 'telegram' | 'youtube' | 'x';
@@ -21,39 +27,42 @@ const SOCIAL_META: Record<SocialKey, { label: string; icon: React.ReactNode }> =
   x:         { label: 'X',         icon: <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.747l7.73-8.835L1.254 2.25H8.08l4.253 5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg> },
 };
 
-export function PublicFooter({ navItems, categories, siteName, settings }: PublicFooterProps) {
+export function PublicFooter({ navItems, categories, siteName, settings, lang, footerText, showPublication = true }: PublicFooterProps) {
   const hasNav = navItems && navItems.length > 0;
+  const t = uiStrings(lang);
 
   const socialLinks = (Object.keys(SOCIAL_META) as SocialKey[])
     .map((key) => ({ key, url: (settings as any)?.[`social_${key}`] || '' }))
     .filter((l) => l.url);
 
   return (
-    <footer className="border-t border-border mt-16">
+    <footer data-site-footer className="border-t border-border bg-footer text-footer-foreground mt-16">
       <div className="max-w-6xl mx-auto px-4 py-8">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
-          <div>
-            <h3 className="font-semibold text-sm mb-3">Publication</h3>
-            <ul className="space-y-2 text-sm text-muted-foreground">
-              <li><Link href="/" className="hover:text-foreground transition-colors">Home</Link></li>
-              <li><Link href="/issues" className="hover:text-foreground transition-colors">All Issues</Link></li>
-            </ul>
-          </div>
+          {showPublication && (
+            <div>
+              <h3 className="font-semibold text-sm mb-3 text-footer-foreground">{t.publication}</h3>
+              <ul className="space-y-2 text-sm">
+                <li><Link href="/" className="hover:underline transition-colors">{t.home}</Link></li>
+                <li><Link href="/issues" className="hover:underline transition-colors">{t.allIssues}</Link></li>
+              </ul>
+            </div>
+          )}
 
           {hasNav ? (
             <div>
-              <h3 className="font-semibold text-sm mb-3">Links</h3>
-              <ul className="space-y-2 text-sm text-muted-foreground">
+              <h3 className="font-semibold text-sm mb-3 text-footer-foreground">{t.links}</h3>
+              <ul className="space-y-2 text-sm">
                 {navItems.flatMap((item) =>
                   item.type === 'dropdown'
                     ? (item.children ?? []).map((child) => (
                         <li key={child.label + child.value}>
-                          <Link href={navItemHref(child)} className="hover:text-foreground transition-colors">{child.label}</Link>
+                          <Link href={navItemHref(child)} className="hover:underline transition-colors">{child.label}</Link>
                         </li>
                       ))
                     : [
                         <li key={item.label + item.value}>
-                          <Link href={navItemHref(item)} className="hover:text-foreground transition-colors">{item.label}</Link>
+                          <Link href={navItemHref(item)} className="hover:underline transition-colors">{item.label}</Link>
                         </li>,
                       ]
                 )}
@@ -61,11 +70,11 @@ export function PublicFooter({ navItems, categories, siteName, settings }: Publi
             </div>
           ) : (
             <div>
-              <h3 className="font-semibold text-sm mb-3">Sections</h3>
-              <ul className="space-y-2 text-sm text-muted-foreground">
+              <h3 className="font-semibold text-sm mb-3 text-footer-foreground">{t.sections}</h3>
+              <ul className="space-y-2 text-sm">
                 {(categories ?? []).slice(0, 5).map((c) => (
                   <li key={c.id}>
-                    <Link href={`/category/${c.slug}`} className="hover:text-foreground transition-colors">{c.name}</Link>
+                    <Link href={`/category/${c.slug}`} className="hover:underline transition-colors">{c.name}</Link>
                   </li>
                 ))}
               </ul>
@@ -74,14 +83,14 @@ export function PublicFooter({ navItems, categories, siteName, settings }: Publi
 
           {socialLinks.length > 0 && (
             <div>
-              <h3 className="font-semibold text-sm mb-3">Follow Us</h3>
+              <h3 className="font-semibold text-sm mb-3 text-footer-foreground">{t.followUs}</h3>
               <ul className="space-y-2">
                 {socialLinks.map(({ key, url }) => {
                   const meta = SOCIAL_META[key];
                   return (
                     <li key={key}>
                       <a href={url} target="_blank" rel="noopener noreferrer"
-                        className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
+                        className="flex items-center gap-2 text-sm hover:underline transition-colors">
                         {meta.icon}
                         {meta.label}
                       </a>
@@ -93,8 +102,8 @@ export function PublicFooter({ navItems, categories, siteName, settings }: Publi
           )}
         </div>
 
-        <div className="border-t border-border pt-6 text-xs text-muted-foreground text-center">
-          © {new Date().getFullYear()} {siteName}. All rights reserved.
+        <div data-footer-legal className="border-t border-border pt-6 text-xs text-center">
+          {footerText || `© ${new Date().getFullYear()} ${siteName}. ${t.rightsReserved}`}
         </div>
       </div>
     </footer>

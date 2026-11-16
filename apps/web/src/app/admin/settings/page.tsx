@@ -75,6 +75,10 @@ export default function SettingsPage() {
   const [headerShowTitle, setHeaderShowTitle] = useState(false);
   const [headerShowTagline, setHeaderShowTagline] = useState(false);
   const [headerShowEditors, setHeaderShowEditors] = useState(false);
+  const [siteTheme, setSiteTheme] = useState('default');
+  const [siteLang, setSiteLang] = useState('en');
+  const [footerText, setFooterText] = useState('');
+  const [footerShowPublication, setFooterShowPublication] = useState(true);
   const [savingSettings, setSavingSettings] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingFavicon, setUploadingFavicon] = useState(false);
@@ -162,6 +166,10 @@ export default function SettingsPage() {
       setHeaderShowTitle(s.header_show_title === 'true');
       setHeaderShowTagline(s.header_show_tagline === 'true');
       setHeaderShowEditors(s.header_show_editors === 'true');
+      setSiteTheme(s.site_theme || 'default');
+      setSiteLang(s.site_lang || 'en');
+      setFooterText(s.footer_text || '');
+      setFooterShowPublication(s.footer_show_publication !== 'false');
       setStockUnsplash(s.stock_unsplash_key ? '••••••••' : '');
       setStockPexels(s.stock_pexels_key ? '••••••••' : '');
       setStockPixabay(s.stock_pixabay_key ? '••••••••' : '');
@@ -233,6 +241,10 @@ export default function SettingsPage() {
         header_show_title: String(headerShowTitle),
         header_show_tagline: String(headerShowTagline),
         header_show_editors: String(headerShowEditors),
+        site_theme: siteTheme,
+        site_lang: siteLang,
+        footer_text: footerText,
+        footer_show_publication: String(footerShowPublication),
       });
       revalidateSiteSettings();
       toast.success('Site settings saved');
@@ -591,6 +603,43 @@ export default function SettingsPage() {
                 />
                 <Label htmlFor="header-show-editors" className="text-xs cursor-pointer">
                   Show editors line in site header (uses the editors list set below under Newsletter)
+                </Label>
+              </div>
+            </div>
+
+            {/* Appearance */}
+            <div className="space-y-3 rounded-md border border-border p-3">
+              <Label className="text-xs font-semibold">Appearance</Label>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <Label htmlFor="site-theme" className="text-xs">Theme</Label>
+                  <select id="site-theme" value={siteTheme} onChange={(e) => setSiteTheme(e.target.value)}
+                    className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
+                    <option value="default">Default (Neo Classic)</option>
+                    <option value="samvidhan">Samvidhan — saffron / terracotta, Devanagari</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="site-lang" className="text-xs">Site language</Label>
+                  <select id="site-lang" value={siteLang} onChange={(e) => setSiteLang(e.target.value)}
+                    className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
+                    <option value="en">English</option>
+                    <option value="mr">मराठी (Marathi)</option>
+                    <option value="hi">हिन्दी (Hindi)</option>
+                  </select>
+                  <p className="text-[11px] text-muted-foreground">Sets the page language and the labels in the header, footer and search.</p>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="footer-text" className="text-xs">Footer text</Label>
+                <Input id="footer-text" value={footerText} onChange={(e) => setFooterText(e.target.value)}
+                  placeholder="Leave blank for “© year Site name. All rights reserved.”" className="text-sm" />
+              </div>
+              <div className="flex items-center gap-2">
+                <input id="footer-show-publication" type="checkbox" checked={footerShowPublication}
+                  onChange={(e) => setFooterShowPublication(e.target.checked)} className="h-4 w-4 rounded border-input" />
+                <Label htmlFor="footer-show-publication" className="text-xs cursor-pointer">
+                  Show “Home / All Issues” column in the footer (turn off for non-magazine sites)
                 </Label>
               </div>
             </div>

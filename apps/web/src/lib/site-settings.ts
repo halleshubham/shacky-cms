@@ -10,6 +10,12 @@ export interface SiteSettings {
   site_description?: string;
   site_logo?: string;
   site_icon?: string;
+  /** Public-site theme id (see apps/web/src/styles/themes). Empty/'default' = original look. */
+  site_theme?: string;
+  /** BCP-47 language of the UI chrome (en | mr | hi). Drives <html lang> and UI strings. */
+  site_lang?: string;
+  footer_text?: string;
+  footer_show_publication?: boolean;
   nav_primary?: NavItem[];
   nav_secondary?: NavItem[];
   translation_enabled?: boolean;
@@ -69,6 +75,7 @@ export async function getSiteSettings(): Promise<SiteSettings> {
       header_show_title: raw.header_show_title === 'true',
       header_show_tagline: raw.header_show_tagline === 'true',
       header_show_editors: raw.header_show_editors === 'true',
+      footer_show_publication: raw.footer_show_publication !== 'false',
     } as SiteSettings;
   } catch {
     return {};
