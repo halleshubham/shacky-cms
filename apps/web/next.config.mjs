@@ -29,6 +29,8 @@ const nextConfig = {
       { source: '/feed', destination: '/rss.xml', permanent: true },
       // WordPress post permalinks were /<year>/<slug>/
       { source: '/:year(\\d{4})/:slug', destination: '/articles/:slug', permanent: true },
+      // Child pages on WordPress sites lived under their parent's path (e.g. /media/c-videos)
+      { source: '/media/:slug', destination: '/:slug', permanent: true },
     ];
   },
 

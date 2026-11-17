@@ -197,6 +197,10 @@
   color: hsl(var(--header-foreground));
   transition: background 0.12s, color 0.12s;
 }
+/* one-row header: on mid-width desktops the nav needs the room more than the icons do (they remain in the footer) */
+@media (min-width: 1100px) and (max-width: 1439px) {
+  [data-theme='lokayat'] [data-header-social] { display: none; }
+}
 [data-theme='lokayat'] [data-header-social] a:hover { background: hsl(var(--primary)); border-color: hsl(var(--primary)); color: #fff; }
 [data-theme='lokayat'] [data-header-social] svg { width: 1rem; height: 1rem; }
 
