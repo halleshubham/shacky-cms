@@ -90,6 +90,11 @@ services:
       APP_URL: ${APP_URL}
       API_URL: ${API_URL}
       CORS_ORIGIN: ${APP_URL}
+      # First-boot admin (read by the seed in entrypoint.sh). Without these the seed falls
+      # back to the public default admin@shacky.local / ChangeMe@123!, so set both per instance.
+      # Empty defaults keep existing instances behaving exactly as before.
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-}
     healthcheck:
       test: ['CMD', 'node', '-e', 'require("http").get("http://127.0.0.1:4000/health",(r)=>{process.exit(r.statusCode<400?0:1)}).on("error",()=>process.exit(1))']
       interval: 15s
