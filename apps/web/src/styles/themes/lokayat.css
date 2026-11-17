@@ -1,0 +1,429 @@
+/* ═══════════════════════════════════════════════════════════════════════════════
+   Theme: "lokayat"  —  LOKAYAT · a forum for a new world
+   Activated with the `site_theme` setting = "lokayat" (Admin → Settings → Appearance).
+   Everything is scoped to [data-theme='lokayat'].
+
+   Concept: a printed pamphlet / street poster, made readable.
+     • Newsprint paper, ink black, ONE signal red — nothing else competes with the message.
+     • Heavy poster headlines (Archivo 800–900), UI labels in small caps-style uppercase.
+     • Long essays in an editorial serif (Source Serif 4) at a comfortable measure.
+     • Square, sticker-like cards with hard offset shadows — paste-up, not glassy SaaS.
+     • A yellow highlighter used sparingly, the way a marker is used on a pamphlet.
+
+     Newsprint #F7F4EE · Ink #121212 · Signal red #CE1228 · Marker #FDCB2F
+   Layers: 1) tokens  2) type  3) chrome  4) blocks  5) articles & cards
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+/* ── 1. Tokens ─────────────────────────────────────────────────────────────── */
+[data-theme='lokayat'] {
+  --background: 40 33% 96%;
+  --foreground: 0 0% 7%;
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 7%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 7%;
+  --primary: 355 83% 44%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 40 22% 90%;
+  --secondary-foreground: 0 0% 7%;
+  --muted: 40 20% 92%;
+  --muted-foreground: 0 0% 30%;
+  --accent: 48 96% 84%;
+  --accent-foreground: 0 0% 7%;
+  --destructive: 0 72% 45%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 40 10% 78%;
+  --input: 0 0% 7%;
+  --ring: 355 83% 44%;
+  --radius: 0;
+
+  /* theme-only tokens */
+  --ink: 0 0% 7%;
+  --paper: 40 33% 96%;
+  --marker: 48 96% 58%;
+  --offset: 5px 5px 0 hsl(var(--ink));
+  --offset-hover: 8px 8px 0 hsl(var(--ink));
+  --rule: 2px solid hsl(var(--ink));
+
+  /* chrome */
+  --header: 40 33% 96%;
+  --header-foreground: 0 0% 7%;
+  --header-hover: 355 83% 44%;
+  --footer: 0 0% 7%;
+  --footer-foreground: 40 33% 92%;
+
+  --font-heading: var(--font-archivo);
+  --font-ui: var(--font-archivo), system-ui, sans-serif;
+  --font-read: var(--font-source-serif), var(--font-noto-serif-devanagari), Georgia, serif;
+
+  font-family: var(--font-read);
+  font-size: 1.0625rem;
+  line-height: 1.7;
+  font-feature-settings: 'kern', 'liga';
+  text-rendering: optimizeLegibility;
+}
+
+.dark [data-theme='lokayat'] {
+  --background: 0 0% 8%;
+  --foreground: 40 33% 94%;
+  --card: 0 0% 12%;
+  --card-foreground: 40 33% 94%;
+  --popover: 0 0% 12%;
+  --popover-foreground: 40 33% 94%;
+  --primary: 355 88% 58%;
+  --primary-foreground: 0 0% 7%;
+  --secondary: 0 0% 16%;
+  --secondary-foreground: 40 33% 94%;
+  --muted: 0 0% 15%;
+  --muted-foreground: 40 12% 72%;
+  --accent: 48 60% 22%;
+  --accent-foreground: 48 96% 80%;
+  --border: 0 0% 24%;
+  --input: 40 33% 94%;
+  --ink: 40 33% 94%;
+  --paper: 0 0% 8%;
+  --header: 0 0% 8%;
+  --header-foreground: 40 33% 94%;
+  --footer: 0 0% 4%;
+}
+
+/* ── 2. Typography ─────────────────────────────────────────────────────────── */
+[data-theme='lokayat'] :is(h1, h2, h3, h4, h5, h6) {
+  font-family: var(--font-archivo), var(--font-noto-serif-devanagari), system-ui, sans-serif;
+  font-weight: 800;
+  line-height: 1.12;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+[data-theme='lokayat'] p { text-wrap: pretty; }
+[data-theme='lokayat'] ::selection { background: hsl(var(--marker) / 0.65); color: #121212; }
+[data-theme='lokayat'] :focus-visible { outline: 3px solid hsl(var(--marker)); outline-offset: 2px; }
+[data-theme='lokayat'] :is(nav, button, label, [data-btn], [data-kicker], [data-card-meta], [data-file-badge], [data-article-byline], [data-breadcrumb], figcaption) {
+  font-family: var(--font-ui);
+}
+
+/* Reading text (rich text blocks, pages, article bodies) */
+[data-theme='lokayat'] .prose {
+  font-family: var(--font-read);
+  font-size: 1.1875rem;
+  line-height: 1.75;
+  max-width: 44rem;
+  --tw-prose-body: hsl(var(--foreground) / 0.94);
+  --tw-prose-headings: hsl(var(--foreground));
+  --tw-prose-links: hsl(var(--primary));
+  --tw-prose-bold: hsl(var(--foreground));
+  --tw-prose-quotes: hsl(var(--foreground));
+  --tw-prose-quote-borders: hsl(var(--primary));
+  --tw-prose-bullets: hsl(var(--primary));
+  --tw-prose-counters: hsl(var(--primary));
+  --tw-prose-hr: hsl(var(--ink));
+}
+[data-theme='lokayat'] .prose :where(h2, h3, h4) { font-family: var(--font-archivo), sans-serif; font-weight: 800; }
+[data-theme='lokayat'] .prose :where(h2) { font-size: 1.9rem; margin-top: 2.2em; text-transform: uppercase; letter-spacing: 0; }
+[data-theme='lokayat'] .prose :where(h3) { font-size: 1.35rem; margin-top: 1.8em; }
+[data-theme='lokayat'] .prose :where(a) { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 3px; font-weight: 600; }
+[data-theme='lokayat'] .prose :where(a):hover { background: hsl(var(--marker) / 0.7); color: #121212; text-decoration-color: #121212; }
+[data-theme='lokayat'] .prose :where(blockquote) {
+  font-family: var(--font-archivo), sans-serif;
+  font-style: normal;
+  font-weight: 700;
+  font-size: 1.35rem;
+  line-height: 1.4;
+  border-inline-start: 8px solid hsl(var(--primary));
+  padding: 0.2rem 0 0.2rem 1.25rem;
+  margin: 2rem 0;
+  quotes: none;
+}
+[data-theme='lokayat'] .prose :where(blockquote p)::before,
+[data-theme='lokayat'] .prose :where(blockquote p)::after { content: none; }
+[data-theme='lokayat'] .prose :where(img) { border: var(--rule); border-radius: 0; margin-block: 1.75rem; }
+[data-theme='lokayat'] .prose :where(hr) { border-top: 3px solid hsl(var(--ink)); margin: 2.5rem 0; }
+[data-theme='lokayat'] .prose :where(ol > li)::marker { font-family: var(--font-archivo); font-weight: 800; }
+[data-theme='lokayat'] .prose :where(table) { border: var(--rule); font-family: var(--font-ui); font-size: 0.95rem; }
+[data-theme='lokayat'] .prose :where(th) { background: hsl(var(--ink)); color: hsl(var(--paper)); text-transform: uppercase; letter-spacing: 0.05em; font-size: 0.8rem; }
+
+/* ── 3. Chrome ─────────────────────────────────────────────────────────────── */
+[data-theme='lokayat'] [data-site-header] {
+  border-top: 6px solid hsl(var(--primary));
+  border-bottom: var(--rule);
+  background: hsl(var(--header));
+}
+[data-theme='lokayat'] [data-header-inner] { max-width: 76rem; }
+[data-theme='lokayat'] [data-header-brand] {
+  font-family: var(--font-archivo), sans-serif;
+  font-weight: 900;
+  font-size: 2rem;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: hsl(var(--primary));
+}
+[data-theme='lokayat'] [data-header-brand] svg { color: hsl(var(--primary)); }
+[data-theme='lokayat'] [data-header-brand] img { max-height: 2.6rem; }
+
+[data-theme='lokayat'] [data-nav-link] {
+  font-size: 0.8125rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0.55rem 0.7rem;
+  border-bottom: 3px solid transparent;
+  line-height: 1.2;
+}
+[data-theme='lokayat'] [data-nav-link]:hover { color: hsl(var(--foreground)); border-bottom-color: hsl(var(--primary)); }
+[data-theme='lokayat'] [data-nav-dropdown] {
+  border: var(--rule);
+  border-radius: 0;
+  box-shadow: var(--offset);
+  padding: 0.25rem 0;
+  min-width: 15rem;
+}
+[data-theme='lokayat'] [data-nav-dropdown] a {
+  font-family: var(--font-ui);
+  font-size: 0.875rem;
+  font-weight: 600;
+  padding: 0.55rem 1rem;
+  border-radius: 0;
+}
+[data-theme='lokayat'] [data-nav-dropdown] a:hover { background: hsl(var(--marker)); color: #121212; }
+
+/* social icons: plain square outlines */
+[data-theme='lokayat'] [data-header-social] a {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border: 2px solid hsl(var(--ink));
+  color: hsl(var(--header-foreground));
+  transition: background 0.12s, color 0.12s;
+}
+[data-theme='lokayat'] [data-header-social] a:hover { background: hsl(var(--primary)); border-color: hsl(var(--primary)); color: #fff; }
+[data-theme='lokayat'] [data-header-social] svg { width: 1rem; height: 1rem; }
+
+/* one-row header on desktop: brand | nav | tools */
+@media (min-width: 1100px) {
+  [data-theme='lokayat'] [data-header-inner] { display: flex; flex-wrap: wrap; align-items: center; gap: 0 1rem; min-height: 4.5rem; }
+  [data-theme='lokayat'] [data-header-row] { display: contents; }
+  [data-theme='lokayat'] [data-header-brand] { order: 1; margin-inline-end: auto; }
+  [data-theme='lokayat'] [data-header-nav] { order: 2; justify-content: flex-end; margin: 0; }
+  [data-theme='lokayat'] [data-header-tools] { order: 3; }
+  [data-theme='lokayat'] [data-header-search] { order: 4; flex-basis: 100%; }
+}
+@media (max-width: 1099px) { [data-theme='lokayat'] [data-header-brand] { font-size: 1.6rem; } }
+[data-theme='lokayat'] [data-mobile-menu] a { font-family: var(--font-ui); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; font-size: 0.85rem; }
+[data-theme='lokayat'] [data-header-search] input { border: var(--rule); border-radius: 0; }
+
+[data-theme='lokayat'] [data-site-main] { max-width: 76rem; padding-top: 2.5rem; padding-bottom: 3.5rem; }
+[data-theme='lokayat'] [data-site-main] .space-y-12 > :not([hidden]) ~ :not([hidden]) { margin-top: 3.25rem; }
+
+[data-theme='lokayat'] [data-site-footer] {
+  margin-top: 4rem;
+  border-top: 6px solid hsl(var(--primary));
+  background: hsl(var(--footer));
+}
+[data-theme='lokayat'] [data-site-footer] h3 {
+  font-family: var(--font-archivo), sans-serif;
+  font-size: 0.8rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: hsl(var(--marker));
+}
+[data-theme='lokayat'] [data-site-footer] a { color: hsl(var(--footer-foreground)); font-family: var(--font-ui); }
+[data-theme='lokayat'] [data-site-footer] a:hover { color: hsl(var(--marker)); text-decoration: underline; }
+[data-theme='lokayat'] [data-footer-legal] {
+  border-color: hsl(var(--footer-foreground) / 0.25);
+  color: hsl(var(--footer-foreground) / 0.8);
+  font-family: var(--font-ui);
+  font-size: 0.8rem;
+  letter-spacing: 0.03em;
+}
+[data-theme='lokayat'] [data-site-footer] .border-border { border-color: hsl(var(--footer-foreground) / 0.25); }
+
+/* ── 4. Blocks ─────────────────────────────────────────────────────────────── */
+
+/* Headings: poster type. h1 = hero slab; h2 = section title with a red bar. */
+[data-theme='lokayat'] [data-block='heading'] :is(h1, h2, h3) { color: hsl(var(--foreground)); }
+[data-theme='lokayat'] [data-block='heading'] h1 {
+  font-size: clamp(2.4rem, 1.2rem + 5.2vw, 4.6rem);
+  font-weight: 900;
+  text-transform: uppercase;
+  line-height: 1;
+  letter-spacing: -0.015em;
+}
+[data-theme='lokayat'] [data-block='heading'][data-level='1']::after {
+  content: '';
+  display: block;
+  width: 7rem;
+  height: 10px;
+  margin-top: 1.1rem;
+  background: hsl(var(--primary));
+}
+[data-theme='lokayat'] [data-block='heading'][data-level='1'][data-align='center']::after { margin-inline: auto; }
+[data-theme='lokayat'] [data-block='heading'] h2 {
+  font-size: clamp(1.5rem, 1.1rem + 1.6vw, 2.3rem);
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0;
+  padding-inline-start: 0.7rem;
+  border-inline-start: 10px solid hsl(var(--primary));
+}
+[data-theme='lokayat'] [data-block='heading'][data-align='center'] h2 { border-inline-start: 0; padding-inline-start: 0; }
+[data-theme='lokayat'] [data-block='heading'][data-align='center'] h2::after {
+  content: ''; display: block; width: 4rem; height: 6px; margin: 0.6rem auto 0; background: hsl(var(--primary));
+}
+[data-theme='lokayat'] [data-block='heading'] h3 { font-size: clamp(1.2rem, 1.05rem + 0.6vw, 1.55rem); font-weight: 800; }
+[data-theme='lokayat'] [data-heading-subtext] {
+  font-family: var(--font-read);
+  font-style: italic;
+  font-size: 1.25rem;
+  line-height: 1.5;
+  color: hsl(var(--muted-foreground));
+  max-width: 46rem;
+  margin-top: 0.9rem;
+}
+[data-theme='lokayat'] [data-block='heading'][data-align='center'] [data-heading-subtext] { margin-inline: auto; }
+
+/* Rhythm: a heading belongs to the content under it */
+[data-theme='lokayat'] [data-site-main] .space-y-12 > [data-block='heading'] + * { margin-top: 1.5rem !important; }
+[data-theme='lokayat'] [data-site-main] .space-y-12 > * + [data-block='heading'] { margin-top: 4rem; }
+[data-theme='lokayat'] [data-site-main] .space-y-12 > [data-block='heading'][data-level='1'] + * { margin-top: 2rem !important; }
+
+/* Buttons: square, uppercase, hard shadow */
+[data-theme='lokayat'] [data-btn] {
+  border-radius: 0;
+  padding: 0.8rem 1.5rem;
+  font-size: 0.875rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  line-height: 1.25;
+  text-align: center;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.12s ease, color 0.12s ease;
+}
+[data-theme='lokayat'] [data-btn][data-variant='primary'] {
+  background: hsl(var(--primary));
+  color: #fff;
+  border: 2px solid hsl(var(--ink));
+  box-shadow: var(--offset);
+}
+[data-theme='lokayat'] [data-btn][data-variant='primary']:hover { transform: translate(-2px, -2px); box-shadow: var(--offset-hover); }
+[data-theme='lokayat'] [data-btn][data-variant='primary']:active { transform: translate(3px, 3px); box-shadow: 1px 1px 0 hsl(var(--ink)); }
+[data-theme='lokayat'] [data-btn][data-variant='outline'] { border: 2px solid hsl(var(--ink)); color: hsl(var(--foreground)); background: transparent; }
+[data-theme='lokayat'] [data-btn][data-variant='outline']:hover { background: hsl(var(--ink)); color: hsl(var(--paper)); }
+[data-theme='lokayat'] [data-btn][data-variant='ghost'] { color: hsl(var(--primary)); text-decoration: underline; text-underline-offset: 4px; }
+
+/* Download banner: a black slab */
+[data-theme='lokayat'] [data-block='download-banner'] {
+  background: hsl(var(--ink));
+  color: hsl(var(--paper));
+  border: 0;
+  border-radius: 0;
+  box-shadow: 8px 8px 0 hsl(var(--primary));
+  padding-block: 2rem;
+}
+[data-theme='lokayat'] [data-block='download-banner'] h2 { color: hsl(var(--marker)); font-size: 1.8rem; font-weight: 900; text-transform: uppercase; }
+[data-theme='lokayat'] [data-banner-text] { color: hsl(var(--paper) / 0.85); font-size: 1.05rem; }
+[data-theme='lokayat'] [data-block='download-banner'] [data-btn] { border-color: hsl(var(--paper)); box-shadow: 4px 4px 0 hsl(var(--paper)); }
+
+/* File downloads: ticket stubs */
+[data-theme='lokayat'] [data-block='file-downloads'] > h2 { font-size: 1.5rem; font-weight: 900; text-transform: uppercase; }
+[data-theme='lokayat'] [data-file] {
+  background: hsl(var(--card));
+  border: var(--rule);
+  border-radius: 0;
+  padding: 0.8rem 1rem;
+  gap: 0.85rem;
+  box-shadow: 4px 4px 0 hsl(var(--ink));
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+[data-theme='lokayat'] [data-file]:hover { background: hsl(var(--marker) / 0.35); transform: translate(-2px, -2px); box-shadow: 6px 6px 0 hsl(var(--ink)); }
+[data-theme='lokayat'] [data-file] > span:nth-child(2) { white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.4; font-weight: 700; font-family: var(--font-ui); }
+[data-theme='lokayat'] [data-file-badge] {
+  border-radius: 0; background: hsl(var(--ink)) !important; color: hsl(var(--paper)) !important;
+  font-size: 0.7rem; font-weight: 800; padding: 0.25rem 0.5rem; letter-spacing: 0.08em;
+}
+[data-theme='lokayat'] [data-file] svg { color: hsl(var(--primary)); }
+
+/* Galleries / images: framed like pasted prints */
+[data-theme='lokayat'] [data-block='gallery'] > h2 { font-size: 1.5rem; font-weight: 900; text-transform: uppercase; }
+[data-theme='lokayat'] [data-block='gallery'] > div { align-items: start; gap: 1.25rem; }
+[data-theme='lokayat'] [data-block='gallery'] img {
+  aspect-ratio: auto; height: auto; object-fit: contain;
+  border: var(--rule); border-radius: 0; background: hsl(var(--card));
+  box-shadow: 5px 5px 0 hsl(var(--ink));
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+[data-theme='lokayat'] [data-block='gallery'] a:hover img { transform: translate(-2px, -2px); box-shadow: 8px 8px 0 hsl(var(--primary)); opacity: 1; }
+[data-theme='lokayat'] [data-block='gallery'] figcaption { font-size: 0.85rem; font-weight: 600; }
+[data-theme='lokayat'] [data-block='image'] img { border: var(--rule); border-radius: 0; box-shadow: 6px 6px 0 hsl(var(--ink)); }
+
+/* Columns → sticker cards */
+[data-theme='lokayat'] [data-block='columns'] > [data-column] {
+  background: hsl(var(--card));
+  border: var(--rule);
+  border-radius: 0;
+  padding: clamp(1.1rem, 0.8rem + 1.1vw, 1.7rem);
+  box-shadow: 6px 6px 0 hsl(var(--ink));
+}
+[data-theme='lokayat'] [data-block='columns'] [data-column='card'] h3 { font-size: 1.3rem; font-weight: 900; text-transform: uppercase; }
+[data-theme='lokayat'] [data-block='columns'] [data-column='card'] img {
+  border: var(--rule); border-radius: 0;
+  aspect-ratio: auto; height: auto; object-fit: contain; max-height: 34rem; margin-inline: auto;
+}
+[data-theme='lokayat'] [data-block='columns'] [data-block='file-downloads'] [data-file] { box-shadow: none; }
+
+[data-theme='lokayat'] hr { border-color: hsl(var(--ink)); border-top-width: 2px; }
+
+/* ── 5. Articles & cards ───────────────────────────────────────────────────── */
+[data-theme='lokayat'] [data-article-card] { display: block; }
+[data-theme='lokayat'] [data-article-card] [data-card-media] {
+  border: var(--rule); border-radius: 0;
+  box-shadow: 4px 4px 0 hsl(var(--ink));
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+[data-theme='lokayat'] [data-article-card]:hover [data-card-media] { transform: translate(-2px, -2px); box-shadow: 7px 7px 0 hsl(var(--primary)); }
+[data-theme='lokayat'] [data-kicker] { font-weight: 900; letter-spacing: 0.12em; font-size: 0.72rem; color: hsl(var(--primary)); }
+[data-theme='lokayat'] [data-card-title] { font-family: var(--font-archivo), sans-serif; font-weight: 800; line-height: 1.2; }
+[data-theme='lokayat'] [data-article-card]:hover [data-card-title] { text-decoration: underline; text-decoration-thickness: 3px; text-underline-offset: 3px; text-decoration-color: hsl(var(--marker)); }
+[data-theme='lokayat'] [data-card-meta] { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
+
+/* Article page */
+[data-theme='lokayat'] [data-article] { max-width: 46rem; }
+[data-theme='lokayat'] [data-breadcrumb] { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
+[data-theme='lokayat'] [data-article-kickers] a { font-weight: 900; letter-spacing: 0.14em; background: hsl(var(--marker)); color: #121212; padding: 0.15rem 0.5rem; text-decoration: none; }
+[data-theme='lokayat'] [data-article-title] {
+  font-size: clamp(2rem, 1.2rem + 3.4vw, 3.4rem);
+  font-weight: 900;
+  line-height: 1.04;
+  letter-spacing: -0.02em;
+  margin-bottom: 1.2rem;
+}
+[data-theme='lokayat'] [data-article-header] > p { font-family: var(--font-read); font-style: italic; font-size: 1.3rem; color: hsl(var(--muted-foreground)); }
+[data-theme='lokayat'] [data-article-byline] {
+  border-block: 3px solid hsl(var(--ink));
+  font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em;
+  padding-block: 0.7rem;
+}
+[data-theme='lokayat'] [data-article-byline] a { color: hsl(var(--foreground)); }
+[data-theme='lokayat'] [data-article-byline] a:hover { color: hsl(var(--primary)); }
+[data-theme='lokayat'] [data-article-body] > p:first-of-type { font-size: 1.32rem; line-height: 1.6; }
+[data-theme='lokayat'] [data-article-tags] > span {
+  border-radius: 0; background: transparent; border: 2px solid hsl(var(--ink)); color: hsl(var(--foreground));
+  font-family: var(--font-ui); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; font-size: 0.7rem;
+}
+[data-theme='lokayat'] [data-article-authors] { border-top: 3px solid hsl(var(--ink)); }
+[data-theme='lokayat'] [data-article-related] { border-top: 3px solid hsl(var(--ink)); }
+[data-theme='lokayat'] [data-article-related] > h2 { font-size: 1.4rem; font-weight: 900; text-transform: uppercase; }
+
+@media (prefers-reduced-motion: reduce) {
+  [data-theme='lokayat'] * { transition: none !important; animation: none !important; }
+  [data-theme='lokayat'] [data-btn]:hover,
+  [data-theme='lokayat'] [data-file]:hover,
+  [data-theme='lokayat'] [data-block='gallery'] a:hover img,
+  [data-theme='lokayat'] [data-article-card]:hover [data-card-media] { transform: none; }
+}
+@media print {
+  [data-theme='lokayat'] [data-site-header], [data-theme='lokayat'] [data-site-footer] { display: none; }
+  [data-theme='lokayat'] [data-btn], [data-theme='lokayat'] [data-file] { box-shadow: none; }
+}

@@ -340,6 +340,19 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
     return reply.send(pages);
   });
 
+  // GET /public/legacy-redirect/:slug — where an article that was NOT migrated now lives (e.g. it already existed
+  // on a sibling site). The map is the `legacy_redirects` setting: { "<old slug>": "https://…" }. Only http(s) targets.
+  fastify.get('/legacy-redirect/:slug', async (req, reply) => {
+    const { slug } = req.params as { slug: string };
+    const row = await prisma.setting.findUnique({ where: { key: 'legacy_redirects' } });
+    let url: unknown;
+    try { url = row ? JSON.parse(row.value)?.[slug] : undefined; } catch { /* malformed map: no redirect */ }
+    if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) {
+      return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'No redirect' });
+    }
+    return reply.send({ url });
+  });
+
   // GET /public/pages/:slug — single published page
   fastify.get('/pages/:slug', async (req, reply) => {
     const { slug } = req.params as { slug: string };

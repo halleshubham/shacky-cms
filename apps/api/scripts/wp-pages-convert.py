@@ -65,6 +65,12 @@ def fix_url(ctx, url, kind='link'):
     if not url:
         return url
     u = htmlmod.unescape(url.strip())
+    hook = getattr(ctx, 'rewrite', None)       # site-specific rules, set by e.g. wp-elementor-convert.py
+    if hook:
+        r = hook(u)
+        if r is not None:
+            ctx.rewritten += 1
+            return r
     m = re.match(rf'^(?:{CDN_RE}|{HOST_RE})(/wp-content/uploads/[^?#]+)(?:[?#].*)?$', u, re.I)
     if m:
         decoded = urllib.parse.unquote(m.group(1)[len('/wp-content/uploads/'):])
@@ -123,7 +129,33 @@ def clean_html(ctx, node_or_list):
         elif el.name not in ALLOWED_TAGS:
             ctx.unhandled.add(el.name)
             el.unwrap()
+    new_tag = BeautifulSoup('', 'html.parser').new_tag
+    for el in list(wrapper.find_all('iframe')):
+        src = el.get('src') or el.get('data-src') or ''
+        # `<iframe .../>` is not self-closing in HTML: parsers nest everything after it inside the iframe.
+        # Rescue that content before deciding what to do with the embed itself.
+        for kid in reversed(list(el.contents)):
+            el.insert_after(kid.extract())
+        if not re.match(r'^(?:https?:)?//(?:www\.)?(youtube\.com|youtube-nocookie\.com|player\.vimeo\.com|google\.com/maps|maps\.google\.com)/', src, re.I):
+            if src.startswith(('http://', 'https://', '//')):
+                host = re.sub(r'^(?:https?:)?//([^/]+).*', r'\1', src)
+                p = new_tag('p')
+                a = new_tag('a', href=('https:' + src) if src.startswith('//') else src)
+                a.string = f'Embedded content: {host}'
+                p.append(a)
+                el.replace_with(p)
+            else:
+                el.decompose()
+            continue
+        for a_ in list(el.attrs):
+            if a_ not in ('width', 'height', 'allowfullscreen', 'title'):
+                del el.attrs[a_]
+        el['src'] = ('https:' + src) if src.startswith('//') else src
+        el['loading'] = 'lazy'
+        el['style'] = 'width:100%;aspect-ratio:16/9;border:0'
     for el in wrapper.find_all(True):
+        if el.name == 'iframe':
+            continue
         keep = ALLOWED_ATTRS.get(el.name, set())
         for a in list(el.attrs):
             if a not in keep:
@@ -135,6 +167,9 @@ def clean_html(ctx, node_or_list):
                     del el.attrs[a]
                 else:
                     el[a] = fix_url(ctx, v, 'img' if el.name == 'img' else 'link')
+        if el.name == 'a' and not (el.get('href') or '').strip():
+            el.unwrap()
+            continue
         if el.name == 'a' and el.get('target') == '_blank':
             el['rel'] = 'noopener noreferrer'
     for el in list(wrapper.find_all(['p', 'li'])):

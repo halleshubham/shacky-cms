@@ -1,9 +1,10 @@
 import type { Metadata } from 'next';
-import { Playfair_Display, EB_Garamond, Montserrat, Mukta, Noto_Serif_Devanagari } from 'next/font/google';
+import { Playfair_Display, EB_Garamond, Montserrat, Mukta, Noto_Serif_Devanagari, Archivo, Source_Serif_4 } from 'next/font/google';
 import { ThemeProvider } from 'next-themes';
 import { Toaster } from 'react-hot-toast';
 import '@/styles/globals.css';
 import '@/styles/themes/samvidhan.css';
+import '@/styles/themes/lokayat.css';
 import { AuthProvider } from '@/components/providers/AuthProvider';
 import { getSiteSettings } from '@/lib/site-settings';
 
@@ -53,6 +54,25 @@ function verificationTokens(raw?: string): string[] {
   return (raw || '').split(/[\s,]+/).filter((t) => /^[A-Za-z0-9_-]{10,100}$/.test(t));
 }
 
+// Latin faces for the "lokayat" theme: Archivo (poster-style headlines + UI) and Source Serif 4
+// (long-form reading). Loaded lazily like the Devanagari faces above.
+const archivo = Archivo({
+  subsets: ['latin'],
+  variable: '--font-archivo',
+  weight: ['400', '500', '600', '700', '800', '900'],
+  display: 'swap',
+  preload: false,
+});
+
+const sourceSerif = Source_Serif_4({
+  subsets: ['latin'],
+  variable: '--font-source-serif',
+  weight: ['400', '600', '700'],
+  style: ['normal', 'italic'],
+  display: 'swap',
+  preload: false,
+});
+
 export async function generateMetadata(): Promise<Metadata> {
   const s = await getSiteSettings();
   const title = s.site_title || 'Shacky CMS';
@@ -71,7 +91,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const lang = (settings.site_lang || 'en').trim() || 'en';
   return (
     <html lang={lang} suppressHydrationWarning>
-      <body className={`${playfair.variable} ${garamond.variable} ${montserrat.variable} ${mukta.variable} ${notoSerifDevanagari.variable} font-sans antialiased`}>
+      <body className={`${playfair.variable} ${garamond.variable} ${montserrat.variable} ${mukta.variable} ${notoSerifDevanagari.variable} ${archivo.variable} ${sourceSerif.variable} font-sans antialiased`}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <AuthProvider>
             {children}

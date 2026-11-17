@@ -3,6 +3,7 @@ import Fastify from 'fastify';
 
 const prisma = vi.hoisted(() => ({
   post: { findFirst: vi.fn(), findMany: vi.fn(), count: vi.fn() },
+  setting: { findUnique: vi.fn() },
   $queryRaw: vi.fn(),
 }));
 vi.mock('../src/plugins/prisma.js', () => ({ prisma }));
@@ -124,5 +125,31 @@ describe('GET /api/public/search', () => {
     const body = res.json();
     expect(body).toMatchObject({ data: [], total: 0 });
     expect(prisma.post.findMany).not.toHaveBeenCalled();
+  });
+});
+
+describe('GET /api/public/legacy-redirect/:slug', () => {
+  const get = (slug: string) => app.inject({ url: `/api/public/legacy-redirect/${slug}` });
+
+  it('returns the target for a mapped slug', async () => {
+    prisma.setting.findUnique.mockResolvedValue({ key: 'legacy_redirects', value: JSON.stringify({ old: 'https://other.example/articles/new' }) });
+    const res = await get('old');
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ url: 'https://other.example/articles/new' });
+  });
+
+  it('404s for an unmapped slug, a missing setting, or malformed JSON', async () => {
+    prisma.setting.findUnique.mockResolvedValue({ key: 'legacy_redirects', value: JSON.stringify({ a: 'https://x.example/' }) });
+    expect((await get('b')).statusCode).toBe(404);
+    prisma.setting.findUnique.mockResolvedValue(null);
+    expect((await get('a')).statusCode).toBe(404);
+    prisma.setting.findUnique.mockResolvedValue({ key: 'legacy_redirects', value: '{not json' });
+    expect((await get('a')).statusCode).toBe(404);
+  });
+
+  it('refuses non-http(s) targets (no javascript: or relative redirects)', async () => {
+    prisma.setting.findUnique.mockResolvedValue({ key: 'legacy_redirects', value: JSON.stringify({ x: 'javascript:alert(1)', y: '/relative' }) });
+    expect((await get('x')).statusCode).toBe(404);
+    expect((await get('y')).statusCode).toBe(404);
   });
 });

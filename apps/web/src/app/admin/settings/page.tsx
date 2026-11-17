@@ -623,6 +623,7 @@ export default function SettingsPage() {
                     className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
                     <option value="default">Default (Neo Classic)</option>
                     <option value="samvidhan">Samvidhan — saffron / terracotta, Devanagari</option>
+                    <option value="lokayat">Lokayat — newsprint, ink &amp; signal red, poster headlines</option>
                   </select>
                 </div>
                 <div className="space-y-1">

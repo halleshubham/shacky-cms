@@ -1,4 +1,4 @@
-import { notFound } from 'next/navigation';
+import { notFound, permanentRedirect } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import Script from 'next/script';
@@ -21,6 +21,16 @@ async function getPost(slug: string) {
   } catch { return null; }
 }
 
+// Articles that were deliberately not migrated can point at where they live now (setting `legacy_redirects`).
+async function legacyRedirect(slug: string): Promise<string | null> {
+  try {
+    const res = await fetch(`${API}/api/public/legacy-redirect/${encodeURIComponent(slug)}`, { next: { revalidate: 300 } });
+    if (!res.ok) return null;
+    const { url } = await res.json();
+    return typeof url === 'string' ? url : null;
+  } catch { return null; }
+}
+
 export async function generateMetadata({ params }: { params: { slug: string } }) {
   const post = await getPost(params.slug);
   if (!post) return { title: 'Not Found' };
@@ -32,7 +42,11 @@ export async function generateMetadata({ params }: { params: { slug: string } })
 
 export default async function ArticlePage({ params }: { params: { slug: string } }) {
   const [post, settings] = await Promise.all([getPost(params.slug), getSiteSettings()]);
-  if (!post) notFound();
+  if (!post) {
+    const target = await legacyRedirect(params.slug);
+    if (target) permanentRedirect(target);
+    notFound();
+  }
 
   const authors = post.authors || [];
   const categories = post.categories || [];
@@ -40,9 +54,9 @@ export default async function ArticlePage({ params }: { params: { slug: string }
   const related = post.related || [];
 
   return (
-    <div className="max-w-3xl mx-auto">
+    <div data-article className="max-w-3xl mx-auto">
       {/* Breadcrumb */}
-      <nav className="flex items-center gap-1.5 text-sm text-muted-foreground mb-6">
+      <nav data-breadcrumb className="flex items-center gap-1.5 text-sm text-muted-foreground mb-6">
         <Link href="/" className="hover:text-foreground">Home</Link>
         <ChevronRight className="h-3.5 w-3.5" />
         {categories[0] && (
@@ -55,9 +69,9 @@ export default async function ArticlePage({ params }: { params: { slug: string }
       </nav>
 
       {/* Header */}
-      <header className="mb-8">
+      <header data-article-header className="mb-8">
         {categories.length > 0 && (
-          <div className="flex gap-2 flex-wrap mb-3">
+          <div data-article-kickers className="flex gap-2 flex-wrap mb-3">
             {categories.map((c: any) => (
               <Link key={c.id} href={`/category/${c.slug}`}
                 className="text-xs font-semibold text-primary uppercase tracking-wider hover:underline">
@@ -67,7 +81,7 @@ export default async function ArticlePage({ params }: { params: { slug: string }
           </div>
         )}
 
-        <h1 className="text-3xl md:text-4xl font-extrabold leading-tight mb-4">{post.title}</h1>
+        <h1 data-article-title className="text-3xl md:text-4xl font-extrabold leading-tight mb-4">{post.title}</h1>
 
         {post.excerpt && (
           <p className="text-lg text-muted-foreground leading-relaxed mb-4">{post.excerpt}</p>
@@ -93,7 +107,7 @@ export default async function ArticlePage({ params }: { params: { slug: string }
             )}
           </div>
         )}
-        <div className="flex items-center gap-4 text-sm text-muted-foreground border-y border-border py-3">
+        <div data-article-byline className="flex items-center gap-4 text-sm text-muted-foreground border-y border-border py-3">
           <div className="flex items-center gap-2">
             {authors.map((a: any, i: number) => (
               <span key={a.id}>
@@ -148,6 +162,7 @@ export default async function ArticlePage({ params }: { params: { slug: string }
 
       {/* Article body */}
       <div
+        data-article-body
         className="prose prose-neutral dark:prose-invert max-w-none
           prose-headings:font-bold prose-h2:text-2xl prose-h3:text-xl
           prose-p:leading-relaxed prose-p:text-base
@@ -159,7 +174,7 @@ export default async function ArticlePage({ params }: { params: { slug: string }
 
       {/* Tags */}
       {tags.length > 0 && (
-        <div className="flex flex-wrap gap-2 mt-8 pt-6 border-t border-border">
+        <div data-article-tags className="flex flex-wrap gap-2 mt-8 pt-6 border-t border-border">
           {tags.map((t: any) => (
             <span key={t.id} className="px-3 py-1 bg-muted text-muted-foreground text-xs rounded-full">
               #{t.name}
@@ -170,7 +185,7 @@ export default async function ArticlePage({ params }: { params: { slug: string }
 
       {/* Authors bio */}
       {authors.length > 0 && (
-        <div className="mt-8 pt-6 border-t border-border space-y-4">
+        <div data-article-authors className="mt-8 pt-6 border-t border-border space-y-4">
           {authors.map((a: any) => (
             <Link key={a.id} href={`/author/${a.slug}`} className="flex items-start gap-4 group">
               {a.avatarUrl ? (
@@ -195,7 +210,7 @@ export default async function ArticlePage({ params }: { params: { slug: string }
 
       {/* Related articles */}
       {related.length > 0 && (
-        <section className="mt-12 pt-8 border-t border-border">
+        <section data-article-related className="mt-12 pt-8 border-t border-border">
           <h2 className="text-xl font-bold mb-6">Related Articles</h2>
           <div className="grid sm:grid-cols-2 gap-6">
             {related.map((p: any) => (

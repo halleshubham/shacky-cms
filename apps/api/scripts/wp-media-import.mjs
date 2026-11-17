@@ -139,19 +139,6 @@ async function transfer(item) {
 }
 
 // ── Main ────────────────────────────────────────────────────────────────────────
-if (ROOT_PATHS_FILE) {
-  const rows = (await readFile(ROOT_PATHS_FILE, 'utf8')).split('\n').map((l) => l.trim().replace(/^\/+/, '')).filter(Boolean);
-  for (const rel of rows) {
-    items.push({
-      id: `site:${rel}`, // state key; not a WordPress id
-      source_url: WP_URL + '/' + rel.split('/').map(encodeURIComponent).join('/'),
-      relPath: rel, area: 'site',
-      mime_type: MIME_BY_EXT[rel.split('.').pop().toLowerCase()] ?? 'application/octet-stream',
-      alt_text: '', media_details: {},
-    });
-  }
-}
-
 let state = { done: {}, failed: {} };
 try { state = JSON.parse(await readFile(STATE_FILE, 'utf8')); } catch { /* fresh run */ }
 const save = () => writeFile(STATE_FILE, JSON.stringify(state, null, 1));
@@ -166,6 +153,19 @@ EXTRA_PATHS.filter((p) => !known.has(p)).forEach((p, n) => items.push({
 }));
 if (ONLY_MIME) items = items.filter((i) => i.mime_type.startsWith(ONLY_MIME));
 if (LIMIT) items = items.slice(0, LIMIT);
+if (ROOT_PATHS_FILE) {
+  const rows = (await readFile(ROOT_PATHS_FILE, 'utf8')).split('\n').map((l) => l.trim().replace(/^\/+/, '')).filter(Boolean);
+  for (const rel of rows) {
+    items.push({
+      id: `site:${rel}`, // state key; not a WordPress id
+      source_url: WP_URL + '/' + rel.split('/').map(encodeURIComponent).join('/'),
+      relPath: rel, area: 'site',
+      mime_type: MIME_BY_EXT[rel.split('.').pop().toLowerCase()] ?? 'application/octet-stream',
+      alt_text: '', media_details: {},
+    });
+  }
+}
+
 const totalBytes = items.reduce((n, i) => n + (Number(i.media_details?.filesize) || 0), 0);
 console.log(`WordPress: ${items.length} attachments, ~${mb(totalBytes)}${DRY_RUN ? ' (dry run)' : ''}`);
 if (DRY_RUN) process.exit(0);
