@@ -376,7 +376,15 @@
   box-shadow: var(--shadow-card);
 }
 [data-theme='samvidhan'] [data-block='columns'] [data-column='card'] h3 { color: hsl(var(--primary)); font-size: 1.3rem; }
-[data-theme='samvidhan'] [data-block='columns'] [data-column='card'] img { box-shadow: var(--shadow-card); }
+[data-theme='samvidhan'] [data-block='columns'] [data-column='card'] img {
+  box-shadow: var(--shadow-card);
+  /* Card images are often portrait flyers/pamphlets — show them whole, not as a 16:9 crop. */
+  aspect-ratio: auto;
+  height: auto;
+  object-fit: contain;
+  max-height: 34rem;
+  margin-inline: auto;
+}
 [data-theme='samvidhan'] [data-block='columns'] [data-block='file-downloads'] [data-file] { box-shadow: none; }
 
 /* Hairlines */
