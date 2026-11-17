@@ -21,6 +21,8 @@ Env:
   NEWSLETTER_CATEGORY=newsletter                  category shown by "latest posts" widgets
   PUSH=posts,pages,settings   which parts to push (default all); e.g. PUSH=pages,settings first, posts later
   SETTINGS_FILE=settings.json  site settings to apply (nav, footer, theme, homepage_sections ...)
+  SPLIT_FILE=split.json  split long pages into a hub + section pages (see below)
+  COVERS_FILE=covers.json  {download url: cover image url} applied to cards that have no cover
   OUT=converted.json    where the converted items are written
 
 Pages and posts are upserted by slug (safe to re-run; edits made in the CMS to them are overwritten). Nothing
@@ -166,6 +168,8 @@ def lost_words(src, out):
 
 # ── convert pages ───────────────────────────────────────────────────────────────
 out_pages, problems, report, lost_detail = [], [], [], {}
+split_cfg = json.load(open(E('SPLIT_FILE'))) if E('SPLIT_FILE') else {}
+covers = json.load(open(E('COVERS_FILE'))) if E('COVERS_FILE') and os.path.exists(E('COVERS_FILE')) else {}
 news_grid = {'title': 'Latest', 'source': 'category', 'slug': NEWS_CAT, 'count': 3, 'columns': 3, 'size': 'default'}
 for p in pages:
     slug, raw = dec(p['slug']), p['content']['rendered']
@@ -177,8 +181,36 @@ for p in pages:
     if 'elementor-widget-flip-box' in raw or 'flip-box' in raw:
         bg = ec.flipbox_backgrounds(p['link'])
     ctx = new_ctx()
-    secs = ec.convert_page(ctx, title, raw, bg, news_grid)
-    lost, total, miss = lost_words(source_words(raw, 'page'), sections_words(secs))
+    if slug in split_cfg:
+        # one long page -> a hub that links to one page per section (instead of in-page jump buttons)
+        cfg = split_cfg[slug]
+        ranges, wlist = ec.section_ranges(raw, cfg['sections'])
+        hub = [ec.mk(ctx, 'heading_block', {'text': title, 'level': 1, 'align': 'center'})]
+        if cfg.get('intro'):
+            hub.append(ec.mk(ctx, 'rich_text', {'html': cfg['intro']}))
+        cards = []
+        for sp in cfg['sections']:
+            a, b = ranges[sp['slug']]
+            n_items = sum(1 for w in wlist[a:b] if ec.wtype(w) == 'flip-box')
+            sctx = new_ctx()
+            sub = ec.convert_page(sctx, sp['title'], raw, bg, news_grid, widget_range=(a, b))
+            back = ec.mk(sctx, 'button_row', {'align': 'left', 'buttons': [{'label': f'← {cfg.get("back_label", title)}', 'url': f'/{slug}', 'variant': 'outline'}]})
+            sub = sub[:1] + [back] + sub[1:]
+            out_pages.append({'kind': 'page', 'wpId': p['id'], 'title': sp['title'], 'slug': sp['slug'], 'excerpt': f"{sp['title']} — {title}",
+                              'sectionsJson': json.dumps(sub, ensure_ascii=False), 'sections': sub, 'publishedAt': p['date_gmt'] + 'Z', 'status': 'published'})
+            for k, u in sctx.missing_assets:
+                problems.append(f"{sp['slug']}: {k} not imported: {dec(u)}")
+            cards.append({'contentType': 'card', 'title': sp['title'], 'text': f'{n_items} items' if n_items else sp.get('blurb', ''),
+                          'buttonLabel': 'Browse', 'buttonUrl': f"/{sp['slug']}", 'buttonVariant': 'primary'})
+        hub.append(ec.mk(ctx, 'columns_block', {'columns': cards, 'columnsPerRow': 3, 'textAlign': 'left'}))
+        secs = hub
+        sub_words = collections.Counter()
+        for pg_ in out_pages[-len(cfg['sections']):]:
+            sub_words += sections_words(pg_['sections'])
+        lost, total, miss = lost_words(source_words(raw, 'page'), sections_words(secs) + sub_words)
+    else:
+        secs = ec.convert_page(ctx, title, raw, bg, news_grid)
+        lost, total, miss = lost_words(source_words(raw, 'page'), sections_words(secs))
     out_pages.append({'kind': 'page', 'wpId': p['id'], 'title': title, 'slug': slug, 'excerpt': plain(p['excerpt']['rendered'])[:300],
                       'sectionsJson': json.dumps(secs, ensure_ascii=False), 'sections': secs, 'publishedAt': p['date_gmt'] + 'Z',
                       'status': 'draft' if slug in DRAFT else 'published'})
@@ -207,6 +239,26 @@ for p in migrate_posts:
                       'lost': lost, 'total': total, 'missing': miss.most_common(8) if lost else []})
     for k, u in ctx.missing_assets:
         problems.append(f'post {slug}: {k} not imported: {dec(u)}')
+
+def apply_covers(secs):
+    n = 0
+    for b in secs:
+        if b['type'] != 'columns_block':
+            continue
+        for col in b['config']['columns']:
+            url = col.get('buttonUrl')
+            if col.get('contentType') in (None, 'card') and url and not col.get('imageSrc') and url in covers:
+                col['imageSrc'], col['imageAlt'] = covers[url], col.get('title', '')
+                col['imageLink'], col['imageDownload'] = url, True
+                n += 1
+    return n
+
+
+cover_n = 0
+for pg_ in out_pages:
+    cover_n += apply_covers(pg_['sections'])
+    pg_['sectionsJson'] = json.dumps(pg_['sections'], ensure_ascii=False)
+print(f'covers applied to {cover_n} cards')
 
 json.dump({'pages': out_pages, 'posts': out_posts, 'skipped': skipped_urls}, open(E('OUT', './converted.json'), 'w'), ensure_ascii=False)
 for r in report:

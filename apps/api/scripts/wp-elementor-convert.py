@@ -346,12 +346,15 @@ def split_chrome(soup):
     return ws, start, end
 
 
-def convert_page(ctx, title, content_html, bg, post_grid=None):
-    """-> sections list (starts with an H1 of the page title)."""
+def convert_page(ctx, title, content_html, bg, post_grid=None, widget_range=None):
+    """-> sections list (starts with an H1 of the page title). widget_range=(a, b) converts only widgets a..b-1 (indexes
+    into widgets_of(soup)) — used to split one long page into several."""
     soup = BeautifulSoup(content_html, 'html.parser')
     if not soup.find(attrs={'data-widget_type': True}):
         return base.convert_page(ctx, title, content_html)         # plain (non-Elementor) content
     ws, start, end = split_chrome(soup)
+    if widget_range:
+        start, end = widget_range
     items = []          # list of ('block', [blocks]) | ('card', card) | ('img', item)
     for w in ws[start:end]:
         t = wtype(w)
@@ -528,3 +531,31 @@ def extract_post(ctx, post, featured_path=None):
 def plain_excerpt(html, n=240):
     t = re.sub(r'\s+', ' ', htmlmod.unescape(re.sub(r'<[^>]+>', ' ', html))).strip()
     return (t[:n].rsplit(' ', 1)[0] + '…') if len(t) > n else t
+
+
+def section_ranges(content_html, specs):
+    """Split one long page into sections. specs: [{"slug","title","starts": heading text prefix, "until": optional text of the
+    widget that ends the section}]. Returns {slug: (first widget index, end index)} over widgets_of(soup); each section
+    starts at its heading (plus any menu-anchor right before it) and runs to the next section's start."""
+    soup = BeautifulSoup(content_html, 'html.parser')
+    ws, start, end = split_chrome(soup)
+    firsts = []
+    for sp in specs:
+        i = next((i for i in range(start, len(ws)) if wtype(ws[i]) == 'heading' and text_of(ws[i]).lower().startswith(sp['starts'].lower())), None)
+        if i is None:
+            raise ValueError(f"section heading not found: {sp['starts']!r}")
+        while i - 1 >= start and wtype(ws[i - 1]) == 'menu-anchor':
+            i -= 1
+        firsts.append(i)
+    order = sorted(range(len(specs)), key=lambda k: firsts[k])
+    out = {}
+    for n, k in enumerate(order):
+        a = firsts[k]
+        b = firsts[order[n + 1]] if n + 1 < len(order) else end
+        until = specs[k].get('until')
+        if until:
+            stop = next((i for i in range(a, b) if text_of(ws[i]).lower().startswith(until.lower())), None)
+            if stop is not None:
+                b = stop
+        out[specs[k]['slug']] = (a, b)
+    return out, ws
