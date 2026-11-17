@@ -48,6 +48,11 @@ const notoSerifDevanagari = Noto_Serif_Devanagari({
   preload: false,
 });
 
+// Search Console tokens are URL-safe strings; accept several separated by commas/whitespace.
+function verificationTokens(raw?: string): string[] {
+  return (raw || '').split(/[\s,]+/).filter((t) => /^[A-Za-z0-9_-]{10,100}$/.test(t));
+}
+
 export async function generateMetadata(): Promise<Metadata> {
   const s = await getSiteSettings();
   const title = s.site_title || 'Shacky CMS';
@@ -55,6 +60,9 @@ export async function generateMetadata(): Promise<Metadata> {
     title: { default: title, template: `%s | ${title}` },
     description: s.site_description || '',
     icons: s.site_icon ? { icon: s.site_icon, shortcut: s.site_icon } : undefined,
+    verification: verificationTokens(s.google_site_verification).length
+      ? { google: verificationTokens(s.google_site_verification) }
+      : undefined,
   };
 }
 

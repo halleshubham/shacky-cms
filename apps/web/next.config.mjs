@@ -18,6 +18,14 @@ const nextConfig = {
   // Proxy /api/* through Next.js so browser cookies are always same-origin.
   // Proxy /s3/* to MinIO so images work from both browser and Next.js server
   // in Docker (MINIO_INTERNAL_URL=http://minio:9000 set in docker-compose).
+  // URLs a migrated WordPress site is already known by in search engines and feed readers.
+  async redirects() {
+    return [
+      { source: '/sitemap_index.xml', destination: '/sitemap.xml', permanent: true },
+      { source: '/feed', destination: '/rss.xml', permanent: true },
+    ];
+  },
+
   async rewrites() {
     const apiUrl = process.env.API_INTERNAL_URL || 'http://localhost:4000';
     const minioUrl = process.env.MINIO_INTERNAL_URL || 'http://localhost:9000';

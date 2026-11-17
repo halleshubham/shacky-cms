@@ -1,3 +1,4 @@
+import Script from 'next/script';
 import { PublicHeader } from '@/components/public/PublicHeader';
 import { PublicFooter } from '@/components/public/PublicFooter';
 import { getSiteSettings } from '@/lib/site-settings';
@@ -19,6 +20,8 @@ export default async function PublicLayout({ children }: { children: React.React
   const [categories, settings] = await Promise.all([getCategories(), getSiteSettings()]);
   const siteName = settings.site_title || 'Shacky CMS';
   const editorsList = (settings.newsletter_editors || '').split('\n').map((s) => s.trim()).filter(Boolean);
+
+  const tagId = /^[A-Za-z]{1,3}-[A-Za-z0-9]{4,20}$/.test((settings.google_tag_id || '').trim()) ? settings.google_tag_id!.trim() : '';
 
   return (
     <div
@@ -43,6 +46,15 @@ export default async function PublicLayout({ children }: { children: React.React
       <main id="main-content" data-site-main className="flex-1 max-w-6xl mx-auto w-full px-4 py-8">
         {children}
       </main>
+
+      {tagId && (
+        <>
+          <Script src={`https://www.googletagmanager.com/gtag/js?id=${tagId}`} strategy="afterInteractive" />
+          <Script id="google-tag" strategy="afterInteractive">
+            {`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${tagId}');`}
+          </Script>
+        </>
+      )}
 
       <PublicFooter
         navItems={settings.nav_secondary}

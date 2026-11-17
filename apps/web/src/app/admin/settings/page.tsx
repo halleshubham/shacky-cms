@@ -78,6 +78,8 @@ export default function SettingsPage() {
   const [siteTheme, setSiteTheme] = useState('default');
   const [siteLang, setSiteLang] = useState('en');
   const [footerText, setFooterText] = useState('');
+  const [googleTagId, setGoogleTagId] = useState('');
+  const [googleVerification, setGoogleVerification] = useState('');
   const [footerShowPublication, setFooterShowPublication] = useState(true);
   const [savingSettings, setSavingSettings] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
@@ -169,6 +171,8 @@ export default function SettingsPage() {
       setSiteTheme(s.site_theme || 'default');
       setSiteLang(s.site_lang || 'en');
       setFooterText(s.footer_text || '');
+      setGoogleTagId(s.google_tag_id || '');
+      setGoogleVerification(s.google_site_verification || '');
       setFooterShowPublication(s.footer_show_publication !== 'false');
       setStockUnsplash(s.stock_unsplash_key ? '••••••••' : '');
       setStockPexels(s.stock_pexels_key ? '••••••••' : '');
@@ -244,6 +248,8 @@ export default function SettingsPage() {
         site_theme: siteTheme,
         site_lang: siteLang,
         footer_text: footerText,
+        google_tag_id: googleTagId.trim(),
+        google_site_verification: googleVerification.trim(),
         footer_show_publication: String(footerShowPublication),
       });
       revalidateSiteSettings();
@@ -634,6 +640,18 @@ export default function SettingsPage() {
                 <Label htmlFor="footer-text" className="text-xs">Footer text</Label>
                 <Input id="footer-text" value={footerText} onChange={(e) => setFooterText(e.target.value)}
                   placeholder="Leave blank for “© year Site name. All rights reserved.”" className="text-sm" />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <Label htmlFor="google-tag-id" className="text-xs">Google tag ID</Label>
+                  <Input id="google-tag-id" value={googleTagId} onChange={(e) => setGoogleTagId(e.target.value)} placeholder="G-XXXXXXXXXX or GT-XXXXXXX" className="text-sm" />
+                  <p className="text-[11px] text-muted-foreground">Analytics on public pages (not the admin).</p>
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="google-verification" className="text-xs">Search Console verification</Label>
+                  <Input id="google-verification" value={googleVerification} onChange={(e) => setGoogleVerification(e.target.value)} placeholder="token(s), comma separated" className="text-sm" />
+                  <p className="text-[11px] text-muted-foreground">The content value of google-site-verification.</p>
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <input id="footer-show-publication" type="checkbox" checked={footerShowPublication}

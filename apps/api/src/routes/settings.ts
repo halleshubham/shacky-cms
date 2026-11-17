@@ -15,6 +15,7 @@ const PUBLIC_KEYS = [
   'newsletter_tagline', 'newsletter_editors',
   'homepage_sections',
   'site_theme', 'footer_text', 'footer_show_publication',
+  'google_tag_id', 'google_site_verification',
   'social_facebook', 'social_instagram', 'social_whatsapp',
   'social_telegram', 'social_youtube', 'social_x',
 ];

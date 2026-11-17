@@ -116,6 +116,8 @@ services:
       PORT: '3000'
       API_INTERNAL_URL: http://api:4000
       MINIO_INTERNAL_URL: http://minio:9000
+      # Canonical origin for sitemap.xml / rss.xml / robots.txt (same as the API's APP_URL).
+      SITE_URL: ${APP_URL:-}
 
 volumes:
   postgres_data:
