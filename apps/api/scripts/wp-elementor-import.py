@@ -19,6 +19,8 @@ Env:
   DRAFT_SLUGS=a,b,c     pages imported as drafts (templates/demos) instead of published
   FRONT_PAGE=homepage-01  page whose blocks become the site homepage
   NEWSLETTER_CATEGORY=newsletter                  category shown by "latest posts" widgets
+  PUSH=posts,pages,settings   which parts to push (default all); e.g. PUSH=pages,settings first, posts later
+  SETTINGS_FILE=settings.json  site settings to apply (nav, footer, theme, homepage_sections ...)
   OUT=converted.json    where the converted items are written
 
 Pages and posts are upserted by slug (safe to re-run; edits made in the CMS to them are overwritten). Nothing
@@ -226,6 +228,7 @@ if MODE == 'dry':
 import time
 
 DEFAULT_AUTHOR = E('DEFAULT_AUTHOR', 'Editorial')
+WANT = set(E('PUSH', 'posts,pages,settings').split(','))
 JAR = './.wp-elementor-import.cookies'
 _last = [0.0]
 
@@ -261,8 +264,9 @@ if c != 200:
 fails = []
 try:
     # authors (real bylines come from the article's author box; the WordPress user is just the uploader)
-    have = {a['displayName'].lower(): a['id'] for a in listing('/api/authors')}
-    for name in sorted({n for x in out_posts for n in x['authors']} | {DEFAULT_AUTHOR}):
+    push_posts = 'posts' in WANT
+    have = {a['displayName'].lower(): a['id'] for a in listing('/api/authors')} if push_posts else {}
+    for name in (sorted({n for x in out_posts for n in x['authors']} | {DEFAULT_AUTHOR}) if push_posts else []):
         if name.lower() not in have:
             c, d = api('POST', '/api/authors', {'displayName': name})
             if c in (200, 201):
@@ -272,9 +276,9 @@ try:
     author_id = have
 
     # categories
-    have_c = {x['slug']: x['id'] for x in listing('/api/categories')}
+    have_c = {x['slug']: x['id'] for x in listing('/api/categories')} if push_posts else {}
     wanted_c = {}
-    for x in out_posts:
+    for x in (out_posts if push_posts else []):
         for n in x['categories']:
             wanted_c[n] = next((cc['slug'] for cc in cats.values() if cc['name'] == n), re.sub(r'\W+', '-', n.lower()).strip('-'))
     for n, sl in wanted_c.items():
@@ -288,7 +292,7 @@ try:
 
     # tags (the endpoint is idempotent by slug)
     tag_id = {}
-    for n in sorted({t for x in out_posts for t in x['tags']}):
+    for n in (sorted({t for x in out_posts for t in x['tags']}) if push_posts else []):
         c, d = api('POST', '/api/tags', {'name': html.unescape(n)})
         if c in (200, 201):
             tag_id[n] = d['id']
@@ -298,7 +302,7 @@ try:
 
     # posts
     created = updated = 0
-    for x in out_posts:
+    for x in (out_posts if push_posts else []):
         wm = media_by_wp_id.get(str(x['featured_media'])) if x['featured_media'] else None
         names = x['authors'] or [DEFAULT_AUTHOR]
         body = {'title': x['title'], 'slug': x['slug'], 'content': x['html'], 'excerpt': x['excerpt'] or None, 'status': 'published',
@@ -323,9 +327,9 @@ try:
     print(f'posts: {created} created, {updated} updated', flush=True)
 
     # pages
-    have_p = {x['slug']: x['id'] for x in listing('/api/pages')}
+    have_p = {x['slug']: x['id'] for x in listing('/api/pages')} if 'pages' in WANT else {}
     pc = pu = 0
-    for x in out_pages:
+    for x in (out_pages if 'pages' in WANT else []):
         body = {k: x[k] for k in ('title', 'slug', 'excerpt', 'sectionsJson', 'status', 'publishedAt') if x.get(k)}
         body['content'] = ''
         if x['slug'] in have_p:
@@ -339,7 +343,7 @@ try:
     print(f'pages: {pc} created, {pu} updated', flush=True)
 
     # site settings prepared by the caller (nav, footer, social, theme, homepage, redirects ...)
-    if E('SETTINGS_FILE'):
+    if E('SETTINGS_FILE') and 'settings' in WANT:
         st = json.load(open(E('SETTINGS_FILE')))
         if FRONT and not st.get('homepage_sections'):
             fp = next((x for x in out_pages if x['slug'] == FRONT), None)
@@ -366,7 +370,7 @@ def check(path):
     return path, c, refs
 
 
-paths = [f'/{urllib.parse.quote(x["slug"])}' for x in out_pages if x['status'] == 'published'] + [f'/articles/{urllib.parse.quote(x["slug"])}' for x in out_posts]
+paths = ([f'/{urllib.parse.quote(x["slug"])}' for x in out_pages if x['status'] == 'published'] if 'pages' in WANT else []) + ([f'/articles/{urllib.parse.quote(x["slug"])}' for x in out_posts] if 'posts' in WANT else [])
 with cf.ThreadPoolExecutor(6) as ex:
     results = list(ex.map(check, paths))
 refs = set().union(*[r for _, _, r in results])
