@@ -34,6 +34,7 @@ import oauthRoutes from './routes/oauth.js';
 import mcpRoutes from './routes/mcp.js';
 import { startScheduler } from './workers/scheduler.js';
 import { startIngestWorker } from './workers/ingestWorker.js';
+import { ensureBucket } from './utils/s3.js';
 
 const fastify = Fastify({
   logger: {
@@ -172,6 +173,7 @@ async function main() {
     });
   });
 
+  await ensureBucket();
   await fastify.listen({ port: env.PORT, host: '0.0.0.0' });
   console.log(`API running at http://0.0.0.0:${env.PORT}`);
   console.log(`Docs at http://0.0.0.0:${env.PORT}/docs`);
