@@ -30,6 +30,12 @@ const nextConfig = {
         source: '/s3/:path*',
         destination: `${minioUrl}/shacky-media/:path*`,
       },
+      // Files imported from WordPress keep their original URLs (/wp-content/uploads/…),
+      // so links already shared in print and on WhatsApp keep working.
+      {
+        source: '/wp-content/uploads/:path*',
+        destination: `${minioUrl}/shacky-media/media/wp-content/uploads/:path*`,
+      },
       // MCP + OAuth2 token endpoints proxied to the API.
       // /oauth/authorize is intentionally excluded — that's the Next.js consent page.
       {

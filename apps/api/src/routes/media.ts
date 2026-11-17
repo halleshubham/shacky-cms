@@ -2,10 +2,12 @@ import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import sharp from 'sharp';
 import { createId } from '@paralleldrive/cuid2';
+import path from 'node:path/posix';
 import { prisma } from '../plugins/prisma.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
 import { uploadToS3, deleteFromS3, keyFromUrl } from '../utils/s3.js';
 import { audit } from '../utils/audit.js';
+import { env } from '../utils/env.js';
 
 const THUMBNAIL_SIZES = [
   { name: 'thumbnail', width: 150, height: 150 },
@@ -83,6 +85,21 @@ async function processAndUpload(
   return { url, filename, width: null, height: null, size: buffer.length, mimeType };
 }
 
+// Key prefix (inside media/) that mirrors WordPress's wp-content/uploads tree.
+const LEGACY_PREFIX = 'wp-content/uploads';
+
+/**
+ * Validates a client-supplied relative path for /media/import. Returns the normalised
+ * path, or null if it is empty, absolute, contains traversal or control characters.
+ */
+export function normalizeImportPath(input: string): string | null {
+  const raw = input.trim().replace(/^\/+/, '');
+  if (!raw || raw.length > 400 || raw.includes('\\') || /[\u0000-\u001f\u007f]/.test(raw)) return null;
+  const parts = raw.split('/');
+  if (parts.some((p) => p === '' || p === '.' || p === '..')) return null;
+  return path.normalize(raw);
+}
+
 const mediaRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /media
   fastify.get('/', { preHandler: [authenticate] }, async (req, reply) => {
@@ -144,6 +161,69 @@ const mediaRoutes: FastifyPluginAsync = async (fastify) => {
     });
 
     await audit(req, 'media.uploaded', { entity: 'media', entityId: media.id });
+    return reply.status(201).send(media);
+  });
+
+  // POST /media/import — lossless import of an existing file at a fixed path.
+  //
+  // Unlike /upload this does NOT re-encode images or rename anything: the original bytes
+  // are stored untouched at media/wp-content/uploads/<path>, which the web app serves at
+  // /wp-content/uploads/<path> (see next.config.mjs). That keeps every link to the old
+  // WordPress uploads working after a migration. Idempotent: re-importing the same path
+  // returns the existing record (200) instead of creating a duplicate.
+  //
+  // Multipart fields must precede the file part: path (required), altText, mimeType.
+  fastify.post('/import', { preHandler: [authenticate, requireAdmin] }, async (req, reply) => {
+    const data = await req.file();
+    if (!data) {
+      return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'No file uploaded' });
+    }
+    const field = (name: string) => {
+      const f = (data.fields as any)?.[name];
+      return typeof f?.value === 'string' ? (f.value as string) : undefined;
+    };
+
+    const rel = normalizeImportPath(field('path') ?? '');
+    if (!rel) {
+      return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'A valid relative "path" field is required (sent before the file)' });
+    }
+
+    const key = `media/${LEGACY_PREFIX}/${rel}`;
+    const url = `${env.S3_PUBLIC_URL}/${key.split('/').map(encodeURIComponent).join('/')}`;
+
+    const existing = await prisma.media.findFirst({ where: { url } });
+    if (existing) return reply.status(200).send(existing);
+
+    const buffer = await data.toBuffer();
+    const mimeType = field('mimeType') || data.mimetype || 'application/octet-stream';
+
+    let width: number | null = null;
+    let height: number | null = null;
+    if (mimeType.startsWith('image/') && mimeType !== 'image/svg+xml') {
+      try {
+        const meta = await sharp(buffer).metadata();
+        width = meta.width ?? null;
+        height = meta.height ?? null;
+      } catch { /* leave dimensions empty for formats sharp can't read */ }
+    }
+
+    await uploadToS3(key, buffer, mimeType);
+
+    const media = await prisma.media.create({
+      data: {
+        filename: rel,
+        originalName: path.basename(rel),
+        mimeType,
+        size: buffer.length,
+        width,
+        height,
+        url,
+        altText: field('altText') || null,
+        uploadedById: req.user!.id,
+      },
+    });
+
+    await audit(req, 'media.imported', { entity: 'media', entityId: media.id });
     return reply.status(201).send(media);
   });
 

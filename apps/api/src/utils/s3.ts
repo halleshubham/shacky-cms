@@ -52,5 +52,7 @@ export async function getPresignedUrl(key: string, expiresIn = 3600): Promise<st
 }
 
 export function keyFromUrl(url: string): string {
-  return url.replace(`${env.S3_PUBLIC_URL}/`, '');
+  const key = url.replace(`${env.S3_PUBLIC_URL}/`, '');
+  // Imported legacy files can have non-ASCII names, stored percent-encoded in the URL.
+  try { return decodeURIComponent(key); } catch { return key; }
 }
