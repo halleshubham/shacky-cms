@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Search, Menu, X, Newspaper, ChevronDown } from 'lucide-react';
 import { type NavItem, navItemHref, type SiteSettings } from '@/lib/site-settings';
+import { uiStrings } from '@/lib/ui-strings';
 
 interface Category {
   id: string;
@@ -20,6 +21,7 @@ interface PublicHeaderProps {
   tagline?: string;
   editors?: string[];
   settings?: Pick<SiteSettings, 'social_facebook' | 'social_instagram' | 'social_whatsapp' | 'social_telegram' | 'social_youtube' | 'social_x'>;
+  lang?: string;
 }
 
 type ResolvedItem = {
@@ -29,7 +31,7 @@ type ResolvedItem = {
   children?: { label: string; href: string }[];
 };
 
-function resolveNav(navItems?: NavItem[], categories?: Category[]): ResolvedItem[] {
+function resolveNav(navItems?: NavItem[], categories?: Category[], lang?: string): ResolvedItem[] {
   if (navItems && navItems.length > 0) {
     return navItems.map((item) => ({
       label: item.label,
@@ -39,7 +41,8 @@ function resolveNav(navItems?: NavItem[], categories?: Category[]): ResolvedItem
     }));
   }
   const cat = (categories ?? []).slice(0, 7).map((c) => ({ label: c.name, href: `/category/${c.slug}` }));
-  return [{ label: 'Home', href: '/' }, { label: 'Issues', href: '/issues' }, ...cat];
+  const t = uiStrings(lang);
+  return [{ label: t.home, href: '/' }, { label: t.allIssues, href: '/issues' }, ...cat];
 }
 
 // Social icon SVGs (inline, no extra dep)
@@ -62,12 +65,13 @@ function SocialLinks({ settings, className = '' }: { settings?: PublicHeaderProp
     .filter((l) => l.url);
   if (!links.length) return null;
   return (
-    <div className={`flex items-center gap-2 ${className}`}>
+    <div data-header-social className={`flex items-center gap-2 ${className}`}>
       {links.map(({ key, url }) => {
         const Icon = SocialIcons[key];
         return (
           <a key={key} href={url} target="_blank" rel="noopener noreferrer"
-            className="text-muted-foreground hover:text-foreground transition-colors"
+            data-social={key}
+            className="text-header-foreground/70 hover:text-header-foreground transition-colors"
             aria-label={key}>
             <Icon className="h-4 w-4" />
           </a>
@@ -93,7 +97,7 @@ function DesktopNavItem({ item }: { item: ResolvedItem }) {
   // Plain link — no children and not a dropdown group
   if (!item.children?.length && !item.isDropdown) {
     return (
-      <Link href={item.href} className="px-3 py-2 text-sm font-medium hover:text-primary transition-colors whitespace-nowrap">
+      <Link href={item.href} data-nav-link className="px-3 py-2 text-sm font-medium hover:text-header-hover transition-colors whitespace-nowrap">
         {item.label}
       </Link>
     );
@@ -102,12 +106,12 @@ function DesktopNavItem({ item }: { item: ResolvedItem }) {
   return (
     <div ref={ref} className="relative" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
       <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-haspopup="true"
-        className="flex items-center gap-0.5 px-3 py-2 text-sm font-medium hover:text-primary transition-colors whitespace-nowrap">
+        data-nav-link className="flex items-center gap-0.5 px-3 py-2 text-sm font-medium hover:text-header-hover transition-colors whitespace-nowrap">
         {item.label}
         <ChevronDown className={`h-3.5 w-3.5 mt-0.5 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && item.children && item.children.length > 0 && (
-        <div className="absolute top-full left-0 z-50 min-w-[180px] bg-background border border-border rounded-md shadow-lg py-1 mt-0.5">
+        <div data-nav-dropdown className="absolute top-full left-0 z-50 min-w-[180px] bg-background text-foreground border border-border rounded-md shadow-lg py-1 mt-0.5">
           {item.children.map((child) => (
             <Link key={child.href + child.label} href={child.href} onClick={() => setOpen(false)}
               className="block px-4 py-2 text-sm hover:bg-muted transition-colors whitespace-nowrap">
@@ -186,8 +190,9 @@ function MobileNavItem({ item, onClose }: { item: ResolvedItem; onClose: () => v
 export function PublicHeader({
   navItems, categories,
   siteTitle = 'Shacky CMS',
-  siteLogo, showTitle = false, tagline, editors, settings,
+  siteLogo, showTitle = false, tagline, editors, settings, lang,
 }: PublicHeaderProps) {
+  const t = uiStrings(lang);
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -205,13 +210,13 @@ export function PublicHeader({
     }
   };
 
-  const links = resolveNav(navItems, categories);
+  const links = resolveNav(navItems, categories, lang);
 
   return (
-    <header className="border-b border-border bg-background sticky top-0 z-40">
-      <div className="max-w-6xl mx-auto px-4">
-        <div className="flex items-center justify-between h-16">
-          <Link href="/" className="flex items-center gap-2.5 font-bold text-xl tracking-tight shrink-0">
+    <header data-site-header className="border-b border-border bg-header text-header-foreground sticky top-0 z-40">
+      <div data-header-inner className="max-w-6xl mx-auto px-4">
+        <div data-header-row className="flex items-center justify-between h-16">
+          <Link href="/" data-header-brand className="flex items-center gap-2.5 font-bold text-xl tracking-tight shrink-0">
             {siteLogo ? (
               <>
                 {/* Plain <img> preserves PNG transparency */}
@@ -226,19 +231,19 @@ export function PublicHeader({
             )}
           </Link>
 
-          <div className="flex items-center gap-2">
+          <div data-header-tools className="flex items-center gap-2">
             <SocialLinks settings={settings} className="hidden md:flex" />
-            <button onClick={() => setSearchOpen(!searchOpen)} className="p-2 rounded-md hover:bg-muted transition-colors" aria-label="Toggle search">
+            <button onClick={() => setSearchOpen(!searchOpen)} className="p-2 rounded-md hover:bg-header-foreground/15 transition-colors" aria-label={t.toggleSearch}>
               {searchOpen ? <X className="h-5 w-5" /> : <Search className="h-5 w-5" />}
             </button>
-            <button onClick={() => setMenuOpen(!menuOpen)} className="md:hidden p-2 rounded-md hover:bg-muted transition-colors" aria-label="Toggle menu">
+            <button onClick={() => setMenuOpen(!menuOpen)} className="md:hidden p-2 rounded-md hover:bg-header-foreground/15 transition-colors" aria-label={t.toggleMenu}>
               {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
           </div>
         </div>
 
         {(tagline || (editors && editors.length > 0)) && (
-          <div className="pb-2 -mt-1 text-xs text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-0.5">
+          <div className="pb-2 -mt-1 text-xs text-header-foreground/70 flex flex-wrap items-center gap-x-2 gap-y-0.5">
             {tagline && <span className="italic">{tagline}</span>}
             {tagline && editors && editors.length > 0 && <span className="opacity-50">&middot;</span>}
             {editors && editors.length > 0 && <span>{editors.join(' · ')}</span>}
@@ -246,25 +251,25 @@ export function PublicHeader({
         )}
 
         {searchOpen && (
-          <div className="pb-3">
+          <div data-header-search className="pb-3">
             <form onSubmit={handleSearch} className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <input ref={inputRef} type="search" value={query} onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search articles, authors, topics…"
-                className="w-full pl-9 pr-4 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+                placeholder={t.searchPlaceholder}
+                className="w-full pl-9 pr-4 py-2 border border-input rounded-md bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
             </form>
           </div>
         )}
 
-        <nav className="hidden md:flex flex-wrap items-center gap-0 -mb-px">
+        <nav data-header-nav className="hidden md:flex flex-wrap items-center gap-0 -mb-px">
           {links.map((link) => <DesktopNavItem key={link.href + link.label} item={link} />)}
         </nav>
       </div>
 
       {menuOpen && (
-        <div className="md:hidden border-t border-border bg-background px-4 py-3 space-y-1">
+        <div data-mobile-menu className="md:hidden border-t border-border bg-background text-foreground px-4 py-3 space-y-1">
           {links.map((link) => <MobileNavItem key={link.href + link.label} item={link} onClose={() => setMenuOpen(false)} />)}
-          <SocialLinks settings={settings} className="pt-2 border-t border-border mt-2" />
+          <SocialLinks settings={settings} className="pt-2 border-t border-border mt-2 text-foreground [&_a]:text-muted-foreground" />
         </div>
       )}
     </header>

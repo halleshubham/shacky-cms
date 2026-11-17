@@ -14,6 +14,7 @@ const PUBLIC_KEYS = [
   'header_show_title', 'header_show_tagline', 'header_show_editors',
   'newsletter_tagline', 'newsletter_editors',
   'homepage_sections',
+  'site_theme', 'footer_text', 'footer_show_publication',
   'social_facebook', 'social_instagram', 'social_whatsapp',
   'social_telegram', 'social_youtube', 'social_x',
 ];

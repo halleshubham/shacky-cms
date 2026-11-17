@@ -222,18 +222,23 @@ async function CategoryRowSection({ config }: { config: CategoryRowConfig }) {
   );
 }
 
+const FILE_URL = /\.(pdf|docx?|pptx?|xlsx?|zip|png|jpe?g|webp|mp4)(\?|#|$)/i;
+
 function DownloadBannerSection({ config }: { config: DownloadBannerConfig }) {
+  const isFile = FILE_URL.test(config.buttonUrl || '');
   return (
-    <section className="rounded-xl border border-border bg-primary/5 px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+    <section data-block="download-banner" className="rounded-xl border border-border bg-primary/5 px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-4">
       <div>
         <h2 className="text-xl font-bold">{config.title}</h2>
-        {config.description && <p className="text-muted-foreground mt-1 text-sm">{config.description}</p>}
+        {config.description && <p data-banner-text className="text-muted-foreground mt-1 text-sm">{config.description}</p>}
       </div>
       <Link
+        data-btn
+        data-variant="primary"
         href={config.buttonUrl}
         className="shrink-0 inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 transition-colors"
       >
-        <DownloadIcon className="h-4 w-4" />
+        {isFile && <DownloadIcon className="h-4 w-4" />}
         {config.buttonLabel}
       </Link>
     </section>
@@ -273,7 +278,7 @@ function ImageBlockSection({ config }: { config: ImageBlockConfig }) {
     />
   );
   return (
-    <figure className="space-y-2">
+    <figure data-block="image" className="space-y-2">
       {config.linkUrl ? (
         <a href={config.linkUrl} target={config.linkNewTab ? '_blank' : '_self'} rel={config.linkNewTab ? 'noopener noreferrer' : undefined} className="block hover:opacity-90 transition-opacity">
           {img}
@@ -292,6 +297,7 @@ function RichTextSection({ config }: { config: RichTextConfig }) {
   if (!config.html) return null;
   return (
     <div
+      data-block="rich-text"
       className="prose prose-sm max-w-none dark:prose-invert [&_a]:text-primary [&_a]:underline"
       dangerouslySetInnerHTML={{ __html: config.html }}
     />
@@ -308,14 +314,14 @@ function HeadingBlockSection({ config }: { config: HeadingBlockConfig }) {
   );
 
   return (
-    <div className={`space-y-1 ${alignClass}`}>
+    <div data-block="heading" data-level={config.level} data-align={config.align} className={`space-y-1 ${alignClass}`}>
       {config.linkUrl ? (
         <a href={config.linkUrl} target={config.linkNewTab ? '_blank' : '_self'} rel={config.linkNewTab ? 'noopener noreferrer' : undefined} className="hover:opacity-80 transition-opacity">
           {heading}
         </a>
       ) : heading}
       {config.subtext && (
-        <p className={`text-muted-foreground ${alignClass}`}>{config.subtext}</p>
+        <p data-heading-subtext className={`text-muted-foreground ${alignClass}`}>{config.subtext}</p>
       )}
     </div>
   );
@@ -330,10 +336,12 @@ function ButtonRowSection({ config }: { config: ButtonRowConfig }) {
   };
 
   return (
-    <div className={`flex flex-wrap gap-3 ${alignClass}`}>
+    <div data-block="button-row" className={`flex flex-wrap gap-3 ${alignClass}`}>
       {config.buttons.map((btn, i) => (
         <a
           key={i}
+          data-btn
+          data-variant={btn.variant ?? 'primary'}
           href={btn.url}
           target={btn.newTab ? '_blank' : '_self'}
           rel={btn.newTab ? 'noopener noreferrer' : undefined}
@@ -361,14 +369,14 @@ function FileDownloadsSection({ config }: { config: FileDownloadsConfig }) {
   const colClass = config.layout === 'grid' ? 'grid sm:grid-cols-2 lg:grid-cols-3 gap-3' : 'space-y-2';
 
   return (
-    <section>
+    <section data-block="file-downloads" data-layout={config.layout}>
       {config.title && <h2 className="text-xl font-bold mb-2">{config.title}</h2>}
       {config.description && <p className="text-muted-foreground text-sm mb-4">{config.description}</p>}
       <div className={colClass}>
         {config.files.map((f, i) => (
-          <a key={i} href={f.url} target="_blank" rel="noopener noreferrer" download
+          <a key={i} data-file data-file-type={f.fileType || 'other'} href={f.url} target="_blank" rel="noopener noreferrer" download
             className="flex items-center gap-3 p-3 rounded-lg border border-border bg-muted/20 hover:bg-muted transition-colors group">
-            <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded uppercase shrink-0 ${EXT_COLORS[f.fileType || 'other'] ?? EXT_COLORS.other}`}>
+            <span data-file-badge className={`text-[11px] font-bold px-1.5 py-0.5 rounded uppercase shrink-0 ${EXT_COLORS[f.fileType || 'other'] ?? EXT_COLORS.other}`}>
               {f.fileType || 'FILE'}
             </span>
             <span className="flex-1 text-sm font-medium truncate group-hover:underline">{f.label}</span>
@@ -386,7 +394,7 @@ function ImageGallerySection({ config }: { config: ImageGalleryConfig }) {
   const colClass = { 2: 'sm:grid-cols-2', 3: 'sm:grid-cols-2 lg:grid-cols-3', 4: 'sm:grid-cols-2 lg:grid-cols-4' }[config.columns] ?? 'sm:grid-cols-3';
 
   return (
-    <section>
+    <section data-block="gallery">
       {config.title && <h2 className="text-xl font-bold mb-4">{config.title}</h2>}
       <div className={`grid ${colClass} gap-3`}>
         {config.images.map((img, i) => {
@@ -447,12 +455,12 @@ function ColumnsBlockSection({ config }: { config: ColumnsBlockConfig }) {
     ghost:   'hover:bg-muted text-foreground',
   };
   return (
-    <div className={`grid grid-cols-1 ${gridClass} gap-6 lg:gap-8`}>
+    <div data-block="columns" className={`grid grid-cols-1 ${gridClass} gap-6 lg:gap-8`}>
       {config.columns.map((col: ColumnItem, i: number) => {
         // Nested block mode
         if (col.contentType && col.contentType !== 'card') {
           return (
-            <div key={i} className="flex flex-col min-w-0">
+            <div key={i} data-column="nested" className="flex flex-col min-w-0">
               <ColumnNestedSection col={col} />
             </div>
           );
@@ -465,7 +473,7 @@ function ColumnsBlockSection({ config }: { config: ColumnsBlockConfig }) {
         ) : null;
 
         return (
-          <div key={i} className={`flex flex-col gap-3 ${alignClass}`}>
+          <div key={i} data-column="card" className={`flex flex-col gap-3 ${alignClass}`}>
             {imgEl && (
               col.imageLink ? (
                 <a
@@ -484,6 +492,8 @@ function ColumnsBlockSection({ config }: { config: ColumnsBlockConfig }) {
             {col.buttonLabel && col.buttonUrl && (
               <div className={`mt-auto pt-1 flex ${config.textAlign === 'center' ? 'justify-center' : config.textAlign === 'right' ? 'justify-end' : 'justify-start'}`}>
                 <a
+                  data-btn
+                  data-variant={col.buttonVariant || 'primary'}
                   href={col.buttonUrl}
                   target={col.buttonNewTab ? '_blank' : '_self'}
                   rel={col.buttonNewTab ? 'noopener noreferrer' : undefined}
