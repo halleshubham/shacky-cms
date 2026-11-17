@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
+import { headers } from 'next/headers';
+import { siteUrl } from '@/lib/site-url';
 
 const API = process.env.API_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL;
-const SITE = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 
 export async function GET() {
+  const SITE = siteUrl(headers());
   try {
     const [settingsRes, postsRes] = await Promise.all([
       fetch(`${API}/api/public/settings`, { next: { revalidate: 300 } }),

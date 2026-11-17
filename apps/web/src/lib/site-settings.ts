@@ -16,6 +16,10 @@ export interface SiteSettings {
   site_lang?: string;
   footer_text?: string;
   footer_show_publication?: boolean;
+  /** Google tag / GA4 measurement id (G-…, GT-…). Rendered on public pages only. */
+  google_tag_id?: string;
+  /** Google Search Console verification token(s), comma or space separated. */
+  google_site_verification?: string;
   nav_primary?: NavItem[];
   nav_secondary?: NavItem[];
   translation_enabled?: boolean;
