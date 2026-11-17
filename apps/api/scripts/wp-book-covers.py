@@ -9,13 +9,15 @@ edition would get the Marathi cover). So covers come from evidence only, in this
      as-is at its original path;
   2. otherwise the first page of the PDF, rendered with poppler's pdftoppm (a booklet's first page is its cover),
      stored as /wp-content/uploads/_covers/<folder>-<file>.jpg.
-Cards linking to non-PDF files (.doc etc.) get no cover. Idempotent: re-running reuses covers.json and the CMS import
+Cards linking to non-PDF files (.doc etc.) get no cover. Optional COVER_OVERRIDES (json {download url: existing cover url})
+is for covers matched by hand — e.g. artwork already in the media library that a person has checked against the PDF — and
+wins over both tiers. Idempotent: re-running reuses covers.json and the CMS import
 endpoint skips files it already has.
 
   WP_URL=https://example.org CMS_URL=https://cms.example.org CMS_EMAIL=… CMS_PASSWORD=… \
   CONVERTED=converted.json python3 apps/api/scripts/wp-book-covers.py
 
-Needs: python3, pdftoppm (poppler-utils), curl. Env: OUT (covers.json), WIDTH (cover width in px, default 520).
+Needs: python3, pdftoppm (poppler-utils), curl. Env: OUT (covers.json), WIDTH (cover width in px, default 520), COVER_OVERRIDES (optional, see above).
 """
 import concurrent.futures as cf
 import glob
@@ -67,6 +69,8 @@ for p in conv['pages']:
             if col.get('contentType') in (None, 'card') and not col.get('imageSrc') and dec(u).lower().endswith('.pdf') and u.startswith('/'):
                 need[u] = col.get('title', '')
 covers = json.load(open(OUT)) if os.path.exists(OUT) else {}
+overrides = json.load(open(E('COVER_OVERRIDES'))) if E('COVER_OVERRIDES') else {}
+covers.update({u: c for u, c in overrides.items() if u in need})
 todo = {u: t for u, t in need.items() if u not in covers}
 print(f'{len(need)} distinct PDFs need a cover; {len(need) - len(todo)} already done; {len(todo)} to do')
 

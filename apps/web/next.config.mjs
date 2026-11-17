@@ -46,7 +46,7 @@ const nextConfig = {
       },
       // Files that sat loose in an old site's web root (see LEGACY_STATIC_DIRS) keep their URLs too.
       ...LEGACY_STATIC_DIRS.map((dir) => ({
-        source: `/${dir}/:path*`,
+        source: `/${dir}/:path+`, // :path+ so a page at the bare /${dir} (e.g. /pamphlets) is not swallowed
         destination: `${minioUrl}/shacky-media/media/legacy-root/${dir}/:path*`,
       })),
       // Files imported from WordPress keep their original URLs (/wp-content/uploads/…),
