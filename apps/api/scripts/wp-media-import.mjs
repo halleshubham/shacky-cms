@@ -16,7 +16,10 @@
  *
  * Optional env: CONCURRENCY (3), STATE_FILE (./wp-media-import.state.json),
  *               LIMIT (only first N, for trials), DRY_RUN=1 (list, don't transfer),
- *               ONLY_MIME (prefix filter, e.g. "image/").
+ *               ONLY_MIME (prefix filter, e.g. "image/"),
+ *               EXTRA_PATHS (comma-separated paths under wp-content/uploads to import as well —
+ *               for files that pages reference but WordPress' public media list hides, e.g.
+ *               attachments of private posts).
  */
 import { readFile, writeFile } from 'node:fs/promises';
 
@@ -30,8 +33,16 @@ const STATE_FILE = env('STATE_FILE', './wp-media-import.state.json');
 const LIMIT = Number(env('LIMIT', '0'));
 const DRY_RUN = env('DRY_RUN', '') === '1';
 const ONLY_MIME = env('ONLY_MIME', '');
+const EXTRA_PATHS = env('EXTRA_PATHS', '').split(',').map((p) => p.trim()).filter(Boolean);
 const UA = 'ShackyCMS-Migrator/1.0';
 const MARKER = '/wp-content/uploads/';
+const MIME_BY_EXT = {
+  jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif', svg: 'image/svg+xml',
+  pdf: 'application/pdf', doc: 'application/msword', mp3: 'audio/mpeg', aac: 'audio/aac', mp4: 'video/mp4',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+};
 
 if (!WP_URL || (!DRY_RUN && (!CMS_URL || !CMS_EMAIL || !CMS_PASSWORD))) {
   console.error('Set WP_URL, CMS_URL, CMS_EMAIL and CMS_PASSWORD (only WP_URL is needed with DRY_RUN=1).');
@@ -128,6 +139,13 @@ try { state = JSON.parse(await readFile(STATE_FILE, 'utf8')); } catch { /* fresh
 const save = () => writeFile(STATE_FILE, JSON.stringify(state, null, 1));
 
 let items = (await listWpMedia()).filter((i) => i.source_url?.includes(MARKER));
+const known = new Set(items.map((i) => decodeURIComponent(i.source_url.split(MARKER)[1])));
+EXTRA_PATHS.filter((p) => !known.has(p)).forEach((p, n) => items.push({
+  id: `extra-${n}-${p}`, // state key; not a WordPress id
+  source_url: WP_URL + MARKER + p.split('/').map(encodeURIComponent).join('/'),
+  mime_type: MIME_BY_EXT[p.split('.').pop().toLowerCase()] ?? 'application/octet-stream',
+  alt_text: '', media_details: {},
+}));
 if (ONLY_MIME) items = items.filter((i) => i.mime_type.startsWith(ONLY_MIME));
 if (LIMIT) items = items.slice(0, LIMIT);
 const totalBytes = items.reduce((n, i) => n + (i.media_details?.filesize || 0), 0);
