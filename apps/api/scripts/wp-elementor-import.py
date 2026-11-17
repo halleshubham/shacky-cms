@@ -21,6 +21,7 @@ Env:
   NEWSLETTER_CATEGORY=newsletter                  category shown by "latest posts" widgets
   PUSH=posts,pages,settings   which parts to push (default all); e.g. PUSH=pages,settings first, posts later
   SETTINGS_FILE=settings.json  site settings to apply (nav, footer, theme, homepage_sections ...)
+  FORMS_FILE=forms.json  forms to create and the pages to place them on (see below)
   SPLIT_FILE=split.json  split long pages into a hub + section pages (see below)
   COVERS_FILE=covers.json  {download url: cover image url} applied to cards that have no cover
   OUT=converted.json    where the converted items are written
@@ -279,6 +280,23 @@ for pg_ in out_pages:
     pg_['sectionsJson'] = json.dumps(pg_['sections'], ensure_ascii=False)
 print(f'covers applied to {cover_n} cards')
 
+# Forms (e.g. Contact Form 7) are not in the WordPress REST API, so they are described in FORMS_FILE:
+#   {"forms": [{"name", "slug", "fields": [...], "successMessage", "notifyEmail", ...}],
+#    "pages": {"<page slug>": {"form": "<form slug>", "remove_text": "<paragraphs containing this are dropped>"}}}
+# Each listed page gets the form block appended (and template filler text removed). Pushed with PUSH=forms,pages.
+forms_cfg = json.load(open(E('FORMS_FILE'))) if E('FORMS_FILE') else {}
+for pg_ in out_pages:
+    t = forms_cfg.get('pages', {}).get(pg_['slug'])
+    if not t:
+        continue
+    for b in pg_['sections']:
+        if b['type'] == 'rich_text' and t.get('remove_text'):
+            b['config']['html'] = re.sub(r'<p>(?:(?!</p>).)*' + re.escape(t['remove_text']) + r'.*?</p>', '', b['config']['html'], flags=re.S)
+    pg_['sections'] = [b for b in pg_['sections'] if not (b['type'] == 'rich_text' and not plain(b['config']['html']))]
+    pg_['sections'].append(ec.mk(new_ctx(), 'form_block', {'slug': t['form'], 'showTitle': False}))
+    pg_['sectionsJson'] = json.dumps(pg_['sections'], ensure_ascii=False)
+    print(f"form '{t['form']}' placed on /{pg_['slug']}")
+
 json.dump({'pages': out_pages, 'posts': out_posts, 'skipped': skipped_urls}, open(E('OUT', './converted.json'), 'w'), ensure_ascii=False)
 for r in report:
     print(f'  {r[0][:34]:36}{r[1]:5} {r[2]}')
@@ -334,6 +352,13 @@ if c != 200:
     sys.exit(f'CMS login failed (HTTP {c})')
 fails = []
 try:
+    if 'forms' in WANT and forms_cfg.get('forms'):
+        have_f = {f['slug']: f['id'] for f in (api('GET', '/api/forms')[1] or [])}
+        for f in forms_cfg['forms']:
+            c, d = api('PATCH', f"/api/forms/{have_f[f['slug']]}", f) if f['slug'] in have_f else api('POST', '/api/forms', f)
+            print(f"form {f['slug']}: {'updated' if f['slug'] in have_f else 'created'} (HTTP {c})")
+            if c not in (200, 201):
+                fails.append(f"form {f['slug']}: HTTP {c} {str(d)[:100]}")
     # authors (real bylines come from the article's author box; the WordPress user is just the uploader)
     push_posts = 'posts' in WANT
     have = {a['displayName'].lower(): a['id'] for a in listing('/api/authors')} if push_posts else {}

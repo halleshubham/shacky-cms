@@ -36,7 +36,8 @@ import { IssueArticlesPreview, IssueArticlesConfigForm } from './blocks/IssueArt
 // ─── Block palette meta (email surface only) ───────────────────────────────────
 const BLOCK_ICONS: Record<SectionType, React.ReactNode> = {
   hero: null, post_grid: null, latest_issue: null, category_row: null, download_banner: null,
-  html_embed: null, file_downloads: null, image_gallery: null, columns_block: null,
+  html_embed: null,
+  form_block: null, file_downloads: null, image_gallery: null, columns_block: null,
   issue_header:   <LayoutTemplate className="h-4 w-4" />,
   issue_articles: <Newspaper className="h-4 w-4" />,
   rich_text:      <Type className="h-4 w-4" />,

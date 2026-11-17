@@ -23,6 +23,7 @@ export type SectionType =
   | 'category_row'
   | 'download_banner'
   | 'html_embed'
+  | 'form_block'
   | 'divider'
   | 'spacer'
   | 'image_block'
@@ -77,6 +78,13 @@ export interface DownloadBannerConfig {
 export interface HtmlEmbedConfig {
   label?: string;
   code: string;
+}
+
+/** Embeds a CMS form (Admin → Forms) in the page; entries are collected under that form. */
+export interface FormBlockConfig {
+  slug: string;
+  /** Show the form's name as a coloured header above the fields. */
+  showTitle?: boolean;
 }
 
 export interface DividerConfig {
@@ -190,6 +198,7 @@ export type SectionConfig =
   | CategoryRowConfig
   | DownloadBannerConfig
   | HtmlEmbedConfig
+  | FormBlockConfig
   | DividerConfig
   | SpacerConfig
   | ImageBlockConfig
@@ -225,6 +234,7 @@ export const SECTION_META: Record<SectionType, SectionMeta> = {
   category_row:    { label: 'Category Row',    description: 'Category label + article row',        color: 'bg-amber-100 text-amber-700 border-amber-200', surfaces: ['homepage'] },
   download_banner: { label: 'Download Banner', description: 'Call-to-action with button',          color: 'bg-pink-100 text-pink-700 border-pink-200', surfaces: ['homepage'] },
   html_embed:      { label: 'HTML Embed',      description: 'Custom HTML / widget code',           color: 'bg-slate-100 text-slate-700 border-slate-200', surfaces: ['homepage'] },
+  form_block:      { label: 'Form',            description: 'Embed a form from Admin → Forms',     color: 'bg-lime-100 text-lime-700 border-lime-200', surfaces: ['homepage'] },
   divider:         { label: 'Divider',         description: 'Visual section separator',            color: 'bg-gray-100 text-gray-600 border-gray-200', surfaces: ['homepage', 'email'] },
   spacer:          { label: 'Spacer',          description: 'Blank vertical space',                 color: 'bg-slate-100 text-slate-700 border-slate-200', surfaces: ['homepage', 'email'] },
   image_block:     { label: 'Image',           description: 'Image with optional link & caption',  color: 'bg-cyan-100 text-cyan-700 border-cyan-200', surfaces: ['homepage', 'email'] },
@@ -243,6 +253,7 @@ export function defaultConfig(type: SectionType): SectionConfig {
     case 'category_row':    return { categorySlug: '', label: '', count: 4, layout: 'row' } as CategoryRowConfig;
     case 'download_banner': return { title: "Download This Week's Issue", description: '', buttonLabel: 'Download PDF', buttonUrl: '/issues' } as DownloadBannerConfig;
     case 'html_embed':      return { label: 'Custom Widget', code: '' } as HtmlEmbedConfig;
+    case 'form_block':      return { slug: '', showTitle: false } as FormBlockConfig;
     case 'divider':         return { label: '' } as DividerConfig;
     case 'spacer':          return { height: 24 } as SpacerConfig;
     case 'image_block':     return { src: '', alt: '', caption: '', linkUrl: '', linkNewTab: false, align: 'center', maxWidth: '100%' } as ImageBlockConfig;

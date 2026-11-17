@@ -3,9 +3,10 @@ import Link from 'next/link';
 import { format } from 'date-fns';
 import { BookOpen, ArrowRight, Download as DownloadIcon } from 'lucide-react';
 import { ArticleCard } from '@/components/public/ArticleCard';
+import { PublicForm } from '@/components/public/PublicForm';
 import type {
   Section, HeroConfig, PostGridConfig, LatestIssueConfig, IssueArticlesConfig,
-  CategoryRowConfig, DownloadBannerConfig, HtmlEmbedConfig, DividerConfig, SpacerConfig,
+  CategoryRowConfig, DownloadBannerConfig, HtmlEmbedConfig, FormBlockConfig, DividerConfig, SpacerConfig,
   ImageBlockConfig, RichTextConfig, HeadingBlockConfig, ButtonRowConfig,
   FileDownloadsConfig, ImageGalleryConfig, ColumnsBlockConfig, ColumnItem,
 } from '@/lib/page-builder';
@@ -252,6 +253,15 @@ function HtmlEmbedSection({ config }: { config: HtmlEmbedConfig }) {
   );
 }
 
+function FormBlockSection({ config }: { config: FormBlockConfig }) {
+  if (!config.slug?.trim()) return null;
+  return (
+    <section data-form-block className="mx-auto w-full max-w-2xl">
+      <PublicForm slug={config.slug.trim()} showTitle={config.showTitle ?? false} />
+    </section>
+  );
+}
+
 function DividerSection({ config }: { config: DividerConfig }) {
   if (config.label) {
     return (
@@ -432,6 +442,7 @@ function ColumnNestedSection({ col }: { col: ColumnItem }) {
     case 'category_row':    return <CategoryRowSection config={cfg as CategoryRowConfig} /> as React.ReactNode;
     case 'download_banner': return <DownloadBannerSection config={cfg as DownloadBannerConfig} />;
     case 'html_embed':      return <HtmlEmbedSection config={cfg as HtmlEmbedConfig} />;
+    case 'form_block':      return <FormBlockSection config={cfg as FormBlockConfig} />;
     case 'divider':         return <DividerSection config={cfg as DividerConfig} />;
     case 'spacer':          return <SpacerSection config={cfg as SpacerConfig} />;
     case 'image_block':     return <ImageBlockSection config={cfg as ImageBlockConfig} />;
@@ -523,6 +534,7 @@ export async function HomepageSections({ sections }: { sections: Section[] }) {
           case 'category_row':    return <CategoryRowSection key={section.id} config={section.config as CategoryRowConfig} />;
           case 'download_banner': return <DownloadBannerSection key={section.id} config={section.config as DownloadBannerConfig} />;
           case 'html_embed':      return <HtmlEmbedSection key={section.id} config={section.config as HtmlEmbedConfig} />;
+          case 'form_block':      return <FormBlockSection key={section.id} config={section.config as FormBlockConfig} />;
           case 'divider':         return <DividerSection key={section.id} config={section.config as DividerConfig} />;
           case 'spacer':          return <SpacerSection key={section.id} config={section.config as SpacerConfig} />;
           case 'image_block':     return <ImageBlockSection key={section.id} config={section.config as ImageBlockConfig} />;
