@@ -21,4 +21,7 @@ export function middleware(req: NextRequest) {
   return NextResponse.next();
 }
 
-export const config = { matcher: ['/s3', '/s3/:path*', '/wp-content/uploads/:path*'] };
+// Keep in sync with LEGACY_STATIC_DIRS in next.config.mjs.
+export const config = {
+  matcher: ['/s3', '/s3/:path*', '/wp-content/uploads/:path*', '/books/:path*', '/pamphlets/:path*', '/social-media-logos/:path*'],
+};

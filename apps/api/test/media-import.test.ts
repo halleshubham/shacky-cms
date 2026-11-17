@@ -69,6 +69,15 @@ describe('POST /api/media/import', () => {
     expect(res.json().url).toBe(`https://cms.test/s3/media/wp-content/uploads/2025/02/${encodeURIComponent('संविधान.pdf')}`);
   });
 
+  it('stores files from the old web root under legacy-root when area=site', async () => {
+    const body = Buffer.from('%PDF');
+    const { payload, headers } = form({ path: 'books/iradeEnglish.pdf', area: 'site' }, { name: 'iradeEnglish.pdf', type: 'application/pdf', body });
+    const res = await app.inject({ method: 'POST', url: '/api/media/import', payload, headers });
+    expect(res.statusCode).toBe(201);
+    expect(uploadToS3).toHaveBeenCalledWith('media/legacy-root/books/iradeEnglish.pdf', body, 'application/pdf');
+    expect(res.json().url).toBe('https://cms.test/s3/media/legacy-root/books/iradeEnglish.pdf');
+  });
+
   it('is idempotent: an already-imported path returns the existing record without re-uploading', async () => {
     prisma.media.findFirst.mockResolvedValue({ id: 'old', url: 'u' });
     const { payload, headers } = form({ path: '2025/09/Booklet.pdf' }, { name: 'a.pdf', type: 'application/pdf', body: Buffer.from('x') });
