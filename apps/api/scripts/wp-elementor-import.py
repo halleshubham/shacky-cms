@@ -168,6 +168,25 @@ def lost_words(src, out):
 
 # ── convert pages ───────────────────────────────────────────────────────────────
 out_pages, problems, report, lost_detail = [], [], [], {}
+def grid_cards(blocks, per_row):
+    """Elementor lays a catalogue out one card per row; merge runs of such single-card blocks into one grid block."""
+    out = []
+    for b in blocks:
+        prev = out[-1] if out else None
+        single = b['type'] == 'columns_block' and b['config'].get('columnsPerRow') == 1 and len(b['config']['columns']) == 1
+        if single and prev and prev['type'] == 'columns_block' and prev['config'].get('_grid'):
+            prev['config']['columns'] += b['config']['columns']
+        elif single:
+            b['config'].update({'columnsPerRow': per_row, '_grid': True})
+            out.append(b)
+        else:
+            out.append(b)
+    for b in out:
+        if b['type'] == 'columns_block':
+            b['config'].pop('_grid', None)
+    return out
+
+
 split_cfg = json.load(open(E('SPLIT_FILE'))) if E('SPLIT_FILE') else {}
 covers = json.load(open(E('COVERS_FILE'))) if E('COVERS_FILE') and os.path.exists(E('COVERS_FILE')) else {}
 news_grid = {'title': 'Latest', 'source': 'category', 'slug': NEWS_CAT, 'count': 3, 'columns': 3, 'size': 'default'}
@@ -195,7 +214,7 @@ for p in pages:
             sctx = new_ctx()
             sub = ec.convert_page(sctx, sp['title'], raw, bg, news_grid, widget_range=(a, b))
             back = ec.mk(sctx, 'button_row', {'align': 'left', 'buttons': [{'label': f'← {cfg.get("back_label", title)}', 'url': f'/{slug}', 'variant': 'outline'}]})
-            sub = sub[:1] + [back] + sub[1:]
+            sub = sub[:1] + [back] + grid_cards(sub[1:], cfg.get('columns', 3))
             out_pages.append({'kind': 'page', 'wpId': p['id'], 'title': sp['title'], 'slug': sp['slug'], 'excerpt': f"{sp['title']} — {title}",
                               'sectionsJson': json.dumps(sub, ensure_ascii=False), 'sections': sub, 'publishedAt': p['date_gmt'] + 'Z', 'status': 'published'})
             for k, u in sctx.missing_assets:
