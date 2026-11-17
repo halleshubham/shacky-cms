@@ -33,6 +33,7 @@ import sys
 import tempfile
 import urllib.parse
 
+sys.dont_write_bytecode = True  # don't litter the repo with __pycache__ when importing the converter
 HERE = os.path.dirname(os.path.abspath(__file__))
 spec = importlib.util.spec_from_file_location('wp_pages_convert', os.path.join(HERE, 'wp-pages-convert.py'))
 conv = importlib.util.module_from_spec(spec)

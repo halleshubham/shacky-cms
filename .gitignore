@@ -38,3 +38,7 @@ Thumbs.db
 
 # Docker local data volumes (if running compose locally)
 docker-data/
+
+# Python bytecode (migration scripts)
+__pycache__/
+*.pyc
