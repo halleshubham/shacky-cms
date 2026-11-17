@@ -431,3 +431,29 @@
   [data-theme='lokayat'] [data-site-header], [data-theme='lokayat'] [data-site-footer] { display: none; }
   [data-theme='lokayat'] [data-btn], [data-theme='lokayat'] [data-file] { box-shadow: none; }
 }
+
+/* embedded forms (page-builder form block) */
+[data-theme='lokayat'] [data-form] {
+  border: 2px solid hsl(var(--ink));
+  border-radius: 0;
+  box-shadow: 6px 6px 0 hsl(var(--ink));
+  background: #fff;
+}
+[data-theme='lokayat'] [data-form] input[type='text'],
+[data-theme='lokayat'] [data-form] input[type='email'],
+[data-theme='lokayat'] [data-form] input[type='tel'],
+[data-theme='lokayat'] [data-form] textarea,
+[data-theme='lokayat'] [data-form] select {
+  border: 2px solid hsl(var(--ink));
+  border-radius: 0;
+}
+[data-theme='lokayat'] [data-form] label { font-family: var(--font-body, inherit); }
+[data-theme='lokayat'] [data-form] button[type='submit'] {
+  border-radius: 0;
+  border: 2px solid hsl(var(--ink));
+  box-shadow: 4px 4px 0 hsl(var(--ink));
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 800;
+}
+[data-theme='lokayat'] [data-form-state='submitted'] { border: 2px solid hsl(var(--ink)); border-radius: 0; box-shadow: 6px 6px 0 hsl(var(--ink)); }
