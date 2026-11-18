@@ -25,11 +25,11 @@ thresholds that circulate online are unconfirmed — the figures above are the w
 | Metric | Before | After |
 |---|---|---|
 | Undersized tap targets on desktop (<24px) | 37 pages / 395 | 2 pages / 23 |
-| Undersized tap targets on phone (<44px) | 37 pages / 535 | 37 pages / 89 |
+| Undersized tap targets on phone (<44px) | 37 pages / 535 | 3 pages / 26 |
 | Pages with exactly one `<h1>` | 1 / 37 | 37 / 37 |
-| Heading levels skipped (e.g. h1 → h3) | 17 pages / 17 | 10 pages / 10 |
+| Heading levels skipped (e.g. h1 → h3) | 17 pages / 17 | 4 pages / 4 |
 | Pages scrolling sideways on a phone | 4 pages / 4 | 0 pages / 0 |
-| Pages whose Devanagari text has line-height < 1.4 | 17 | 9 |
+| Pages whose Devanagari text has line-height < 1.4 | 17 | 5 |
 | Text under 14px (desktop) | 37 pages / 302 | 1 pages / 6 |
 | Images not lazy-loaded | 21 pages / 182 | 12 pages / 32 |
 | Images without width/height attributes | 20 pages / 181 | 20 pages / 181 |
@@ -40,20 +40,20 @@ Page length (px, before → after):
 
 | Page | Phone | Desktop |
 |---|---|---|
-| `/` | 15,622 → 9,189 | 12,929 → 8,590 |
-| `/marathi-booklets` | 20,024 → 6,731 | 9,326 → 5,111 |
-| `/english-booklets` | 16,287 → 5,485 | 6,615 → 4,045 |
-| `/pamphlets` | 32,015 → 14,863 | 14,369 → 11,183 |
-| `/kafila` | 6,269 → 5,274 | 7,084 → 6,818 |
-| `/covid-19` | 8,968 → 8,777 | 12,227 → 12,149 |
+| `/` | 15,622 → 9,248 | 12,929 → 8,658 |
+| `/marathi-booklets` | 20,024 → 6,704 | 9,326 → 5,054 |
+| `/english-booklets` | 16,287 → 5,500 | 6,615 → 3,959 |
+| `/pamphlets` | 32,015 → 14,894 | 14,369 → 11,218 |
+| `/kafila` | 6,269 → 3,973 | 7,084 → 6,153 |
+| `/covid-19` | 8,968 → 8,817 | 12,227 → 12,181 |
 
 ## What was wrong and what was changed
 
 **Catalogue pages (Marathi/English/Hindi booklets, pamphlets, books)** — the page you flagged. Books were laid out as a patchwork:
 one card alone in a third-width row, then two giant uncaptioned cover images, then three cards, then another bare image, then twenty
-cards in three columns of different heights. Seven of the 24 Marathi booklets had no title and no alt text. Now: one uniform grid
+cards in three columns of different heights. Three of the 27 Marathi booklets were bare images with no title and no alt text. Now: one uniform grid
 (4 across on desktop, 2 on a phone), every cover in the same 3:4 frame, titles ≥ 16px with Devanagari-safe leading, a "PDF" tag on every
-download button, and the whole card is one link (one tab stop instead of two per book). The seven untitled booklets are now proper cards.
+download button, and the whole card is one link (one tab stop instead of two per book). The three untitled booklets are now proper cards.
 
 **Whole site**
 - Two `<h1>` per page (a hidden one from the template and a visible one from the content) → exactly one; the homepage had none.
@@ -67,6 +67,9 @@ download button, and the whole card is one link (one tab stop instead of two per
 - Very long URLs/hashtags in text no longer push phone pages sideways.
 - Download buttons now have a descriptive accessible name ("Download: <title>") instead of 70 identical "Download" links.
 - Template leftovers removed from the public site (set to draft, not deleted — see below).
+- **Spam removed.** The old WordPress pages had machine-written paragraphs injected into them linking to watch-replica, vape and jersey shops
+  (found on `kafila` and on the unpublished `home` page). They are dropped on import; the importer prints what it removed. Worth a security check
+  of the original WordPress site, since it was evidently compromised at some point.
 
 **Homepage** — was a photo then ~600 words of text with no headline or action, four full-width video players stacked, and a long tail.
 Now: one headline and sentence of context, three actions (Join Lokayat, Free publications, Watch videos), the photo, a short "Who we are" with
@@ -83,43 +86,43 @@ Phone/desktop: undersized tap targets, empty-alt images, heading skips, and what
 
 | Page | Status | Tap targets <44px (phone) | Empty-alt imgs | Heading skips | Phone sideways scroll | Note |
 |---|---|---|---|---|---|---|
-| `/` | 200 | 2 | 0 | 0 | no |  |
-| `/about-abhivyakti` | 200 | 2 | 4 | 0 | no |  |
-| `/about-janata` | 200 | 2 | 2 | 1 | no |  |
-| `/about-lokayat` | 200 | 2 | 0 | 0 | no |  |
-| `/about-lokayat-marathi` | 200 | 2 | 0 | 0 | no | Not linked from the menu |
-| `/c-videos` | 200 | 2 | 0 | 0 | no |  |
-| `/campaign` | 200 | 2 | 0 | 0 | no |  |
-| `/causes-style-03` | 200 | 2 | 0 | 0 | no |  |
-| `/contact-us` | 200 | 25 | 0 | 1 | no | Unlinked duplicate of the form page — decide: redirect to /join or remove |
-| `/corona-wealth-tax` | 200 | 3 | 0 | 0 | no | Not linked from the menu |
-| `/covid-19` | 200 | 2 | 6 | 0 | no |  |
-| `/cultural-videos` | 200 | 2 | 0 | 0 | no |  |
-| `/dr_brahme_books` | 200 | 2 | 0 | 0 | no |  |
-| `/english-booklets` | 200 | 2 | 0 | 1 | no |  |
-| `/events-list-view` | 200 | 2 | 1 | 1 | no | Past events (2018) — retire or move |
-| `/hindi-booklets` | 200 | 2 | 0 | 1 | no |  |
-| `/homepage-01` | 200 | 3 | 1 | 0 | no | Duplicate of the homepage content |
-| `/inauguration` | 200 | 2 | 0 | 0 | no | 2018 countdown page — probably retire |
-| `/join` | 200 | 18 | 0 | 0 | no | Join form (the menu's "Contact Us") |
-| `/kafila` | 200 | 10 | 1 | 0 | no | All Join-us buttons go to one Google Form |
-| `/lock-down-campaigns` | 200 | 4 | 6 | 0 | no |  |
-| `/lokayat-articles` | 200 | 2 | 0 | 0 | no | Empty until posts are imported |
-| `/lokayat-books` | 200 | 2 | 0 | 1 | no |  |
-| `/marathi-booklets` | 200 | 2 | 0 | 1 | no |  |
-| `/media` | 200 | 2 | 0 | 0 | no | Long raw URLs in text |
-| `/neeraj-jain-videos` | 200 | 2 | 0 | 0 | no |  |
-| `/other-speakers` | 200 | 2 | 0 | 0 | no |  |
-| `/other-videos` | 200 | 2 | 0 | 0 | no |  |
-| `/pamphlets` | 200 | 2 | 0 | 0 | no | Several first-page thumbnails are black scans — replace with real covers |
-| `/publication` | 200 | 2 | 0 | 1 | no |  |
-| `/punjabi-material` | 200 | 2 | 0 | 1 | no |  |
-| `/rayatecha-raja` | 200 | 2 | 1 | 0 | no | Not linked from the menu |
-| `/recent-issue` | 200 | 3 | 1 | 0 | no | Janata subscription info |
-| `/search?q=lokayat` | 200 | 2 | 0 | 1 | no |  |
-| `/social-media` | 200 | 2 | 2 | 0 | no | Almost empty — merge into footer/Contact |
-| `/training-material` | 200 | 2 | 0 | 0 | no |  |
-| `/why-does-rss-bjp-not-like-these-hindu-monks` | 200 | 2 | 1 | 0 | no |  |
+| `/` | 200 | 0 | 0 | 0 | no |  |
+| `/about-abhivyakti` | 200 | 0 | 4 | 0 | no |  |
+| `/about-janata` | 200 | 0 | 2 | 1 | no |  |
+| `/about-lokayat` | 200 | 0 | 0 | 0 | no |  |
+| `/about-lokayat-marathi` | 200 | 0 | 0 | 0 | no | Not linked from the menu |
+| `/c-videos` | 200 | 0 | 0 | 0 | no |  |
+| `/campaign` | 200 | 0 | 0 | 0 | no |  |
+| `/causes-style-03` | 200 | 0 | 0 | 0 | no |  |
+| `/contact-us` | 200 | 18 | 0 | 1 | no | Unlinked duplicate of the form page — decide: redirect to /join or remove |
+| `/corona-wealth-tax` | 200 | 1 | 0 | 0 | no | Not linked from the menu |
+| `/covid-19` | 200 | 0 | 6 | 0 | no |  |
+| `/cultural-videos` | 200 | 0 | 0 | 0 | no |  |
+| `/dr_brahme_books` | 200 | 0 | 0 | 0 | no |  |
+| `/english-booklets` | 200 | 0 | 0 | 0 | no |  |
+| `/events-list-view` | 200 | 0 | 1 | 1 | no | Past events (2018) — retire or move |
+| `/hindi-booklets` | 200 | 0 | 0 | 0 | no |  |
+| `/homepage-01` | 200 | 1 | 1 | 0 | no | Duplicate of the homepage content |
+| `/inauguration` | 200 | 0 | 0 | 0 | no | 2018 countdown page — probably retire |
+| `/join` | 200 | 9 | 0 | 0 | no | Join form (the menu's "Contact Us") |
+| `/kafila` | 200 | 0 | 1 | 0 | no | All Join-us buttons go to one Google Form |
+| `/lock-down-campaigns` | 200 | 2 | 6 | 0 | no |  |
+| `/lokayat-articles` | 200 | 0 | 0 | 0 | no | Empty until posts are imported |
+| `/lokayat-books` | 200 | 0 | 0 | 0 | no |  |
+| `/marathi-booklets` | 200 | 0 | 0 | 0 | no |  |
+| `/media` | 200 | 0 | 0 | 0 | no | Long raw URLs in text |
+| `/neeraj-jain-videos` | 200 | 0 | 0 | 0 | no |  |
+| `/other-speakers` | 200 | 0 | 0 | 0 | no |  |
+| `/other-videos` | 200 | 0 | 0 | 0 | no |  |
+| `/pamphlets` | 200 | 0 | 0 | 0 | no | Several first-page thumbnails are black scans — replace with real covers |
+| `/publication` | 200 | 0 | 0 | 0 | no |  |
+| `/punjabi-material` | 200 | 0 | 0 | 0 | no |  |
+| `/rayatecha-raja` | 200 | 0 | 1 | 0 | no | Not linked from the menu |
+| `/recent-issue` | 200 | 1 | 1 | 0 | no | Janata subscription info |
+| `/search?q=lokayat` | 200 | 0 | 0 | 1 | no |  |
+| `/social-media` | 200 | 0 | 2 | 0 | no | Almost empty — merge into footer/Contact |
+| `/training-material` | 200 | 0 | 0 | 0 | no |  |
+| `/why-does-rss-bjp-not-like-these-hindu-monks` | 200 | 0 | 1 | 0 | no |  |
 
 ## Still open — needs a decision or content from you
 
