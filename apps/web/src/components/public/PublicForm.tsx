@@ -15,7 +15,7 @@ interface FormField {
   options?: string[];
 }
 
-interface FormDef {
+export interface FormDef {
   name: string;
   slug: string;
   fields: FormField[];
@@ -30,10 +30,12 @@ const SEP = ', ';
  * A public form rendered from its definition (GET /api/forms/public/:slug), submitted to POST /api/forms/public/:slug.
  * Used by the standalone /forms/:slug page and by the page builder's form block.
  */
-export function PublicForm({ slug, showTitle = true }: { slug: string; showTitle?: boolean }) {
-  const [form, setForm] = useState<FormDef | null>(null);
+export function PublicForm({ slug, showTitle = true, initial }: { slug: string; showTitle?: boolean; initial?: FormDef | null }) {
+  // `initial` is the definition fetched on the server, so the fields are already in the HTML and do not depend on
+  // client-side scripts loading before anything shows; without it the definition is fetched in the browser.
+  const [form, setForm] = useState<FormDef | null>(initial ?? null);
   const [notFound, setNotFound] = useState(false);
-  const [values, setValues] = useState<Record<string, string>>({});
+  const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries((initial?.fields ?? []).map((f) => [f.name, ''])));
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
@@ -41,6 +43,7 @@ export function PublicForm({ slug, showTitle = true }: { slug: string; showTitle
   const [serverError, setServerError] = useState('');
 
   useEffect(() => {
+    if (initial) return;
     fetch(`/api/forms/public/${slug}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
       .then((d) => {
@@ -48,7 +51,7 @@ export function PublicForm({ slug, showTitle = true }: { slug: string; showTitle
         setValues(Object.fromEntries(d.fields.map((f: FormField) => [f.name, ''])));
       })
       .catch(() => setNotFound(true));
-  }, [slug]);
+  }, [slug, initial]);
 
   const set = (name: string, value: string) => {
     setValues((prev) => ({ ...prev, [name]: value }));

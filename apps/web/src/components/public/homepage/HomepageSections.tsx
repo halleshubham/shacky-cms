@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { format } from 'date-fns';
 import { BookOpen, ArrowRight, Download as DownloadIcon } from 'lucide-react';
 import { ArticleCard } from '@/components/public/ArticleCard';
-import { PublicForm } from '@/components/public/PublicForm';
+import { PublicForm, type FormDef } from '@/components/public/PublicForm';
 import type {
   Section, HeroConfig, PostGridConfig, LatestIssueConfig, IssueArticlesConfig,
   CategoryRowConfig, DownloadBannerConfig, HtmlEmbedConfig, FormBlockConfig, DividerConfig, SpacerConfig,
@@ -253,11 +253,17 @@ function HtmlEmbedSection({ config }: { config: HtmlEmbedConfig }) {
   );
 }
 
-function FormBlockSection({ config }: { config: FormBlockConfig }) {
-  if (!config.slug?.trim()) return null;
+async function FormBlockSection({ config }: { config: FormBlockConfig }) {
+  const slug = config.slug?.trim();
+  if (!slug) return null;
+  let initial: FormDef | null = null;
+  try {
+    const res = await fetch(`${process.env.API_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL}/api/forms/public/${encodeURIComponent(slug)}`, { next: { revalidate: 60 } });
+    if (res.ok) initial = await res.json();
+  } catch { /* the client fetches it instead */ }
   return (
     <section data-form-block className="mx-auto w-full max-w-2xl">
-      <PublicForm slug={config.slug.trim()} showTitle={config.showTitle ?? false} />
+      <PublicForm slug={slug} showTitle={config.showTitle ?? false} initial={initial} />
     </section>
   );
 }
