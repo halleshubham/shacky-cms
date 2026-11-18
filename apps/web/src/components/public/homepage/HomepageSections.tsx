@@ -461,7 +461,8 @@ function ColumnNestedSection({ col }: { col: ColumnItem }) {
   }
 }
 
-function ColumnsBlockSection({ config }: { config: ColumnsBlockConfig }) {
+function ColumnsBlockSection({ config, headingLevel = 3 }: { config: ColumnsBlockConfig; headingLevel?: number }) {
+  const Title = `h${Math.min(6, Math.max(2, headingLevel))}` as 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
   if (!config.columns || config.columns.length === 0) return null;
   const colClass: Record<number, string> = { 1: 'grid-cols-1', 2: 'sm:grid-cols-2', 3: 'sm:grid-cols-2 md:grid-cols-3', 4: 'sm:grid-cols-2 md:grid-cols-4' };
   const gridClass = colClass[config.columnsPerRow] ?? 'sm:grid-cols-2';
@@ -516,7 +517,7 @@ function ColumnsBlockSection({ config }: { config: ColumnsBlockConfig }) {
                 </a>
               ) : imgEl
             )}
-            {col.title && <h3 data-card-title className="font-bold text-lg leading-snug">{col.title}</h3>}
+            {col.title && <Title data-card-title className="font-bold text-lg leading-snug">{col.title}</Title>}
             {col.text && <p data-card-text className="text-muted-foreground leading-relaxed text-sm">{col.text}</p>}
             {col.buttonLabel && col.buttonUrl && (
               <div className={`mt-auto pt-1 flex ${config.textAlign === 'center' ? 'justify-center' : config.textAlign === 'right' ? 'justify-end' : 'justify-start'}`}>
@@ -544,9 +545,12 @@ function ColumnsBlockSection({ config }: { config: ColumnsBlockConfig }) {
 
 // ─── Main export ───────────────────────────────────────────────────────────────
 export async function HomepageSections({ sections }: { sections: Section[] }) {
+  let lastHeadingLevel = 1;
   return (
     <div className="space-y-12">
       {sections.map((section) => {
+        // card titles sit one level below the nearest heading above them, so the outline never skips a level
+        if (section.type === 'heading_block') lastHeadingLevel = (section.config as HeadingBlockConfig).level ?? 2;
         switch (section.type) {
           case 'hero':            return <HeroSection key={section.id} config={section.config as HeroConfig} />;
           case 'post_grid':       return <PostGridSection key={section.id} config={section.config as PostGridConfig} />;
@@ -564,7 +568,7 @@ export async function HomepageSections({ sections }: { sections: Section[] }) {
           case 'button_row':      return <ButtonRowSection key={section.id} config={section.config as ButtonRowConfig} />;
           case 'file_downloads':  return <FileDownloadsSection key={section.id} config={section.config as FileDownloadsConfig} />;
           case 'image_gallery':   return <ImageGallerySection key={section.id} config={section.config as ImageGalleryConfig} />;
-          case 'columns_block':   return <ColumnsBlockSection key={section.id} config={section.config as ColumnsBlockConfig} />;
+          case 'columns_block':   return <ColumnsBlockSection key={section.id} config={section.config as ColumnsBlockConfig} headingLevel={lastHeadingLevel + 1} />;
           default:                return null;
         }
       })}

@@ -469,7 +469,7 @@
 [data-theme='lokayat'] :is(input, textarea, select):focus-visible { outline-offset: 1px; }
 
 /* Devanagari needs more vertical room than Latin: tight poster leading clips matras and stacks lines into a block */
-[data-theme='lokayat'] :is(h2, h3, h4, h5, h6) { line-height: 1.25; }
+[data-theme='lokayat'] :is(h2, h3, h4, h5, h6) { line-height: 1.4; }
 [data-theme='lokayat'] [data-block='heading'] h1 { line-height: 1.08; }
 [data-theme='lokayat'] :is(p, li, figcaption, dd) { line-height: 1.7; }
 
@@ -571,3 +571,9 @@
   [data-theme='lokayat'] [data-site-footer] :is(li, p) a { min-height: 2.75rem; }
   [data-theme='lokayat'] [data-site-footer] ul { row-gap: 0; }
 }
+
+/* footer links: also at least thumb-wide (short words like "Home" or "X" were 34–38px wide), and comfortable inputs */
+@media (max-width: 767px) {
+  [data-theme='lokayat'] [data-site-footer] :is(li, p) a { min-width: 2.75rem; }
+}
+[data-theme='lokayat'] :is(input:not([type='checkbox']):not([type='radio']), select) { min-height: 2.75rem; }

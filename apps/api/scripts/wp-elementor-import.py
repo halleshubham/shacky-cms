@@ -295,6 +295,36 @@ for pg_ in out_pages:
     pg_['sectionsJson'] = json.dumps(pg_['sections'], ensure_ascii=False)
 print(f'covers applied to {cover_n} cards')
 
+# SEO-spam that got injected into the old site (paragraphs of nonsense linking to watch-replica / vape / jersey shops).
+SPAM_HOST = re.compile(r'(vapes?(shop|stores?)|rickandmortyvape|watch(es)?\.|swisswatch|replica|jersey|tomford|tagheuer|franckmuller|jimmychoo|loewe|parissaintgermain)', re.I)
+removed_spam = []
+
+
+def strip_spam(secs, slug):
+    """Drop every paragraph that links to a spam host (the surrounding sentences are machine-written filler)."""
+    for b in list(secs):
+        if b['type'] != 'rich_text':
+            continue
+        html = b['config'].get('html', '')
+        parts = re.split(r'(?<=</p>)', html)
+        kept = []
+        for part in parts:
+            hosts = re.findall(r'href="https?://([^/"]+)', part)
+            if any(SPAM_HOST.search(h) for h in hosts):
+                removed_spam.append((slug, hosts[:3]))
+            else:
+                kept.append(part)
+        b['config']['html'] = ''.join(kept)
+        if not plain(b['config']['html']):
+            secs.remove(b)
+
+
+for pg_ in out_pages:
+    strip_spam(pg_['sections'], pg_['slug'])
+if removed_spam:
+    print(f'removed {len(removed_spam)} spam paragraph(s): ' + '; '.join(f"{s}:{h[0]}" for s, h in removed_spam))
+
+
 def fix_heading_levels(secs):
     """Elementor lets every heading pick any level (h3 straight under the page title, several h1s). Make the outline
     well-formed: one h1 (the first heading, if it is one) and no level skipped going down."""
