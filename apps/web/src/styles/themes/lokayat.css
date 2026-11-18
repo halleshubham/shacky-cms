@@ -485,7 +485,6 @@
     gap: 0.9rem;
   }
   [data-theme='lokayat'] [data-block='columns'] > [data-column='card'] { padding: 0.7rem; box-shadow: 4px 4px 0 hsl(var(--ink)); }
-  [data-theme='lokayat'] [data-column='card'] [data-card-text] { display: none; } /* titles + covers carry the catalogue on a phone; full text stays on desktop */
 }
 [data-theme='lokayat'] [data-column='card'] { position: relative; gap: 0.7rem; }
 [data-theme='lokayat'] [data-block='columns'] [data-column='card'] h3 {
@@ -509,6 +508,11 @@
 [data-theme='lokayat'] [data-column='card'][data-has-link='true'] { transition: transform 0.12s ease, box-shadow 0.12s ease; }
 [data-theme='lokayat'] [data-column='card'][data-has-link='true']:hover { transform: translate(-2px, -2px); box-shadow: 8px 8px 0 hsl(var(--ink)); }
 [data-theme='lokayat'] [data-column='card'] [data-card-link] { align-self: flex-start; }
+@media (max-width: 639px) {
+  /* two-up on a phone: keep the description, but only two lines of it so the cards stay even */
+  [data-theme='lokayat'] [data-column='card'] [data-card-text] { -webkit-line-clamp: 2; font-size: 0.875rem; }
+  [data-theme='lokayat'] [data-column='card'] [data-card-link] { align-self: stretch; padding-inline: 0.5rem; }
+}
 /* file-type badge, e.g. "DOWNLOAD [PDF]" */
 [data-theme='lokayat'] [data-btn][data-ext]::after {
   content: attr(data-ext);
