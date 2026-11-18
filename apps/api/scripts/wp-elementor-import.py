@@ -169,22 +169,37 @@ def lost_words(src, out):
 
 # ── convert pages ───────────────────────────────────────────────────────────────
 out_pages, problems, report, lost_detail = [], [], [], {}
-def grid_cards(blocks, per_row):
-    """Elementor lays a catalogue out one card per row; merge runs of such single-card blocks into one grid block."""
-    out = []
+def grid_cards(blocks, per_row, promote=None):
+    """Elementor lays a catalogue out as a patchwork: one card per row here, a bare cover image there, a few cards in a
+    row elsewhere. Make it one uniform grid: bare cover images that link to a document become cards (titles come from
+    `promote`: {document url: {"title", "text"?}}, written by a person who looked at the cover), and consecutive card
+    blocks are merged into a single block."""
+    promote = promote or {}
+    doc = re.compile(r'\.(pdf|docx?|pptx?)$', re.I)
+
+    def is_cards(b):
+        return b['type'] == 'columns_block' and all(c.get('contentType') in (None, 'card') for c in b['config']['columns'])
+
+    label = next((c.get('buttonLabel') for b in blocks if b['type'] == 'columns_block' for c in b['config']['columns'] if c.get('buttonLabel')), 'Download')
+    flat = []
     for b in blocks:
-        prev = out[-1] if out else None
-        single = b['type'] == 'columns_block' and b['config'].get('columnsPerRow') == 1 and len(b['config']['columns']) == 1
-        if single and prev and prev['type'] == 'columns_block' and prev['config'].get('_grid'):
-            prev['config']['columns'] += b['config']['columns']
-        elif single:
-            b['config'].update({'columnsPerRow': per_row, '_grid': True})
-            out.append(b)
+        imgs = b['config'].get('images') if b['type'] == 'image_gallery' else ([b['config']] if b['type'] == 'image_block' else None)
+        if imgs and all(dec(i.get('linkUrl') or '').lower().endswith(('.pdf', '.doc', '.docx', '.ppt', '.pptx')) and i.get('linkUrl') in promote for i in imgs):
+            cards = [{'contentType': 'card', 'title': promote[i['linkUrl']]['title'], **({'text': promote[i['linkUrl']]['text']} if promote[i['linkUrl']].get('text') else {}),
+                      'buttonLabel': label, 'buttonUrl': i['linkUrl'], 'buttonVariant': 'primary', 'buttonNewTab': True,
+                      'imageSrc': i['src'], 'imageAlt': promote[i['linkUrl']]['title'], 'imageLink': i['linkUrl'], 'imageDownload': True} for i in imgs]
+            flat.append({**b, 'type': 'columns_block', 'config': {'columns': cards, 'columnsPerRow': per_row, 'textAlign': 'left'}})
+        else:
+            flat.append(b)
+    out = []
+    for b in flat:
+        if is_cards(b) and out and is_cards(out[-1]):
+            out[-1]['config']['columns'] += b['config']['columns']
         else:
             out.append(b)
     for b in out:
-        if b['type'] == 'columns_block':
-            b['config'].pop('_grid', None)
+        if is_cards(b):
+            b['config']['columnsPerRow'] = per_row if len(b['config']['columns']) > 2 else b['config'].get('columnsPerRow', per_row)
     return out
 
 
@@ -215,7 +230,7 @@ for p in pages:
             sctx = new_ctx()
             sub = ec.convert_page(sctx, sp['title'], raw, bg, news_grid, widget_range=(a, b))
             back = ec.mk(sctx, 'button_row', {'align': 'left', 'buttons': [{'label': f'← {cfg.get("back_label", title)}', 'url': f'/{slug}', 'variant': 'outline'}]})
-            sub = sub[:1] + [back] + grid_cards(sub[1:], cfg.get('columns', 3))
+            sub = sub[:1] + [back] + grid_cards(sub[1:], cfg.get('columns', 3), sp.get('promote') or cfg.get('promote'))
             out_pages.append({'kind': 'page', 'wpId': p['id'], 'title': sp['title'], 'slug': sp['slug'], 'excerpt': f"{sp['title']} — {title}",
                               'sectionsJson': json.dumps(sub, ensure_ascii=False), 'sections': sub, 'publishedAt': p['date_gmt'] + 'Z', 'status': 'published'})
             for k, u in sctx.missing_assets:

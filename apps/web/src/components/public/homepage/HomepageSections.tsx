@@ -472,7 +472,7 @@ function ColumnsBlockSection({ config }: { config: ColumnsBlockConfig }) {
     ghost:   'hover:bg-muted text-foreground',
   };
   return (
-    <div data-block="columns" className={`grid grid-cols-1 ${gridClass} gap-6 lg:gap-8`}>
+    <div data-block="columns" data-cols={config.columnsPerRow} className={`grid grid-cols-1 ${gridClass} gap-6 lg:gap-8`}>
       {config.columns.map((col: ColumnItem, i: number) => {
         // Nested block mode
         if (col.contentType && col.contentType !== 'card') {
@@ -486,11 +486,21 @@ function ColumnsBlockSection({ config }: { config: ColumnsBlockConfig }) {
         // Card mode (default)
         const imgEl = col.imageSrc ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={col.imageSrc} alt={col.imageAlt || col.title || ''} className="w-full rounded-lg object-cover aspect-video" />
+          <img
+            data-card-image
+            src={col.imageSrc}
+            alt={col.imageAlt || col.title || ''}
+            loading="lazy"
+            decoding="async"
+            className="w-full rounded-lg object-cover aspect-video"
+          />
         ) : null;
+        // One tab stop per card: when the button already goes to the same place, the cover link is a mouse/touch convenience only
+        const coverIsDuplicate = !!col.buttonUrl && (!col.imageLink || col.imageLink === col.buttonUrl);
+        const ext = (col.buttonUrl || '').split(/[?#]/)[0].match(/\.(pdf|docx?|pptx?|xlsx?|zip)$/i)?.[1]?.toUpperCase();
 
         return (
-          <div key={i} data-column="card" className={`flex flex-col gap-3 ${alignClass}`}>
+          <div key={i} data-column="card" data-has-link={col.buttonUrl ? 'true' : undefined} className={`flex flex-col gap-3 ${alignClass}`}>
             {imgEl && (
               col.imageLink ? (
                 <a
@@ -498,22 +508,27 @@ function ColumnsBlockSection({ config }: { config: ColumnsBlockConfig }) {
                   target={col.imageLinkNewTab ? '_blank' : '_self'}
                   rel={col.imageLinkNewTab ? 'noopener noreferrer' : undefined}
                   download={col.imageDownload ? true : undefined}
+                  tabIndex={coverIsDuplicate ? -1 : undefined}
+                  aria-hidden={coverIsDuplicate ? true : undefined}
                   className="block hover:opacity-90 transition-opacity"
                 >
                   {imgEl}
                 </a>
               ) : imgEl
             )}
-            {col.title && <h3 className="font-bold text-lg leading-snug">{col.title}</h3>}
-            {col.text && <p className="text-muted-foreground leading-relaxed text-sm">{col.text}</p>}
+            {col.title && <h3 data-card-title className="font-bold text-lg leading-snug">{col.title}</h3>}
+            {col.text && <p data-card-text className="text-muted-foreground leading-relaxed text-sm">{col.text}</p>}
             {col.buttonLabel && col.buttonUrl && (
               <div className={`mt-auto pt-1 flex ${config.textAlign === 'center' ? 'justify-center' : config.textAlign === 'right' ? 'justify-end' : 'justify-start'}`}>
                 <a
                   data-btn
+                  data-card-link
+                  data-ext={ext}
                   data-variant={col.buttonVariant || 'primary'}
                   href={col.buttonUrl}
                   target={col.buttonNewTab ? '_blank' : '_self'}
                   rel={col.buttonNewTab ? 'noopener noreferrer' : undefined}
+                  aria-label={col.title && col.title !== col.buttonLabel ? `${col.buttonLabel}: ${col.title}` : undefined}
                   className={`inline-flex items-center px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors ${variantClass[col.buttonVariant || 'primary'] ?? variantClass.primary}`}
                 >
                   {col.buttonLabel}

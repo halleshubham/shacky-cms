@@ -300,7 +300,9 @@ def slide_cards(ctx, w):
             card['text'] = text_of(d)
         a = sl.select_one('a.elementor-button') or sl.select_one('a[href]')
         if a and a.get('href'):
-            card.update(buttonLabel=text_of(a) or 'Open', buttonUrl=fix_url(ctx, a['href']), buttonVariant='primary')
+            # a slide is often one big link wrapping heading + description + a small button: the label is the button's own text
+            btn = sl.select_one('.elementor-slide-button') or a
+            card.update(buttonLabel=text_of(btn) or 'Open', buttonUrl=fix_url(ctx, a['href']), buttonVariant='primary')
         if len(card) > 1:
             out.append(card)
     return out

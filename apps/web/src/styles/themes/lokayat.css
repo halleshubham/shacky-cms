@@ -457,3 +457,99 @@
   font-weight: 800;
 }
 [data-theme='lokayat'] [data-form-state='submitted'] { border: 2px solid hsl(var(--ink)); border-radius: 0; box-shadow: 6px 6px 0 hsl(var(--ink)); }
+
+/* ── 9. UX audit refinements ───────────────────────────────────────────────────
+   Findings from the audit (docs/lokayat-ux-audit.md): faint focus ring, cramped Devanagari line-height, undersized
+   tap targets, catalogue grids that jumped between 1/2/3 columns with oversized covers, double tab stops per card,
+   a text column pinned to the left with an empty right half. */
+
+/* Focus: a dark ring with an offset reads on the light page, a yellow one on dark surfaces (pale yellow on paper is ~1.4:1) */
+[data-theme='lokayat'] :focus-visible { outline: 3px solid hsl(var(--ink)); outline-offset: 3px; }
+[data-theme='lokayat'] :is([data-site-footer], [data-block='download-banner'], [data-mobile-menu]) :focus-visible { outline-color: hsl(var(--marker)); }
+[data-theme='lokayat'] :is(input, textarea, select):focus-visible { outline-offset: 1px; }
+
+/* Devanagari needs more vertical room than Latin: tight poster leading clips matras and stacks lines into a block */
+[data-theme='lokayat'] :is(h2, h3, h4, h5, h6) { line-height: 1.25; }
+[data-theme='lokayat'] [data-block='heading'] h1 { line-height: 1.08; }
+[data-theme='lokayat'] :is(p, li, figcaption, dd) { line-height: 1.7; }
+
+/* Catalogue grid: when a block holds 3+ cards it becomes an even auto-fill grid (4 across on desktop, 2 on phones) */
+[data-theme='lokayat'] [data-block='columns']:is([data-cols='3'], [data-cols='4']):has(> [data-column='card']) {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
+  gap: 1.5rem;
+  align-items: stretch;
+}
+@media (max-width: 639px) {
+  [data-theme='lokayat'] [data-block='columns']:is([data-cols='3'], [data-cols='4']):has(> [data-column='card']) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.9rem;
+  }
+  [data-theme='lokayat'] [data-block='columns'] > [data-column='card'] { padding: 0.7rem; box-shadow: 4px 4px 0 hsl(var(--ink)); }
+  [data-theme='lokayat'] [data-column='card'] [data-card-text] { display: none; } /* titles + covers carry the catalogue on a phone; full text stays on desktop */
+}
+[data-theme='lokayat'] [data-column='card'] { position: relative; gap: 0.7rem; }
+[data-theme='lokayat'] [data-block='columns'] [data-column='card'] h3 {
+  font-size: clamp(1rem, 0.95rem + 0.25vw, 1.15rem);
+  line-height: 1.3;
+  text-transform: none;
+  font-weight: 800;
+}
+[data-theme='lokayat'] [data-column='card'] [data-card-text] {
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: hsl(var(--foreground) / 0.82);
+  display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
+}
+/* Download cards (a button that points at a document): uniform 3:4 cover frame, whole card is one big link */
+[data-theme='lokayat'] [data-column='card']:has([data-ext]) [data-card-image] {
+  aspect-ratio: 3 / 4; width: 100%; height: auto; max-height: none; object-fit: contain;
+  background: hsl(var(--muted)); margin: 0;
+}
+[data-theme='lokayat'] [data-column='card'] [data-card-link]::after { content: ''; position: absolute; inset: 0; }
+[data-theme='lokayat'] [data-column='card'][data-has-link='true'] { transition: transform 0.12s ease, box-shadow 0.12s ease; }
+[data-theme='lokayat'] [data-column='card'][data-has-link='true']:hover { transform: translate(-2px, -2px); box-shadow: 8px 8px 0 hsl(var(--ink)); }
+[data-theme='lokayat'] [data-column='card'] [data-card-link] { align-self: flex-start; }
+/* file-type badge, e.g. "DOWNLOAD [PDF]" */
+[data-theme='lokayat'] [data-btn][data-ext]::after {
+  content: attr(data-ext);
+  margin-inline-start: 0.55rem; padding: 0.05rem 0.35rem;
+  border: 1.5px solid currentColor; font-size: 0.68rem; letter-spacing: 0.06em; line-height: 1.3;
+}
+[data-theme='lokayat'] [data-column='card'] [data-card-link][data-ext]::after { position: static; inset: auto; }
+
+/* Tap targets: ≥44px high where a thumb is involved, ≥32px for desktop nav */
+[data-theme='lokayat'] [data-btn] { min-height: 2.75rem; display: inline-flex; align-items: center; justify-content: center; }
+[data-theme='lokayat'] [data-header-tools] button { min-width: 2.75rem; min-height: 2.75rem; display: grid; place-items: center; }
+[data-theme='lokayat'] [data-header-brand] { min-height: 2.75rem; }
+[data-theme='lokayat'] [data-nav-link] { min-height: 2.5rem; display: inline-flex; align-items: center; }
+[data-theme='lokayat'] [data-mobile-menu] a { display: flex; align-items: center; min-height: 2.9rem; }
+[data-theme='lokayat'] [data-site-footer] :is(li, p) a { display: inline-flex; align-items: center; min-height: 2.5rem; }
+[data-theme='lokayat'] [data-header-social] a { width: 2.5rem; height: 2.5rem; }
+[data-theme='lokayat'] [data-form] label:has(input) { display: flex; align-items: flex-start; gap: 0.6rem; min-height: 2.5rem; padding-block: 0.35rem; }
+[data-theme='lokayat'] [data-form] input:is([type='checkbox'], [type='radio']) { width: 1.25rem; height: 1.25rem; flex: none; margin-top: 0.1rem; }
+
+/* Reading column: prose is held to a comfortable measure and centred; media and catalogue grids keep the full width.
+   A heading is held to the same column only when it introduces prose, so it lines up with what it introduces. */
+[data-theme='lokayat'] [data-site-main] [data-block='rich-text'],
+[data-theme='lokayat'] [data-site-main] [data-block='heading']:not([data-level='1']):has(+ [data-block='rich-text']) {
+  max-width: 46rem; margin-inline: auto;
+}
+[data-theme='lokayat'] [data-site-main] [data-block='rich-text'] { font-size: 1.125rem; }
+
+/* Header: keep the search button on the same row as the nav on common laptop widths */
+@media (min-width: 1100px) {
+  [data-theme='lokayat'] [data-header-inner] { flex-wrap: nowrap; }
+  [data-theme='lokayat'] [data-header-nav] { flex-wrap: nowrap; }
+  [data-theme='lokayat'] [data-nav-link] { padding-inline: 0.5rem; letter-spacing: 0.06em; }
+  [data-theme='lokayat'] [data-header-search] { position: absolute; inset-inline: 0; top: 100%; background: hsl(var(--header)); border-bottom: var(--rule); padding: 0.75rem 1rem; }
+}
+/* the last menu item is the call to action */
+@media (min-width: 1100px) {
+  [data-theme='lokayat'] [data-header-nav] > :last-child:is([data-nav-link]),
+  [data-theme='lokayat'] [data-header-nav] > :last-child [data-nav-link] {
+    background: hsl(var(--primary)); color: #fff; border: 2px solid hsl(var(--ink)); box-shadow: 3px 3px 0 hsl(var(--ink));
+    margin-inline-start: 0.5rem; padding-inline: 0.9rem;
+  }
+  [data-theme='lokayat'] [data-header-nav] > :last-child:is([data-nav-link]):hover,
+  [data-theme='lokayat'] [data-header-nav] > :last-child [data-nav-link]:hover { color: #fff; transform: translate(-1px, -1px); box-shadow: 4px 4px 0 hsl(var(--ink)); }
+}
