@@ -557,3 +557,17 @@
   [data-theme='lokayat'] [data-header-nav] > :last-child:is([data-nav-link]):hover,
   [data-theme='lokayat'] [data-header-nav] > :last-child [data-nav-link]:hover { color: #fff; transform: translate(-1px, -1px); box-shadow: 4px 4px 0 hsl(var(--ink)); }
 }
+
+/* ── 9b. Audit follow-ups ──────────────────────────────────────────────────── */
+/* Devanagari card titles and button labels need ≥1.4 leading (matras clip at 1.2–1.3) */
+[data-theme='lokayat'] [data-block='columns'] [data-column='card'] h3 { line-height: 1.45; }
+[data-theme='lokayat'] [data-btn] { line-height: 1.4; }
+/* long raw URLs / hashtags in prose must wrap instead of widening the page on a phone */
+[data-theme='lokayat'] [data-site-main] :is(p, li, h1, h2, h3, h4, a, figcaption) { overflow-wrap: anywhere; }
+/* nav text: 14px where there is room, 13px on narrower laptops (the row is one line) */
+@media (min-width: 1240px) { [data-theme='lokayat'] [data-nav-link] { font-size: 0.875rem; } }
+/* footer + menu links: a thumb-sized target on phones */
+@media (max-width: 767px) {
+  [data-theme='lokayat'] [data-site-footer] :is(li, p) a { min-height: 2.75rem; }
+  [data-theme='lokayat'] [data-site-footer] ul { row-gap: 0; }
+}

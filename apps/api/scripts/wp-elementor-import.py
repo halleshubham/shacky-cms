@@ -295,6 +295,26 @@ for pg_ in out_pages:
     pg_['sectionsJson'] = json.dumps(pg_['sections'], ensure_ascii=False)
 print(f'covers applied to {cover_n} cards')
 
+def fix_heading_levels(secs):
+    """Elementor lets every heading pick any level (h3 straight under the page title, several h1s). Make the outline
+    well-formed: one h1 (the first heading, if it is one) and no level skipped going down."""
+    prev, seen_h1 = 0, False
+    for b in secs:
+        if b['type'] != 'heading_block':
+            continue
+        lvl = b['config'].get('level', 2)
+        if lvl == 1 and (seen_h1 or prev):
+            lvl = 2
+        seen_h1 = seen_h1 or lvl == 1
+        lvl = min(lvl, prev + 1) if prev else min(lvl, 1 if not seen_h1 and lvl == 1 else 2)
+        b['config']['level'] = lvl
+        prev = lvl
+
+
+for pg_ in out_pages:
+    fix_heading_levels(pg_['sections'])
+    pg_['sectionsJson'] = json.dumps(pg_['sections'], ensure_ascii=False)
+
 # Forms (e.g. Contact Form 7) are not in the WordPress REST API, so they are described in FORMS_FILE:
 #   {"forms": [{"name", "slug", "fields": [...], "successMessage", "notifyEmail", ...}],
 #    "pages": {"<page slug>": {"form": "<form slug>", "remove_text": "<paragraphs containing this are dropped>"}}}
