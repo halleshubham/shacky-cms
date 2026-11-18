@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
-import { Playfair_Display, EB_Garamond, Montserrat, Mukta, Noto_Serif_Devanagari, Archivo, Source_Serif_4 } from 'next/font/google';
+import { Playfair_Display, EB_Garamond, Montserrat, Mukta, Noto_Serif_Devanagari, Source_Serif_4 } from 'next/font/google';
+import localFont from 'next/font/local';
 import { ThemeProvider } from 'next-themes';
 import { Toaster } from 'react-hot-toast';
 import '@/styles/globals.css';
@@ -56,10 +57,12 @@ function verificationTokens(raw?: string): string[] {
 
 // Latin faces for the "lokayat" theme: Archivo (poster-style headlines + UI) and Source Serif 4
 // (long-form reading). Loaded lazily like the Devanagari faces above.
-const archivo = Archivo({
-  subsets: ['latin'],
+// Self-hosted: Google now serves Archivo from extension-less gstatic URLs that next/font/google (Next 14) cannot parse,
+// which fails the production build. Variable font, Latin subset, weights 400–900 (SIL Open Font License).
+const archivo = localFont({
+  src: '../fonts/Archivo-latin-variable.woff2',
   variable: '--font-archivo',
-  weight: ['400', '500', '600', '700', '800', '900'],
+  weight: '400 900',
   display: 'swap',
   preload: false,
 });
