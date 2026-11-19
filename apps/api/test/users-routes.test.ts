@@ -4,10 +4,12 @@ import Fastify from 'fastify';
 const prisma = vi.hoisted(() => ({
   user: { findUnique: vi.fn(), update: vi.fn(), delete: vi.fn(), count: vi.fn(), findMany: vi.fn() },
   setting: { findUnique: vi.fn() },
+  passwordResetToken: { create: vi.fn() },
 }));
+const sendMail = vi.hoisted(() => vi.fn());
 vi.mock('../src/plugins/prisma.js', () => ({ prisma }));
 vi.mock('../src/utils/audit.js', () => ({ audit: vi.fn() }));
-vi.mock('../src/services/email.js', () => ({ sendMail: vi.fn() }));
+vi.mock('../src/services/email.js', () => ({ sendMail }));
 vi.mock('../src/utils/env.js', () => ({ env: { APP_URL: 'http://localhost:3000' } }));
 vi.mock('../src/middleware/auth.js', () => ({
   authenticate: async (req: any) => {
@@ -25,6 +27,8 @@ afterAll(() => app.close());
 beforeEach(() => {
   vi.resetAllMocks();
   prisma.user.update.mockImplementation(async ({ where, data }: any) => ({ id: where.id, ...data }));
+  sendMail.mockResolvedValue(undefined);
+  prisma.setting.findUnique.mockResolvedValue(null);
 });
 
 const patch = (id: string, payload: unknown) => app.inject({ method: 'PATCH', url: `/api/users/${id}`, payload: payload as any });
@@ -119,5 +123,30 @@ describe('DELETE /api/users/:id — last-superadmin guard', () => {
     const res = await del('ghost');
     expect(res.statusCode).toBe(404);
     expect(prisma.user.delete).not.toHaveBeenCalled();
+  });
+});
+
+describe('PATCH /api/users/:id — password reset by email, no plaintext password', () => {
+  it('sends a set-password link, never the password itself, when an admin resets a password', async () => {
+    prisma.user.update.mockResolvedValue({ id: 'other', email: 'other@test.local', name: 'Other', role: 'author' });
+    const res = await patch('other', { password: 'admin-chosen-secret-123' });
+    expect(res.statusCode).toBe(200);
+    expect(sendMail).toHaveBeenCalledTimes(1);
+    const mail = sendMail.mock.calls[0][0];
+    expect(mail.to).toBe('other@test.local');
+    expect(mail.html).not.toContain('admin-chosen-secret-123');
+    expect(mail.text).not.toContain('admin-chosen-secret-123');
+    expect(mail.html).toMatch(/set-password\?token=/);
+    expect(prisma.passwordResetToken.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ userId: 'other' }) }),
+    );
+  });
+
+  it('sends no email at all when the password is not being changed', async () => {
+    prisma.user.update.mockResolvedValue({ id: 'other', email: 'other@test.local', name: 'Other', role: 'author' });
+    const res = await patch('other', { name: 'New Name' });
+    expect(res.statusCode).toBe(200);
+    expect(sendMail).not.toHaveBeenCalled();
+    expect(prisma.passwordResetToken.create).not.toHaveBeenCalled();
   });
 });

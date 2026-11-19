@@ -51,6 +51,21 @@ model RefreshToken {
   @@map("refresh_tokens")
 }
 
+// One-time link sent instead of emailing a plaintext password when an admin
+// creates a user or resets someone's password. tokenHash is a SHA-256 digest
+// of the token (same reasoning as RefreshToken — it's a high-entropy opaque
+// value, not a human password, so bcrypt's 72-byte truncation would be wrong
+// here too); the row is deleted once used.
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@map("password_reset_tokens")
+}
+
 model AuditLog {
   id        String   @id @default(cuid())
   userId    String?

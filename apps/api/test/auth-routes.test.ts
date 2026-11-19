@@ -5,13 +5,16 @@ import { createHash } from 'crypto';
 import { signRefreshToken } from '../src/utils/jwt';
 
 const prisma = vi.hoisted(() => ({
-  user: { findUnique: vi.fn() },
+  user: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
   refreshToken: { findFirst: vi.fn(), create: vi.fn(), delete: vi.fn() },
+  passwordResetToken: { create: vi.fn(), findFirst: vi.fn(), delete: vi.fn() },
+  setting: { findUnique: vi.fn() },
   $transaction: vi.fn(async (ops: any[]) => Promise.all(ops)),
 }));
+const sendMail = vi.hoisted(() => vi.fn());
 vi.mock('../src/plugins/prisma.js', () => ({ prisma }));
 vi.mock('../src/utils/audit.js', () => ({ audit: vi.fn() }));
-vi.mock('../src/services/email.js', () => ({ sendMail: vi.fn() }));
+vi.mock('../src/services/email.js', () => ({ sendMail }));
 vi.mock('../src/middleware/auth.js', () => ({
   authenticate: async (req: any) => {
     req.user = { id: 'u1', email: 'a@b.test', role: 'editor', name: 'Ed' };
@@ -33,6 +36,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   prisma.$transaction.mockImplementation(async (ops: any[]) => Promise.all(ops));
   prisma.user.findUnique.mockResolvedValue(user);
+  sendMail.mockResolvedValue(undefined);
 });
 
 // A "stored session": the real refresh JWT plus the SHA-256 hash of it the way
@@ -133,5 +137,71 @@ describe('POST /api/auth/logout', () => {
     const res = await app.inject({ method: 'POST', url: '/api/auth/logout', cookies: { refresh_token: token } });
     expect(res.statusCode).toBe(200);
     expect(prisma.refreshToken.delete).not.toHaveBeenCalled();
+  });
+});
+
+describe('POST /api/auth/register — no plaintext password by email', () => {
+  const newUser = { id: 'u2', email: 'new@test.local', name: 'New', role: 'author' };
+
+  beforeEach(() => {
+    prisma.user.findUnique.mockResolvedValue(null); // email not already in use
+    prisma.user.create.mockResolvedValue(newUser);
+    prisma.setting.findUnique.mockResolvedValue({ value: 'Test Site' });
+  });
+
+  it('never includes the plaintext password in the welcome email', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/auth/register',
+      payload: { email: newUser.email, password: 'super-secret-password-123', name: newUser.name, role: 'author' },
+    });
+    expect(res.statusCode).toBe(201);
+    expect(sendMail).toHaveBeenCalledTimes(1);
+    const mail = sendMail.mock.calls[0][0];
+    expect(mail.html).not.toContain('super-secret-password-123');
+    expect(mail.text).not.toContain('super-secret-password-123');
+    expect(mail.html).toMatch(/set-password\?token=/);
+    expect(prisma.passwordResetToken.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ userId: newUser.id }) }),
+    );
+  });
+});
+
+describe('POST /api/auth/set-password', () => {
+  it('rejects an invalid or expired token without updating anything', async () => {
+    prisma.passwordResetToken.findFirst.mockResolvedValue(null);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/auth/set-password',
+      payload: { token: 'bogus', password: 'a-new-password-123' },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it('sets the password and consumes the token on success', async () => {
+    prisma.passwordResetToken.findFirst.mockResolvedValue({ id: 'r1', userId: 'u2' });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/auth/set-password',
+      payload: { token: 'real-token', password: 'a-new-password-123' },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(prisma.user.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'u2' } }));
+    expect(prisma.passwordResetToken.delete).toHaveBeenCalledWith({ where: { id: 'r1' } });
+  });
+
+  it('rejects a password shorter than 12 characters before touching the token', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/auth/set-password',
+      payload: { token: 'real-token', password: 'short' },
+    });
+    // Schema validation failure — this standalone test app has no global
+    // Zod-error-to-400 handler (unlike the real server), so just confirm it's
+    // rejected (same convention as posts-routes.test.ts's schema tests) and,
+    // more importantly, that the token was never even looked up.
+    expect(res.statusCode).toBeGreaterThanOrEqual(400);
+    expect(prisma.passwordResetToken.findFirst).not.toHaveBeenCalled();
   });
 });

@@ -10,6 +10,7 @@ import { authenticate, requireSuperAdmin } from '../middleware/auth.js';
 import { audit } from '../utils/audit.js';
 import { env } from '../utils/env.js';
 import { sendMail } from '../services/email.js';
+import { createPasswordResetToken, consumePasswordResetToken } from '../utils/passwordReset.js';
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -196,6 +197,13 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     const siteName = await prisma.setting.findUnique({ where: { key: 'site_title' } })
       .then((r) => r?.value || 'Shacky CMS');
 
+    // A one-time link to choose their own password, instead of emailing the
+    // password an admin happened to type into the create-user form — email
+    // is not a secure transport, and a plaintext password sits in that
+    // inbox (and any mail server logs/backups) indefinitely.
+    const resetToken = await createPasswordResetToken(user.id);
+    const resetUrl = `${env.APP_URL}/set-password?token=${resetToken}`;
+
     sendMail({
       to: user.email,
       subject: `Your ${siteName} account has been created`,
@@ -204,12 +212,11 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
         <p>A <strong>${siteName}</strong> account has been created for you by an administrator.</p>
         <table>
           <tr><td><strong>Email:</strong></td><td>${user.email}</td></tr>
-          <tr><td><strong>Password:</strong></td><td>${body.password}</td></tr>
           <tr><td><strong>Role:</strong></td><td>${user.role}</td></tr>
         </table>
-        <p><a href="${env.APP_URL}/login">Log in now</a> and change your password after your first sign-in.</p>
+        <p><a href="${resetUrl}">Set your password</a> to activate your account (link expires in 48 hours).</p>
       `,
-      text: `Hi ${user.name},\n\nA ${siteName} account has been created for you.\n\nEmail: ${user.email}\nPassword: ${body.password}\nRole: ${user.role}\n\nLogin: ${env.APP_URL}/login\n\nPlease change your password after your first sign-in.`,
+      text: `Hi ${user.name},\n\nA ${siteName} account has been created for you.\n\nEmail: ${user.email}\nRole: ${user.role}\n\nSet your password to activate your account (link expires in 48 hours):\n${resetUrl}`,
     }).catch((err) => fastify.log.warn({ err }, 'Failed to send welcome email'));
 
     return reply.status(201).send({
@@ -218,6 +225,22 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       name: user.name,
       role: user.role,
     });
+  });
+
+  // POST /auth/set-password — consume a one-time link (from /register or an
+  // admin password reset) to choose your own password. Public: the token
+  // itself, not a session, is the credential here.
+  fastify.post('/set-password', async (req, reply) => {
+    const body = z.object({ token: z.string().min(1), password: z.string().min(12) }).parse(req.body);
+
+    const userId = await consumePasswordResetToken(body.token);
+    if (!userId) {
+      return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'This link is invalid or has expired' });
+    }
+
+    await prisma.user.update({ where: { id: userId }, data: { passwordHash: await hashPassword(body.password) } });
+    await audit(req, 'auth.password_set', { entity: 'user', entityId: userId });
+    return reply.send({ success: true });
   });
 
   // GET /auth/me
