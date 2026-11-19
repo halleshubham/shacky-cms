@@ -9,6 +9,7 @@ const prisma = vi.hoisted(() => ({
   refreshToken: { findFirst: vi.fn(), create: vi.fn(), delete: vi.fn() },
   passwordResetToken: { create: vi.fn(), findFirst: vi.fn(), delete: vi.fn() },
   setting: { findUnique: vi.fn() },
+  auditLog: { count: vi.fn() },
   $transaction: vi.fn(async (ops: any[]) => Promise.all(ops)),
 }));
 const sendMail = vi.hoisted(() => vi.fn());
@@ -53,6 +54,39 @@ async function issueSession() {
   const row = { id: `rt${++sessionCounter}`, userId: user.id, tokenHash: sha256(token), expiresAt: new Date(Date.now() + 1000000) };
   return { token, row };
 }
+
+describe('POST /api/auth/login — per-account brute-force lockout', () => {
+  it('returns 429 without even checking the password once the recent-failure threshold is hit', async () => {
+    prisma.auditLog.count.mockResolvedValue(5);
+    const res = await app.inject({ method: 'POST', url: '/api/auth/login', payload: { email: 'victim@test.local', password: 'guess' } });
+    expect(res.statusCode).toBe(429);
+    expect(prisma.user.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('counts the failure window the same way whether or not the email is registered (no enumeration via lockout)', async () => {
+    prisma.auditLog.count.mockResolvedValue(5);
+    const res = await app.inject({ method: 'POST', url: '/api/auth/login', payload: { email: 'nobody-here@test.local', password: 'guess' } });
+    expect(res.statusCode).toBe(429);
+  });
+
+  it('proceeds to the normal credential check below the threshold', async () => {
+    prisma.auditLog.count.mockResolvedValue(4);
+    prisma.user.findUnique.mockResolvedValue(null);
+    const res = await app.inject({ method: 'POST', url: '/api/auth/login', payload: { email: 'someone@test.local', password: 'guess' } });
+    expect(res.statusCode).toBe(401);
+    expect(prisma.user.findUnique).toHaveBeenCalled();
+  });
+
+  it('scopes the failure count to the attempted email and the lockout window', async () => {
+    prisma.auditLog.count.mockResolvedValue(0);
+    prisma.user.findUnique.mockResolvedValue(null);
+    await app.inject({ method: 'POST', url: '/api/auth/login', payload: { email: 'someone@test.local', password: 'guess' } });
+    const call = prisma.auditLog.count.mock.calls[0][0];
+    expect(call.where.meta).toEqual({ path: ['email'], equals: 'someone@test.local' });
+    expect(call.where.action).toEqual({ in: ['auth.login.failed', 'auth.login.totp_failed'] });
+    expect(call.where.createdAt.gte).toBeInstanceOf(Date);
+  });
+});
 
 describe('refresh token hashing', () => {
   it('two sessions for the same user never produce the same tokenHash', async () => {
