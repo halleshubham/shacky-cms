@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Shield, ShieldCheck } from 'lucide-react';
+import { Plus, Trash2, Shield, ShieldCheck, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -19,6 +19,9 @@ export default function UsersPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ email: '', password: '', name: '', role: 'author' });
   const [saving, setSaving] = useState(false);
+  const [editingUser, setEditingUser] = useState<any | null>(null);
+  const [editForm, setEditForm] = useState({ name: '', role: 'author', password: '' });
+  const [editSaving, setEditSaving] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -42,6 +45,29 @@ export default function UsersPage() {
       toast.error(err?.message || 'Failed');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const openEdit = (u: any) => {
+    setEditingUser(u);
+    setEditForm({ name: u.name, role: u.role, password: '' });
+  };
+
+  const handleEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
+    setEditSaving(true);
+    try {
+      const payload: Record<string, string> = { name: editForm.name, role: editForm.role };
+      if (editForm.password) payload.password = editForm.password;
+      await api.patch(`/api/users/${editingUser.id}`, payload);
+      toast.success(editForm.password ? 'User updated — a password-reset link has been emailed to them' : 'User updated');
+      setEditingUser(null);
+      await load();
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed');
+    } finally {
+      setEditSaving(false);
     }
   };
 
@@ -89,6 +115,9 @@ export default function UsersPage() {
               <div className="flex items-center gap-2 shrink-0">
                 <span className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${roleColor[u.role] || ''}`}>{u.role.replace('_', ' ')}</span>
                 <span className="text-xs text-muted-foreground hidden sm:inline">{formatDate(u.createdAt)}</span>
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => openEdit(u)}>
+                  <Pencil className="h-3 w-3" />
+                </Button>
                 {u.id !== currentUser?.id && (
                   <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDelete(u.id, u.name)}>
                     <Trash2 className="h-3 w-3" />
@@ -124,6 +153,52 @@ export default function UsersPage() {
             <DialogFooter className="mt-4">
               <Button variant="outline" type="button" onClick={() => setShowCreate(false)}>Cancel</Button>
               <Button type="submit" disabled={saving || !form.email || !form.password || !form.name}>{saving ? 'Creating…' : 'Create User'}</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editingUser} onOpenChange={(open) => !open && setEditingUser(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Edit User</DialogTitle></DialogHeader>
+          <form onSubmit={handleEdit}>
+            <div className="space-y-4 py-2">
+              <div className="space-y-2"><Label>Name *</Label><Input value={editForm.name} onChange={(e) => setEditForm(f => ({ ...f, name: e.target.value }))} /></div>
+              <div className="space-y-2">
+                <Label>Email</Label>
+                <Input value={editingUser?.email || ''} disabled />
+                <p className="text-xs text-muted-foreground">Email cannot be changed here.</p>
+              </div>
+              <div className="space-y-2">
+                <Label>Role</Label>
+                <Select value={editForm.role} onValueChange={(v) => setEditForm(f => ({ ...f, role: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="author">Author</SelectItem>
+                    <SelectItem value="editor">Editor</SelectItem>
+                    <SelectItem value="subscriber_manager">Subscriber Manager</SelectItem>
+                    <SelectItem value="superadmin">Super Admin</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Reset Password</Label>
+                <Input
+                  type="password"
+                  value={editForm.password}
+                  onChange={(e) => setEditForm(f => ({ ...f, password: e.target.value }))}
+                  placeholder="Leave blank to keep their current password"
+                />
+                <p className="text-xs text-muted-foreground">
+                  If set (min 12 chars), the user will be emailed a link to choose their own replacement password.
+                </p>
+              </div>
+            </div>
+            <DialogFooter className="mt-4">
+              <Button variant="outline" type="button" onClick={() => setEditingUser(null)}>Cancel</Button>
+              <Button type="submit" disabled={editSaving || !editForm.name || (!!editForm.password && editForm.password.length < 12)}>
+                {editSaving ? 'Saving…' : 'Save Changes'}
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>
