@@ -3,6 +3,7 @@ import Fastify from 'fastify';
 
 const prisma = vi.hoisted(() => ({
   post: { findFirst: vi.fn(), findMany: vi.fn(), count: vi.fn() },
+  issue: { findFirst: vi.fn() },
   $queryRaw: vi.fn(),
 }));
 vi.mock('../src/plugins/prisma.js', () => ({ prisma }));
@@ -124,5 +125,31 @@ describe('GET /api/public/search', () => {
     const body = res.json();
     expect(body).toMatchObject({ data: [], total: 0 });
     expect(prisma.post.findMany).not.toHaveBeenCalled();
+  });
+});
+
+describe('GET /api/public/issues/latest — picks by readiness', () => {
+  it('only considers issues with at least one published post, not just the highest volume/issue number', async () => {
+    prisma.issue.findFirst.mockResolvedValue(null);
+    await app.inject({ url: '/api/public/issues/latest' });
+    const call = prisma.issue.findFirst.mock.calls[0][0];
+    expect(call.where).toEqual({ posts: { some: { status: 'published' } } });
+    expect(call.orderBy).toEqual([{ volumeNumber: 'desc' }, { issueNumber: 'desc' }]);
+  });
+
+  it('returns null when no issue has a published post yet (e.g. a next-issue stub with only drafts)', async () => {
+    prisma.issue.findFirst.mockResolvedValue(null);
+    const res = await app.inject({ url: '/api/public/issues/latest' });
+    expect(res.json()).toBeNull();
+  });
+
+  it('returns the ready issue with its published posts formatted', async () => {
+    prisma.issue.findFirst.mockResolvedValue({
+      id: 'i1', volumeNumber: 5, issueNumber: 3,
+      posts: [dbPost({ id: 'p1' })],
+    });
+    const res = await app.inject({ url: '/api/public/issues/latest' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ id: 'i1', posts: [{ id: 'p1' }] });
   });
 });

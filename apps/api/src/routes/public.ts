@@ -143,9 +143,16 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
     });
   });
 
-  // GET /public/issues/latest — most recent issue with all its posts
+  // GET /public/issues/latest — most recent *ready* issue with all its posts.
+  // "Latest" by volumeNumber/issueNumber alone picks whatever issue has the
+  // highest numbers, even one just created for next week with no published
+  // posts in it yet — the public homepage would show an empty issue instead
+  // of the actual current one. Only an issue with at least one published
+  // post (status, not publishDate — the scheduler already turns a post
+  // 'published' exactly when it's really live) counts as ready.
   fastify.get('/issues/latest', async (_req, reply) => {
     const issue = await prisma.issue.findFirst({
+      where: { posts: { some: { status: 'published' } } },
       orderBy: [{ volumeNumber: 'desc' }, { issueNumber: 'desc' }],
       include: {
         posts: {
