@@ -221,10 +221,17 @@ export default async function oauthRoutes(fastify: FastifyInstance) {
   });
 
   // ── Revocation endpoint ───────────────────────────────────────────────────
+  // Soft-revoke (set revoked: true) rather than delete the row, so a
+  // revoked token is distinguishable from one that was simply never issued
+  // or already cleaned up, and the revocation itself leaves an audit trail
+  // (who/when) instead of erasing the record entirely.
   fastify.post('/oauth/revoke', async (request, reply) => {
     const body = request.body as Record<string, unknown>;
     const token = String(body.token || '');
-    await fastify.prisma.oAuthAccessToken.deleteMany({ where: { token } });
+    await fastify.prisma.oAuthAccessToken.updateMany({
+      where: { token, revoked: false },
+      data: { revoked: true, revokedAt: new Date() },
+    });
     reply.send({});
   });
 
@@ -248,7 +255,7 @@ export default async function oauthRoutes(fastify: FastifyInstance) {
   fastify.get('/api/oauth/tokens', { preHandler: [authenticate] }, async (request, reply) => {
     const user = (request as any).user as { id: string };
     const tokens = await fastify.prisma.oAuthAccessToken.findMany({
-      where: { userId: user.id, expiresAt: { gt: new Date() } },
+      where: { userId: user.id, expiresAt: { gt: new Date() }, revoked: false },
       include: { client: { select: { name: true, clientId: true } } },
       orderBy: { createdAt: 'desc' },
     });
@@ -267,8 +274,9 @@ export default async function oauthRoutes(fastify: FastifyInstance) {
   fastify.delete('/api/oauth/tokens/:id', { preHandler: [authenticate] }, async (request, reply) => {
     const user = (request as any).user as { id: string };
     const { id } = request.params as { id: string };
-    const deleted = await fastify.prisma.oAuthAccessToken.deleteMany({
-      where: { id, userId: user.id },
+    const deleted = await fastify.prisma.oAuthAccessToken.updateMany({
+      where: { id, userId: user.id, revoked: false },
+      data: { revoked: true, revokedAt: new Date() },
     });
     if (deleted.count === 0) return reply.status(404).send({ error: 'not_found' });
     reply.send({ success: true });

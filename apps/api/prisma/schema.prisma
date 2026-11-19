@@ -493,6 +493,8 @@ model OAuthAccessToken {
   userId    String
   scopes    String[]
   expiresAt DateTime
+  revoked   Boolean     @default(false)
+  revokedAt DateTime?
   createdAt DateTime    @default(now())
 
   @@index([token])

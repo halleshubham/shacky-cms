@@ -10,7 +10,7 @@ async function validateToken(fastify: FastifyInstance, authHeader: string | unde
   if (!authHeader?.startsWith('Bearer ')) return null;
   const token = authHeader.slice(7);
   const record = await fastify.prisma.oAuthAccessToken.findUnique({ where: { token } });
-  if (!record || record.expiresAt < new Date()) return null;
+  if (!record || record.revoked || record.expiresAt < new Date()) return null;
   return record;
 }
 
