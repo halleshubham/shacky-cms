@@ -555,7 +555,6 @@ const GROUPS: Group[] = [
       { method: 'GET', path: '/tags/:slug', auth: 'none', desc: 'Tag profile and published posts.', params: ['page', 'pageSize'] },
       { method: 'GET', path: '/featured', auth: 'none', desc: 'Featured published posts.', params: ['limit? (default 6)'] },
       { method: 'GET', path: '/search', auth: 'none', desc: 'Full-text search across title, excerpt, content, authors, categories, tags.', params: ['q (min 2 chars)', 'page', 'pageSize'] },
-      { method: 'GET', path: '/settings', auth: 'none', desc: 'Public site settings (title, description, logo, nav).' },
     ],
   },
 ];

@@ -8,7 +8,7 @@ export async function GET() {
   const SITE = siteUrl(headers());
   try {
     const [settingsRes, postsRes] = await Promise.all([
-      fetch(`${API}/api/public/settings`, { next: { revalidate: 300 } }),
+      fetch(`${API}/api/settings/public`, { next: { revalidate: 300 } }),
       fetch(`${API}/api/public/posts?pageSize=50`, { next: { revalidate: 60 } }),
     ]);
 
