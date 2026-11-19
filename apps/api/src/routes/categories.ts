@@ -49,6 +49,10 @@ const categoriesRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post('/', { preHandler: [authenticate, requireAdmin] }, async (req, reply) => {
     const body = schema.parse(req.body);
     const slug = body.slug || slugify(body.name);
+    const existing = await prisma.category.findUnique({ where: { slug } });
+    if (existing) {
+      return reply.status(409).send({ statusCode: 409, error: 'Conflict', message: 'Slug already in use' });
+    }
     const cat = await prisma.category.create({
       data: { name: body.name, slug, description: body.description, parentId: body.parentId },
     });
@@ -58,12 +62,35 @@ const categoriesRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.patch('/:id', { preHandler: [authenticate, requireAdmin] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const body = schema.partial().parse(req.body);
+    if (body.slug) {
+      const existing = await prisma.category.findUnique({ where: { slug: body.slug } });
+      if (existing && existing.id !== id) {
+        return reply.status(409).send({ statusCode: 409, error: 'Conflict', message: 'Slug already in use' });
+      }
+    }
     const cat = await prisma.category.update({ where: { id }, data: body });
     return reply.send(cat);
   });
 
   fastify.delete('/:id', { preHandler: [authenticate, requireAdmin] }, async (req, reply) => {
     const { id } = req.params as { id: string };
+    const cat = await prisma.category.findUnique({ where: { id } });
+    if (!cat) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Category not found' });
+
+    const postsUsingIt = await prisma.postCategory.count({ where: { categoryId: id } });
+    if (postsUsingIt > 0) {
+      const { force } = req.query as { force?: string };
+      if (force !== 'true') {
+        return reply.status(409).send({
+          statusCode: 409,
+          error: 'Conflict',
+          message: `Category is used in ${postsUsingIt} post(s). Use ?force=true to delete anyway, or /categories/:id/merge/:targetId to reassign first.`,
+          usedIn: postsUsingIt,
+        });
+      }
+      await prisma.postCategory.deleteMany({ where: { categoryId: id } });
+    }
+
     await prisma.category.delete({ where: { id } });
     return reply.send({ success: true });
   });
