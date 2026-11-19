@@ -1,7 +1,13 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../plugins/prisma.js';
-import { authenticate, requireAdmin } from '../middleware/auth.js';
+import { authenticate, requireAdmin, requireRoles } from '../middleware/auth.js';
+
+// Content roles — everyone who may create/edit/publish posts. subscriber_manager
+// (and any future non-content role) must never reach these: it's the only thing
+// standing between "manages a subscriber list" and "can publish anything,
+// including a <script> tag via codeInjectionHead/Foot that runs for every visitor."
+const requireContentRole = requireRoles('superadmin', 'editor', 'author');
 import { audit } from '../utils/audit.js';
 import { slugify } from '@shacky/shared';
 import { fireWebhook } from '../utils/webhooks.js';
@@ -142,9 +148,11 @@ const postsRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   // POST /posts
-  fastify.post('/', { preHandler: [authenticate] }, async (req, reply) => {
+  fastify.post('/', { preHandler: [authenticate, requireContentRole] }, async (req, reply) => {
     const body = postBodySchema.parse(req.body);
     const slug = body.slug || slugify(body.title) || `post-${Date.now().toString(36)}`;
+    // Site-wide script injection is admin-only, regardless of who else may create posts.
+    const isAdmin = req.user?.role === 'superadmin' || req.user?.role === 'editor';
 
     const existing = await prisma.post.findUnique({ where: { slug } });
     if (existing) {
@@ -164,8 +172,8 @@ const postsRoutes: FastifyPluginAsync = async (fastify) => {
         featuredImagePosition: body.featuredImagePosition,
         seoTitle: body.seoTitle,
         seoDescription: body.seoDescription,
-        codeInjectionHead: body.codeInjectionHead,
-        codeInjectionFoot: body.codeInjectionFoot,
+        codeInjectionHead: isAdmin ? body.codeInjectionHead : null,
+        codeInjectionFoot: isAdmin ? body.codeInjectionFoot : null,
         issueId: body.issueId,
         issueOrder: body.issueOrder,
         authors: body.authorIds ? {
@@ -186,9 +194,10 @@ const postsRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   // PATCH /posts/:id
-  fastify.patch('/:id', { preHandler: [authenticate] }, async (req, reply) => {
+  fastify.patch('/:id', { preHandler: [authenticate, requireContentRole] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const body = postBodySchema.partial().parse(req.body);
+    const isAdmin = req.user?.role === 'superadmin' || req.user?.role === 'editor';
 
     const existing = await prisma.post.findUnique({ where: { id } });
     if (!existing) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Post not found' });
@@ -231,8 +240,8 @@ const postsRoutes: FastifyPluginAsync = async (fastify) => {
         ...(body.featuredImagePosition !== undefined && { featuredImagePosition: body.featuredImagePosition }),
         ...(body.seoTitle !== undefined && { seoTitle: body.seoTitle }),
         ...(body.seoDescription !== undefined && { seoDescription: body.seoDescription }),
-        ...(body.codeInjectionHead !== undefined && { codeInjectionHead: body.codeInjectionHead }),
-        ...(body.codeInjectionFoot !== undefined && { codeInjectionFoot: body.codeInjectionFoot }),
+        ...(isAdmin && body.codeInjectionHead !== undefined && { codeInjectionHead: body.codeInjectionHead }),
+        ...(isAdmin && body.codeInjectionFoot !== undefined && { codeInjectionFoot: body.codeInjectionFoot }),
         ...(body.issueId !== undefined && { issueId: body.issueId }),
         ...(body.issueOrder !== undefined && { issueOrder: body.issueOrder }),
         ...(body.authorIds && {
@@ -273,7 +282,7 @@ const postsRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   // POST /posts/:id/duplicate — clone a post
-  fastify.post('/:id/duplicate', { preHandler: [authenticate] }, async (req, reply) => {
+  fastify.post('/:id/duplicate', { preHandler: [authenticate, requireContentRole] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const src = await prisma.post.findUnique({ where: { id }, include });
     if (!src) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Post not found' });
@@ -361,11 +370,17 @@ const postsRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   // POST /posts/:id/restore/:revisionId
-  fastify.post('/:id/restore/:revisionId', { preHandler: [authenticate] }, async (req, reply) => {
+  fastify.post('/:id/restore/:revisionId', { preHandler: [authenticate, requireContentRole] }, async (req, reply) => {
     const { id, revisionId } = req.params as { id: string; revisionId: string };
     const revision = await prisma.revision.findUnique({ where: { id: revisionId } });
     if (!revision || revision.postId !== id) {
       return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Revision not found' });
+    }
+
+    // Authors can only restore revisions on their own posts (same rule as PATCH)
+    if (req.user?.role === 'author') {
+      const isAuthor = await prisma.postAuthor.findFirst({ where: { postId: id, userId: req.user.id } });
+      if (!isAuthor) return reply.status(403).send({ statusCode: 403, error: 'Forbidden', message: 'Cannot edit this post' });
     }
 
     const current = await prisma.post.findUnique({ where: { id } });
