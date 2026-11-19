@@ -39,7 +39,9 @@ const tagsRoutes: FastifyPluginAsync = async (fastify) => {
     const body = schema.parse(req.body);
     const slug = body.slug || slugify(body.name);
     const existing = await prisma.tag.findUnique({ where: { slug } });
-    if (existing) return reply.send(existing);
+    if (existing) {
+      return reply.status(409).send({ statusCode: 409, error: 'Conflict', message: 'Slug already in use' });
+    }
     const tag = await prisma.tag.create({ data: { name: body.name, slug, description: body.description } });
     return reply.status(201).send(tag);
   });
@@ -47,12 +49,35 @@ const tagsRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.patch('/:id', { preHandler: [authenticate, requireAdmin] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const body = schema.partial().parse(req.body);
+    if (body.slug) {
+      const existing = await prisma.tag.findUnique({ where: { slug: body.slug } });
+      if (existing && existing.id !== id) {
+        return reply.status(409).send({ statusCode: 409, error: 'Conflict', message: 'Slug already in use' });
+      }
+    }
     const tag = await prisma.tag.update({ where: { id }, data: body });
     return reply.send(tag);
   });
 
   fastify.delete('/:id', { preHandler: [authenticate, requireAdmin] }, async (req, reply) => {
     const { id } = req.params as { id: string };
+    const tag = await prisma.tag.findUnique({ where: { id } });
+    if (!tag) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Tag not found' });
+
+    const postsUsingIt = await prisma.postTag.count({ where: { tagId: id } });
+    if (postsUsingIt > 0) {
+      const { force } = req.query as { force?: string };
+      if (force !== 'true') {
+        return reply.status(409).send({
+          statusCode: 409,
+          error: 'Conflict',
+          message: `Tag is used in ${postsUsingIt} post(s). Use ?force=true to delete anyway.`,
+          usedIn: postsUsingIt,
+        });
+      }
+      await prisma.postTag.deleteMany({ where: { tagId: id } });
+    }
+
     await prisma.tag.delete({ where: { id } });
     return reply.send({ success: true });
   });

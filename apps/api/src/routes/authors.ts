@@ -67,6 +67,12 @@ const authorsRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.patch('/:id', { preHandler: [authenticate, requireAdmin] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const body = authorBodySchema.partial().parse(req.body);
+    if (body.slug) {
+      const existing = await prisma.author.findUnique({ where: { slug: body.slug } });
+      if (existing && existing.id !== id) {
+        return reply.status(409).send({ statusCode: 409, error: 'Conflict', message: 'Slug already in use' });
+      }
+    }
     const author = await prisma.author.update({ where: { id }, data: body });
     await audit(req, 'author.updated', { entity: 'author', entityId: id });
     return reply.send(author);
@@ -74,6 +80,23 @@ const authorsRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.delete('/:id', { preHandler: [authenticate, requireAdmin] }, async (req, reply) => {
     const { id } = req.params as { id: string };
+    const author = await prisma.author.findUnique({ where: { id } });
+    if (!author) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Author not found' });
+
+    const postsUsingIt = await prisma.postAuthor.count({ where: { authorId: id } });
+    if (postsUsingIt > 0) {
+      const { force } = req.query as { force?: string };
+      if (force !== 'true') {
+        return reply.status(409).send({
+          statusCode: 409,
+          error: 'Conflict',
+          message: `Author is used in ${postsUsingIt} post(s). Use ?force=true to delete anyway, or /authors/:id/merge/:targetId to reassign first.`,
+          usedIn: postsUsingIt,
+        });
+      }
+      await prisma.postAuthor.deleteMany({ where: { authorId: id } });
+    }
+
     await prisma.author.delete({ where: { id } });
     await audit(req, 'author.deleted', { entity: 'author', entityId: id });
     return reply.send({ success: true });
