@@ -27,6 +27,33 @@ const formSchema = z.object({
 
 type FormField = z.infer<typeof fieldSchema>;
 
+// Returns an error message when a submitted value doesn't match its field's
+// declared type, or null when it's fine. Empty/missing values are left to
+// the required-field check — this only catches garbage in a value that was
+// actually provided.
+function validateFieldValue(field: FormField, value: unknown): string | null {
+  if (value === null || value === undefined || value === '') return null;
+  switch (field.type) {
+    case 'email':
+      if (typeof value !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+        return `"${field.label}" must be a valid email address`;
+      }
+      return null;
+    case 'number':
+      if (typeof value !== 'number' && (typeof value !== 'string' || value.trim() === '' || Number.isNaN(Number(value)))) {
+        return `"${field.label}" must be a number`;
+      }
+      return null;
+    case 'date':
+      if (typeof value !== 'string' || Number.isNaN(Date.parse(value))) {
+        return `"${field.label}" must be a valid date`;
+      }
+      return null;
+    default:
+      return null;
+  }
+}
+
 function escHtml(s: unknown): string {
   return String(s ?? '—')
     .replace(/&/g, '&amp;')
@@ -271,6 +298,12 @@ const formsRoutes: FastifyPluginAsync = async (fastify) => {
       if (field.required && !submitted[field.name]) {
         return reply.status(400).send({ message: `"${field.label}" is required` });
       }
+    }
+
+    // Validate field types (email must look like an email, number must parse, etc.)
+    for (const field of fields) {
+      const error = validateFieldValue(field, submitted[field.name]);
+      if (error) return reply.status(400).send({ message: error });
     }
 
     // Only keep known field values
