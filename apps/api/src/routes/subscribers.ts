@@ -4,6 +4,7 @@ import { createId } from '@paralleldrive/cuid2';
 import { prisma } from '../plugins/prisma.js';
 import { authenticate } from '../middleware/auth.js';
 import { requireRoles } from '../middleware/auth.js';
+import { fireWebhook } from '../utils/webhooks.js';
 
 const subscribeSchema = z.object({
   email: z.string().email().optional(),
@@ -63,6 +64,7 @@ const subscribersRoutes: FastifyPluginAsync = async (fastify) => {
           unsubscribeToken: createId(),
         },
       });
+      fireWebhook('member.created', { id: subscriber.id, email: subscriber.email, phone: subscriber.phone });
     }
 
     if (body.listId) {
@@ -88,6 +90,7 @@ const subscribersRoutes: FastifyPluginAsync = async (fastify) => {
       where: { id: subscriber.id },
       data: { status: 'unsubscribed', unsubscribedAt: new Date() },
     });
+    fireWebhook('member.updated', { id: subscriber.id, email: subscriber.email, status: 'unsubscribed' });
 
     return reply.send({ success: true, message: 'You have been unsubscribed.' });
   });
@@ -99,6 +102,7 @@ const subscribersRoutes: FastifyPluginAsync = async (fastify) => {
     async (req, reply) => {
       const { id } = req.params as { id: string };
       await prisma.subscriber.delete({ where: { id } });
+      fireWebhook('member.deleted', { id });
       return reply.send({ success: true });
     },
   );

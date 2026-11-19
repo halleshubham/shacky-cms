@@ -14,6 +14,7 @@ import {
 import { sendMail, getEmailConfig } from '../services/email.js';
 import { sendMessagesToGroups } from '../services/botsab.js';
 import { audit } from '../utils/audit.js';
+import { fireWebhook } from '../utils/webhooks.js';
 
 const emailBlockSchema = z.object({
   id: z.string(),
@@ -254,6 +255,7 @@ const campaignsRoutes: FastifyPluginAsync = async (fastify) => {
       entityId: id,
       meta: { sent, failed: failures.length, total: subscribers.length },
     });
+    if (!allFailed) fireWebhook('campaign.sent', { id, sent, failed: failures.length, total: subscribers.length });
 
     if (allFailed) {
       return reply.status(502).send({

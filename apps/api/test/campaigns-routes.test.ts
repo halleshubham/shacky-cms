@@ -8,6 +8,8 @@ const prisma = vi.hoisted(() => ({
 }));
 vi.mock('../src/plugins/prisma.js', () => ({ prisma }));
 vi.mock('../src/utils/audit.js', () => ({ audit: vi.fn() }));
+const fireWebhook = vi.hoisted(() => vi.fn());
+vi.mock('../src/utils/webhooks.js', () => ({ fireWebhook }));
 vi.mock('../src/services/botsab.js', () => ({ sendMessagesToGroups: vi.fn() }));
 vi.mock('../src/services/newsletter.js', () => ({
   generateNewsletterHtml: vi.fn().mockResolvedValue('<p>html</p>'),
@@ -106,5 +108,28 @@ describe('POST /api/campaigns/:id/send — accurate status on delivery failure',
     prisma.campaign.findUnique.mockResolvedValue({ ...campaign, status: 'sent' });
     const res = await send();
     expect(res.statusCode).toBe(409);
+  });
+});
+
+describe('POST /api/campaigns/:id/send — campaign.sent webhook', () => {
+  it('fires campaign.sent when the send succeeds (even partially)', async () => {
+    prisma.subscriber.findMany.mockResolvedValue(makeSubscribers(3));
+    sendMail
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('bounced'))
+      .mockResolvedValueOnce(undefined);
+
+    await send();
+
+    expect(fireWebhook).toHaveBeenCalledWith('campaign.sent', expect.objectContaining({ id: 'c1', sent: 2, failed: 1 }));
+  });
+
+  it('does not fire campaign.sent when every send fails', async () => {
+    prisma.subscriber.findMany.mockResolvedValue(makeSubscribers(3));
+    sendMail.mockRejectedValue(new Error('no provider configured'));
+
+    await send();
+
+    expect(fireWebhook).not.toHaveBeenCalled();
   });
 });

@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Save, Loader2, Plus, Trash2, Webhook, CheckCircle2, AlertCircle, ExternalLink, Key, Copy, Check, BookOpen, Bot } from 'lucide-react';
+import { Save, Loader2, Plus, Trash2, Webhook, CheckCircle2, AlertCircle, ExternalLink, Key, Copy, Check, BookOpen, Bot, Pencil, Power } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -26,6 +26,12 @@ export default function IntegrationsPage() {
   const [newHookUrl, setNewHookUrl] = useState('');
   const [newHookSecret, setNewHookSecret] = useState('');
   const [savingHook, setSavingHook] = useState(false);
+  const [editingHookId, setEditingHookId] = useState<string | null>(null);
+  const [editHookName, setEditHookName] = useState('');
+  const [editHookEvent, setEditHookEvent] = useState('');
+  const [editHookUrl, setEditHookUrl] = useState('');
+  const [editHookSecret, setEditHookSecret] = useState('');
+  const [savingEditHook, setSavingEditHook] = useState(false);
 
   // Application Passwords
   const [appPasswords, setAppPasswords] = useState<any[]>([]);
@@ -156,6 +162,48 @@ export default function IntegrationsPage() {
     await api.delete(`/api/webhooks/${id}`);
     setWebhooks((prev) => prev.filter((h) => h.id !== id));
     toast.success('Webhook deleted');
+  };
+
+  const toggleWebhookActive = async (hook: any) => {
+    try {
+      const updated = await api.patch<any>(`/api/webhooks/${hook.id}`, { isActive: !hook.isActive });
+      setWebhooks((prev) => prev.map((h) => (h.id === hook.id ? { ...h, ...updated } : h)));
+      toast.success(updated.isActive ? 'Webhook enabled' : 'Webhook disabled');
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed');
+    }
+  };
+
+  const startEditWebhook = (hook: any) => {
+    setEditingHookId(hook.id);
+    setEditHookName(hook.name);
+    setEditHookEvent(hook.event);
+    setEditHookUrl(hook.targetUrl);
+    setEditHookSecret('');
+  };
+
+  const cancelEditWebhook = () => {
+    setEditingHookId(null);
+  };
+
+  const saveEditWebhook = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingHookId) return;
+    setSavingEditHook(true);
+    try {
+      const payload: Record<string, any> = {
+        name: editHookName, event: editHookEvent, targetUrl: editHookUrl,
+      };
+      if (editHookSecret) payload.secret = editHookSecret;
+      const updated = await api.patch<any>(`/api/webhooks/${editingHookId}`, payload);
+      setWebhooks((prev) => prev.map((h) => (h.id === editingHookId ? { ...h, ...updated } : h)));
+      setEditingHookId(null);
+      toast.success('Webhook updated');
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to update');
+    } finally {
+      setSavingEditHook(false);
+    }
   };
 
   return (
@@ -317,19 +365,71 @@ export default function IntegrationsPage() {
           {webhooks.length > 0 && (
             <div className="divide-y border rounded-lg">
               {webhooks.map((h) => (
-                <div key={h.id} className="flex items-start justify-between px-3 py-3 gap-3">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium">{h.name}</p>
-                      <span className="text-xs bg-muted px-1.5 py-0.5 rounded">{h.event}</span>
-                      {!h.isActive && <span className="text-xs text-muted-foreground">(inactive)</span>}
+                editingHookId === h.id ? (
+                  <form key={h.id} onSubmit={saveEditWebhook} className="space-y-3 px-3 py-3 bg-muted/30">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Name</Label>
+                        <Input value={editHookName} onChange={(e) => setEditHookName(e.target.value)} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Event</Label>
+                        <select
+                          value={editHookEvent}
+                          onChange={(e) => setEditHookEvent(e.target.value)}
+                          className="w-full h-9 text-sm rounded-md border border-input bg-background px-3 focus:outline-none focus:ring-2 focus:ring-ring"
+                        >
+                          {webhookEvents.map((ev) => <option key={ev} value={ev}>{ev}</option>)}
+                        </select>
+                      </div>
                     </div>
-                    <p className="text-xs text-muted-foreground truncate mt-0.5">{h.targetUrl}</p>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Target URL</Label>
+                      <Input value={editHookUrl} onChange={(e) => setEditHookUrl(e.target.value)} type="url" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Secret</Label>
+                      <Input
+                        value={editHookSecret}
+                        onChange={(e) => setEditHookSecret(e.target.value)}
+                        placeholder={h.secret ? 'Leave blank to keep existing secret' : 'No secret set'}
+                        type="password"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button type="submit" size="sm" disabled={savingEditHook || !editHookName || !editHookEvent || !editHookUrl} className="gap-2">
+                        {savingEditHook ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />} Save
+                      </Button>
+                      <Button type="button" size="sm" variant="ghost" onClick={cancelEditWebhook}>Cancel</Button>
+                    </div>
+                  </form>
+                ) : (
+                  <div key={h.id} className="flex items-start justify-between px-3 py-3 gap-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium">{h.name}</p>
+                        <span className="text-xs bg-muted px-1.5 py-0.5 rounded">{h.event}</span>
+                        {!h.isActive && <span className="text-xs text-muted-foreground">(disabled)</span>}
+                      </div>
+                      <p className="text-xs text-muted-foreground truncate mt-0.5">{h.targetUrl}</p>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => toggleWebhookActive(h)}
+                        title={h.isActive ? 'Disable' : 'Enable'}
+                        className={`p-1 ${h.isActive ? 'text-muted-foreground hover:text-foreground' : 'text-green-600 hover:text-green-700'}`}
+                      >
+                        <Power className="h-3.5 w-3.5" />
+                      </button>
+                      <button onClick={() => startEditWebhook(h)} title="Edit" className="text-muted-foreground hover:text-foreground p-1">
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button onClick={() => deleteWebhook(h.id)} title="Delete" className="text-destructive hover:text-destructive/80 p-1">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   </div>
-                  <button onClick={() => deleteWebhook(h.id)} className="text-destructive hover:text-destructive/80 shrink-0 p-1">
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
+                )
               ))}
             </div>
           )}
