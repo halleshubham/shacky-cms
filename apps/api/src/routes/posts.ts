@@ -190,6 +190,7 @@ const postsRoutes: FastifyPluginAsync = async (fastify) => {
     });
 
     await audit(req, 'post.created', { entity: 'post', entityId: post.id });
+    fireWebhook('post.created', { id: post.id, title: post.title, slug: post.slug });
     return reply.status(201).send(formatPost(post));
   });
 
@@ -267,8 +268,11 @@ const postsRoutes: FastifyPluginAsync = async (fastify) => {
     });
 
     const wasPublished = existing.status !== 'published' && post.status === 'published';
+    const wasUnpublished = existing.status === 'published' && post.status !== 'published';
     await audit(req, 'post.updated', { entity: 'post', entityId: post.id });
+    fireWebhook('post.updated', { id: post.id, title: post.title, slug: post.slug });
     if (wasPublished) fireWebhook('post.published', { id: post.id, title: post.title, slug: post.slug });
+    if (wasUnpublished) fireWebhook('post.unpublished', { id: post.id, title: post.title, slug: post.slug });
     return reply.send(formatPost(post));
   });
 
