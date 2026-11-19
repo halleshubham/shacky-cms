@@ -6,6 +6,36 @@ import { authenticate } from '../middleware/auth.js';
 import { requireRoles } from '../middleware/auth.js';
 import { fireWebhook } from '../utils/webhooks.js';
 
+// Minimal RFC-4180-ish CSV parser: handles quoted fields (including embedded
+// commas and escaped "" quotes) and CRLF/LF line endings. A naive
+// line.split(',') breaks the moment a name field like `"Doe, Jane"` shows up,
+// which splitting the whole file on '\n' first (before resolving quotes)
+// would also get wrong for a quoted field containing a literal newline.
+export function parseCsv(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = '';
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; } else { inQuotes = false; }
+      } else {
+        field += ch;
+      }
+      continue;
+    }
+    if (ch === '"') { inQuotes = true; continue; }
+    if (ch === ',') { row.push(field); field = ''; continue; }
+    if (ch === '\r') continue;
+    if (ch === '\n') { row.push(field); rows.push(row); row = []; field = ''; continue; }
+    field += ch;
+  }
+  if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row); }
+  return rows;
+}
+
 const subscribeSchema = z.object({
   email: z.string().email().optional(),
   phone: z.string().optional(),
@@ -177,12 +207,12 @@ const subscribersRoutes: FastifyPluginAsync = async (fastify) => {
       if (!data) return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'No file' });
 
       const csv = (await data.toBuffer()).toString('utf-8');
-      const lines = csv.split('\n').slice(1); // skip header
+      const rows = parseCsv(csv).slice(1); // skip header
       let imported = 0;
       let skipped = 0;
 
-      for (const line of lines) {
-        const [email, phone, name, channels] = line.split(',').map((s) => s.trim().replace(/^"|"$/g, ''));
+      for (const row of rows) {
+        const [email, phone, name, channels] = row.map((s) => s.trim());
         if (!email && !phone) { skipped++; continue; }
         try {
           await prisma.subscriber.upsert({
@@ -195,7 +225,11 @@ const subscribersRoutes: FastifyPluginAsync = async (fastify) => {
               source: 'import',
               unsubscribeToken: createId(),
             },
-            update: { name: name || undefined },
+            update: {
+              name: name || undefined,
+              phone: phone || undefined,
+              channels: (channels as any) || undefined,
+            },
           });
           imported++;
         } catch { skipped++; }
