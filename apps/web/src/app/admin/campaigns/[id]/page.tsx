@@ -91,8 +91,12 @@ export default function CampaignDetailPage() {
     if (!confirm('Send to all active subscribers in this list?')) return;
     const toastId = toast.loading('Sending…');
     try {
-      const result = await api.post<any>(`/api/campaigns/${id}/send`);
-      toast.success(`Sent to ${result.sent} subscriber(s)`, { id: toastId });
+      const result = await api.post<{ sent: number; failed: number }>(`/api/campaigns/${id}/send`);
+      if (result.failed > 0) {
+        toast.error(`Sent to ${result.sent}, failed for ${result.failed} subscriber(s)`, { id: toastId, duration: 6000 });
+      } else {
+        toast.success(`Sent to ${result.sent} subscriber(s)`, { id: toastId });
+      }
       await load();
     } catch (err: any) {
       toast.error(err?.message || 'Send failed', { id: toastId });
