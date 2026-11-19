@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest';
 import Fastify from 'fastify';
 
 const prisma = vi.hoisted(() => ({
-  category: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
+  category: { findUnique: vi.fn(), findMany: vi.fn(), count: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
   postCategory: { count: vi.fn(), deleteMany: vi.fn() },
 }));
 vi.mock('../src/plugins/prisma.js', () => ({ prisma }));
@@ -18,6 +18,22 @@ app.register(categoriesRoutes, { prefix: '/api/categories' });
 afterAll(() => app.close());
 
 beforeEach(() => vi.resetAllMocks());
+
+describe('GET /api/categories — search escapes LIKE wildcards', () => {
+  it('escapes a literal % in the search term before it reaches the query', async () => {
+    prisma.category.findMany.mockResolvedValue([]);
+    prisma.category.count.mockResolvedValue(0);
+    await app.inject({ method: 'GET', url: '/api/categories?search=50%25' });
+    expect(prisma.category.findMany.mock.calls[0][0].where.name.contains).toBe('50\\%');
+  });
+
+  it('escapes a literal _ in the search term before it reaches the query', async () => {
+    prisma.category.findMany.mockResolvedValue([]);
+    prisma.category.count.mockResolvedValue(0);
+    await app.inject({ method: 'GET', url: '/api/categories?search=news_desk' });
+    expect(prisma.category.findMany.mock.calls[0][0].where.name.contains).toBe('news\\_desk');
+  });
+});
 
 describe('POST /api/categories — slug collision', () => {
   it('returns a clean 409 instead of a raw FK/unique 500', async () => {

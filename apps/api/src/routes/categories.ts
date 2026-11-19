@@ -2,7 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../plugins/prisma.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
-import { slugify } from '@shacky/shared';
+import { slugify, escapeLikeWildcards } from '@shacky/shared';
 
 const schema = z.object({
   name: z.string().min(1),
@@ -16,7 +16,7 @@ const categoriesRoutes: FastifyPluginAsync = async (fastify) => {
     const { search, page: pageStr, pageSize: pageSizeStr } = req.query as { search?: string; page?: string; pageSize?: string };
     const page = Math.max(1, parseInt(pageStr || '1', 10));
     const pageSize = Math.max(1, parseInt(pageSizeStr || '100', 10));
-    const where = search ? { name: { contains: search, mode: 'insensitive' as const } } : undefined;
+    const where = search ? { name: { contains: escapeLikeWildcards(search), mode: 'insensitive' as const } } : undefined;
     const [categories, total] = await Promise.all([
       prisma.category.findMany({
         where,

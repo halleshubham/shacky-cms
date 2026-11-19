@@ -8,6 +8,7 @@ import { authenticate, requireAdmin } from '../middleware/auth.js';
 import { uploadToS3, deleteFromS3, keyFromUrl } from '../utils/s3.js';
 import { audit } from '../utils/audit.js';
 import { env } from '../utils/env.js';
+import { escapeLikeWildcards } from '@shacky/shared';
 
 const THUMBNAIL_SIZES = [
   { name: 'thumbnail', width: 150, height: 150 },
@@ -106,7 +107,7 @@ const mediaRoutes: FastifyPluginAsync = async (fastify) => {
     const { page = 1, pageSize = 40, search, mimeType } = req.query as any;
     const skip = (page - 1) * pageSize;
     const where: any = {};
-    if (search) where.originalName = { contains: search, mode: 'insensitive' };
+    if (search) where.originalName = { contains: escapeLikeWildcards(search), mode: 'insensitive' };
     if (mimeType) where.mimeType = { startsWith: mimeType };
 
     const [media, total] = await Promise.all([
