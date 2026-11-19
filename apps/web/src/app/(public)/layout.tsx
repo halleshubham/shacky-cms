@@ -1,6 +1,7 @@
 import Script from 'next/script';
 import { PublicHeader } from '@/components/public/PublicHeader';
 import { PublicFooter } from '@/components/public/PublicFooter';
+import { DownloadGate } from '@/components/public/DownloadGate';
 import { getSiteSettings } from '@/lib/site-settings';
 import { uiStrings } from '@/lib/ui-strings';
 
@@ -46,6 +47,16 @@ export default async function PublicLayout({ children }: { children: React.React
       <main id="main-content" data-site-main className="flex-1 max-w-6xl mx-auto w-full px-4 py-8">
         {children}
       </main>
+
+      {settings.download_gate_form?.trim() && (
+        <DownloadGate
+          formSlug={settings.download_gate_form.trim()}
+          title={settings.download_gate_title}
+          intro={settings.download_gate_intro}
+          consent={settings.download_gate_consent}
+          lang={settings.site_lang}
+        />
+      )}
 
       {tagId && (
         <>

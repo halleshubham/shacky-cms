@@ -81,6 +81,10 @@ export default function SettingsPage() {
   const [googleTagId, setGoogleTagId] = useState('');
   const [googleVerification, setGoogleVerification] = useState('');
   const [footerShowPublication, setFooterShowPublication] = useState(true);
+  const [gateForm, setGateForm] = useState('');
+  const [gateTitle, setGateTitle] = useState('');
+  const [gateIntro, setGateIntro] = useState('');
+  const [gateConsent, setGateConsent] = useState('');
   const [savingSettings, setSavingSettings] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingFavicon, setUploadingFavicon] = useState(false);
@@ -174,6 +178,10 @@ export default function SettingsPage() {
       setGoogleTagId(s.google_tag_id || '');
       setGoogleVerification(s.google_site_verification || '');
       setFooterShowPublication(s.footer_show_publication !== 'false');
+      setGateForm(s.download_gate_form || '');
+      setGateTitle(s.download_gate_title || '');
+      setGateIntro(s.download_gate_intro || '');
+      setGateConsent(s.download_gate_consent || '');
       setStockUnsplash(s.stock_unsplash_key ? '••••••••' : '');
       setStockPexels(s.stock_pexels_key ? '••••••••' : '');
       setStockPixabay(s.stock_pixabay_key ? '••••••••' : '');
@@ -251,6 +259,10 @@ export default function SettingsPage() {
         google_tag_id: googleTagId.trim(),
         google_site_verification: googleVerification.trim(),
         footer_show_publication: String(footerShowPublication),
+        download_gate_form: gateForm.trim(),
+        download_gate_title: gateTitle.trim(),
+        download_gate_intro: gateIntro.trim(),
+        download_gate_consent: gateConsent.trim(),
       });
       revalidateSiteSettings();
       toast.success('Site settings saved');
@@ -660,6 +672,36 @@ export default function SettingsPage() {
                 <Label htmlFor="footer-show-publication" className="text-xs cursor-pointer">
                   Show “Home / All Issues” column in the footer (turn off for non-magazine sites)
                 </Label>
+              </div>
+            </div>
+
+            {/* Download gate */}
+            <div className="space-y-3 rounded-md border border-border p-3">
+              <div>
+                <Label className="text-xs font-semibold">Download gate</Label>
+                <p className="text-[11px] text-muted-foreground">
+                  Ask visitors for name, mobile and email once per browser before they download a document (PDF, Word, PowerPoint, Excel, ZIP).
+                  Create a form under Forms with the fields <code>name</code>, <code>mobile</code>, <code>email</code>, <code>file</code>, <code>page</code>, <code>consent</code>, then enter its slug here.
+                  Leave blank to turn it off. File links stay public, so links already shared elsewhere keep working.
+                </p>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="gate-form" className="text-xs">Form slug</Label>
+                <Input id="gate-form" value={gateForm} onChange={(e) => setGateForm(e.target.value)} placeholder="download-access" className="text-sm" />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <Label htmlFor="gate-title" className="text-xs">Dialog title (optional)</Label>
+                  <Input id="gate-title" value={gateTitle} onChange={(e) => setGateTitle(e.target.value)} className="text-sm" />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="gate-intro" className="text-xs">Dialog intro (optional)</Label>
+                  <Input id="gate-intro" value={gateIntro} onChange={(e) => setGateIntro(e.target.value)} className="text-sm" />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="gate-consent" className="text-xs">Consent wording (optional)</Label>
+                <Input id="gate-consent" value={gateConsent} onChange={(e) => setGateConsent(e.target.value)} className="text-sm" />
               </div>
             </div>
 

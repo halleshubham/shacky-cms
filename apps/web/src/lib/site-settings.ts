@@ -32,6 +32,11 @@ export interface SiteSettings {
   newsletter_tagline?: string;
   newsletter_editors?: string;
   homepage_sections?: import('./page-builder').Section[];
+  /** Slug of the CMS form that collects name/mobile/email before a document download. Empty = no gate. */
+  download_gate_form?: string;
+  download_gate_title?: string;
+  download_gate_intro?: string;
+  download_gate_consent?: string;
   // Social links
   social_facebook?: string;
   social_instagram?: string;

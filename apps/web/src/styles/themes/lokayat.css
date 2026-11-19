@@ -577,3 +577,23 @@
   [data-theme='lokayat'] [data-site-footer] :is(li, p) a { min-width: 2.75rem; }
 }
 [data-theme='lokayat'] :is(input:not([type='checkbox']):not([type='radio']), select) { min-height: 2.75rem; }
+
+/* ── 10. Download dialog (name / mobile / email before a file download) ───────── */
+[data-theme='lokayat'] [data-download-gate] { background: hsl(var(--ink) / 0.72); }
+[data-theme='lokayat'] [data-download-gate-panel] {
+  background: hsl(var(--paper)); color: hsl(var(--foreground));
+  border: 3px solid hsl(var(--ink)); border-radius: 0; box-shadow: 8px 8px 0 hsl(var(--primary));
+}
+@media (max-width: 639px) { [data-theme='lokayat'] [data-download-gate-panel] { box-shadow: none; border-inline: 0; border-bottom: 0; } }
+[data-theme='lokayat'] [data-download-gate-panel] h2 {
+  font-family: var(--font-archivo), sans-serif; font-weight: 900; text-transform: uppercase; letter-spacing: 0; line-height: 1.15;
+  border-inline-start: 6px solid hsl(var(--primary)); padding-inline-start: 0.75rem;
+}
+[data-theme='lokayat'] [data-download-gate-panel] label,
+[data-theme='lokayat'] [data-download-gate-panel] button { font-family: var(--font-ui); }
+[data-theme='lokayat'] [data-download-gate-panel] input:not([type='checkbox']) { border: 2px solid hsl(var(--ink)); border-radius: 0; background: #fff; }
+[data-theme='lokayat'] [data-download-gate-panel] [data-gate-file] { font-family: var(--font-ui); background: hsl(var(--marker) / 0.45); padding: 0.4rem 0.6rem; border: 1.5px solid hsl(var(--ink)); }
+[data-theme='lokayat'] [data-download-gate-panel] button { border-radius: 0; border: 2px solid hsl(var(--ink)); font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; }
+[data-theme='lokayat'] [data-download-gate-panel] [data-gate-submit] { background: hsl(var(--primary)); color: #fff; box-shadow: 4px 4px 0 hsl(var(--ink)); }
+[data-theme='lokayat'] [data-download-gate-panel] [data-gate-submit]:hover:not(:disabled) { transform: translate(-1px, -1px); box-shadow: 5px 5px 0 hsl(var(--ink)); }
+[data-theme='lokayat'] [data-download-gate-panel] :focus-visible { outline: 3px solid hsl(var(--ink)); outline-offset: 2px; box-shadow: 0 0 0 5px hsl(var(--marker)); }
