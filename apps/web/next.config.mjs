@@ -6,9 +6,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
-  // Required for pnpm monorepo standalone builds — traces files from repo root
-  outputFileTracingRoot: path.join(__dirname, '../../'),
   experimental: {
+    // Required for pnpm monorepo standalone builds — traces files from repo root.
+    // This Next.js version (14.2.x) still only recognizes it nested under
+    // `experimental` — it was a top-level key here, which Next.js was
+    // silently ignoring (and warning about) rather than applying.
+    outputFileTracingRoot: path.join(__dirname, '../../'),
     // Limit parallel static-page workers so constrained build hosts don't OOM
     cpus: 1,
     // DALL-E 3 and large-batch AI ingest can take >30s; default proxy timeout is 30000
@@ -83,12 +86,6 @@ const nextConfig = {
         hostname: 'localhost',
         port: '3000',
         pathname: '/s3/**',
-      },
-      {
-        protocol: 'http',
-        hostname: '192.168.1.12',
-        port: '9000',
-        pathname: '/shacky-media/**',
       },
       {
         protocol: 'https',
