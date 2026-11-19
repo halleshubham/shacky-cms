@@ -267,9 +267,11 @@ for p in migrate_posts:
         fpath = '/wp-content/uploads/' + urllib.parse.quote(dec(media_src[p['featured_media']].split('/uploads/')[1]), safe='/')
     ex = ec.extract_post(ctx, p, fpath)
     lost, total, miss = lost_words(source_words(p['content']['rendered'], 'post'), words_of(re.sub(r'<[^>]+>', ' ', ex['html'])))
-    out_posts.append({'kind': 'post', 'wpId': p['id'], 'title': title, 'slug': slug, 'html': ex['html'], 'authors': ex['authors'],
+    out_posts.append({'kind': 'post', 'wpId': p['id'], 'title': title, 'slug': slug, 'html': ex['html'],
+                      # WordPress placeholders are not real bylines / categories: "Admin" falls back to the default author, "Uncategorized" is dropped
+                      'authors': [a for a in ex['authors'] if a.strip().lower() not in ('admin', 'administrator')],
                       'excerpt': ec.plain_excerpt(ex['html']), 'publishedAt': p['date_gmt'] + 'Z',
-                      'categories': [cats[c]['name'] for c in p['categories'] if c in cats],
+                      'categories': [cats[c]['name'] for c in p['categories'] if c in cats and cats[c]['name'].strip().lower() != 'uncategorized'],
                       'tags': [tags[t]['name'] for t in p.get('tags', []) if t in tags], 'featured_media': p.get('featured_media'),
                       'lost': lost, 'total': total, 'missing': miss.most_common(8) if lost else []})
     for k, u in ctx.missing_assets:
