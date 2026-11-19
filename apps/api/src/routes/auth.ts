@@ -295,6 +295,17 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
     if (!user) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'User not found' });
 
+    // Re-setup while 2FA is already enabled must prove possession of the
+    // CURRENT factor first — otherwise a hijacked session could silently
+    // swap in an attacker-controlled secret without ever touching the
+    // user's real authenticator app.
+    if (user.totpEnabled) {
+      const { currentCode } = (req.body as { currentCode?: string }) ?? {};
+      if (!currentCode || !authenticator.verify({ token: currentCode, secret: user.totpSecret! })) {
+        return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'Enter your current 2FA code to set up a new one.' });
+      }
+    }
+
     const secret = authenticator.generateSecret();
     const otpauth = authenticator.keyuri(user.email, 'Shacky CMS', secret);
     const qrCode = await QRCode.toDataURL(otpauth);
@@ -323,13 +334,32 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   // POST /auth/totp/disable
-  fastify.post('/totp/disable', { preHandler: [authenticate, requireSuperAdmin] }, async (req, reply) => {
-    const { userId } = req.body as { userId: string };
+  // Self-service (no userId, or userId === caller): requires proof of the
+  // current TOTP code, so a hijacked session alone can't turn off 2FA.
+  // Admin override (userId for someone else): superadmin only, no code
+  // needed — for recovering an account whose owner lost their device.
+  fastify.post('/totp/disable', { preHandler: [authenticate] }, async (req, reply) => {
+    const { userId, code } = (req.body as { userId?: string; code?: string }) ?? {};
+    const targetUserId = userId || req.user!.id;
+
+    if (targetUserId !== req.user!.id) {
+      if (req.user!.role !== 'superadmin') {
+        return reply.status(403).send({ statusCode: 403, error: 'Forbidden', message: 'Only a superadmin can disable another user\'s 2FA' });
+      }
+    } else {
+      const user = await prisma.user.findUnique({ where: { id: targetUserId } });
+      if (user?.totpEnabled) {
+        if (!code || !authenticator.verify({ token: code, secret: user.totpSecret! })) {
+          return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'Enter your current 2FA code to disable it.' });
+        }
+      }
+    }
+
     await prisma.user.update({
-      where: { id: userId },
+      where: { id: targetUserId },
       data: { totpEnabled: false, totpSecret: null },
     });
-    await audit(req, 'auth.totp.disabled', { entity: 'user', entityId: userId });
+    await audit(req, 'auth.totp.disabled', { entity: 'user', entityId: targetUserId });
     return reply.send({ success: true });
   });
 
