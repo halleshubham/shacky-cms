@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../plugins/prisma.js';
+import { escapeLikeWildcards } from '@shacky/shared';
 
 const postInclude = {
   featuredMedia: true,
@@ -50,10 +51,11 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
 
     const where: any = { status: 'published' };
     if (q.search) {
+      const term = escapeLikeWildcards(q.search);
       where.OR = [
-        { title: { contains: q.search, mode: 'insensitive' } },
-        { excerpt: { contains: q.search, mode: 'insensitive' } },
-        { content: { contains: q.search, mode: 'insensitive' } },
+        { title: { contains: term, mode: 'insensitive' } },
+        { excerpt: { contains: term, mode: 'insensitive' } },
+        { content: { contains: term, mode: 'insensitive' } },
       ];
     }
     if (q.categorySlug) where.categories = { some: { category: { slug: q.categorySlug } } };

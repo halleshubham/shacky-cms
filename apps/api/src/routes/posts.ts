@@ -9,7 +9,7 @@ import { authenticate, requireAdmin, requireRoles } from '../middleware/auth.js'
 // including a <script> tag via codeInjectionHead/Foot that runs for every visitor."
 const requireContentRole = requireRoles('superadmin', 'editor', 'author');
 import { audit } from '../utils/audit.js';
-import { slugify } from '@shacky/shared';
+import { slugify, escapeLikeWildcards } from '@shacky/shared';
 import { fireWebhook } from '../utils/webhooks.js';
 import { createId } from '@paralleldrive/cuid2';
 
@@ -118,7 +118,7 @@ const postsRoutes: FastifyPluginAsync = async (fastify) => {
     if (q.unassigned) where.issueId = null;
     if (q.categoryId) where.categories = { some: { categoryId: q.categoryId } };
     if (q.authorId) where.authors = { some: { authorId: q.authorId } };
-    if (q.search) where.title = { contains: q.search, mode: 'insensitive' };
+    if (q.search) where.title = { contains: escapeLikeWildcards(q.search), mode: 'insensitive' };
 
     // Authors only see their own posts
     if (req.user?.role === 'author') {

@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../plugins/prisma.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
 import { audit } from '../utils/audit.js';
-import { slugify } from '@shacky/shared';
+import { slugify, escapeLikeWildcards } from '@shacky/shared';
 
 const authorBodySchema = z.object({
   displayName: z.string().min(1),
@@ -18,7 +18,7 @@ const authorsRoutes: FastifyPluginAsync = async (fastify) => {
     const { search, page: pageStr, pageSize: pageSizeStr } = req.query as { search?: string; page?: string; pageSize?: string };
     const page = Math.max(1, parseInt(pageStr || '1', 10));
     const pageSize = Math.max(1, parseInt(pageSizeStr || '100', 10));
-    const where = search ? { displayName: { contains: search, mode: 'insensitive' as const } } : undefined;
+    const where = search ? { displayName: { contains: escapeLikeWildcards(search), mode: 'insensitive' as const } } : undefined;
     const [authors, total] = await Promise.all([
       prisma.author.findMany({
         where,

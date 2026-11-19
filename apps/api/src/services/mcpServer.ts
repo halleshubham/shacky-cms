@@ -7,6 +7,7 @@ import type { StockPhoto } from './stockSearch.js';
 import { generateNewsletterHtml, getNewsletterSettings } from './newsletter.js';
 import { sendMail } from './email.js';
 import { defaultCampaignBlocks } from '../routes/campaigns.js';
+import { escapeLikeWildcards } from '@shacky/shared';
 
 export function createMcpServer(prisma: PrismaClient, userId: string, scopes: string[]): McpServer {
   const server = new McpServer({
@@ -51,7 +52,7 @@ export function createMcpServer(prisma: PrismaClient, userId: string, scopes: st
           where: {
             ...(status ? { status } : {}),
             ...(search
-              ? { OR: [{ title: { contains: search, mode: 'insensitive' } }, { excerpt: { contains: search, mode: 'insensitive' } }] }
+              ? { OR: [{ title: { contains: escapeLikeWildcards(search), mode: 'insensitive' } }, { excerpt: { contains: escapeLikeWildcards(search), mode: 'insensitive' } }] }
               : {}),
           },
           select: {
@@ -208,7 +209,7 @@ export function createMcpServer(prisma: PrismaClient, userId: string, scopes: st
       async ({ search, limit = 20 }) => {
         const media = await prisma.media.findMany({
           where: search
-            ? { OR: [{ filename: { contains: search, mode: 'insensitive' } }, { altText: { contains: search, mode: 'insensitive' } }] }
+            ? { OR: [{ filename: { contains: escapeLikeWildcards(search), mode: 'insensitive' } }, { altText: { contains: escapeLikeWildcards(search), mode: 'insensitive' } }] }
             : {},
           select: { id: true, filename: true, url: true, mimeType: true, size: true, altText: true, width: true, height: true, createdAt: true },
           orderBy: { createdAt: 'desc' },
