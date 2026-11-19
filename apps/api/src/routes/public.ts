@@ -352,17 +352,6 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
     if (!page) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Page not found' });
     return reply.send(page);
   });
-
-  // GET /public/settings — site settings for frontend
-  fastify.get('/settings', async (_req, reply) => {
-    const keys = ['site_title', 'site_description', 'site_logo', 'site_icon', 'nav_primary', 'nav_secondary'];
-    const rows = await prisma.setting.findMany({ where: { key: { in: keys } } });
-    const out: Record<string, any> = {};
-    for (const r of rows) {
-      try { out[r.key] = JSON.parse(r.value); } catch { out[r.key] = r.value; }
-    }
-    return reply.send(out);
-  });
 };
 
 export default publicRoutes;
