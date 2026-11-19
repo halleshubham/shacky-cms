@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
-import bcrypt from 'bcryptjs';
+import { createHash } from 'crypto';
 import { authenticator } from 'otplib';
 import QRCode from 'qrcode';
 import { prisma } from '../plugins/prisma.js';
@@ -23,6 +23,25 @@ const registerSchema = z.object({
   name: z.string().min(1),
   role: z.enum(['superadmin', 'editor', 'author', 'subscriber_manager']).optional(),
 });
+
+// Refresh tokens are long opaque JWTs, not human passwords — bcrypt is the
+// wrong tool: it silently truncates input at 72 bytes, and every refresh
+// token issued to the same user shares an identical first-72-byte prefix
+// (header + the sub/email/role/type claims, in that fixed order), so bcrypt
+// would treat ALL of a user's tokens, past and present, as equal. A plain
+// SHA-256 digest has no such truncation and gives an exact, O(1)-lookupable
+// key — correct for a token (which is already high-entropy, unlike a
+// password) and the reason /refresh and /logout can actually revoke one
+// specific session instead of matching every session a user ever had.
+function hashToken(rawToken: string): string {
+  return createHash('sha256').update(rawToken).digest('hex');
+}
+
+async function findRefreshTokenRow(userId: string, rawToken: string) {
+  return prisma.refreshToken.findFirst({
+    where: { userId, tokenHash: hashToken(rawToken), expiresAt: { gt: new Date() } },
+  });
+}
 
 const authRoutes: FastifyPluginAsync = async (fastify) => {
   // POST /auth/login
@@ -52,7 +71,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     await prisma.refreshToken.create({
       data: {
         userId: user.id,
-        tokenHash: await bcrypt.hash(refreshToken, 8),
+        tokenHash: hashToken(refreshToken),
         expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
       },
     });
@@ -72,7 +91,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
         secure: env.NODE_ENV === 'production',
         sameSite: 'strict',
         maxAge: 30 * 24 * 60 * 60,
-        path: '/api/auth/refresh',
+        path: '/api/auth',
       });
 
     return reply.send({
@@ -96,16 +115,27 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       const user = await prisma.user.findUnique({ where: { id: payload.sub } });
       if (!user) throw new Error('User not found');
 
+      // Reject a refresh token whose session row has already been revoked
+      // (logout) or rotated away (reused after a later /refresh) — a valid
+      // JWT signature alone is no longer enough.
+      const sessionRow = await findRefreshTokenRow(user.id, token);
+      if (!sessionRow) throw new Error('Session revoked');
+
       const accessToken = await signAccessToken({ sub: user.id, email: user.email, role: user.role as any });
       const newRefreshToken = await signRefreshToken({ sub: user.id, email: user.email, role: user.role as any });
 
-      await prisma.refreshToken.create({
-        data: {
-          userId: user.id,
-          tokenHash: await bcrypt.hash(newRefreshToken, 8),
-          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-        },
-      });
+      // Rotate: this session's row is replaced by the new token's row, so the
+      // old refresh token can never be used again even if it leaks afterward.
+      await prisma.$transaction([
+        prisma.refreshToken.delete({ where: { id: sessionRow.id } }),
+        prisma.refreshToken.create({
+          data: {
+            userId: user.id,
+            tokenHash: hashToken(newRefreshToken),
+            expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          },
+        }),
+      ]);
 
       reply
         .setCookie('access_token', accessToken, {
@@ -120,7 +150,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
           secure: env.NODE_ENV === 'production',
           sameSite: 'strict',
           maxAge: 30 * 24 * 60 * 60,
-          path: '/api/auth/refresh',
+          path: '/api/auth',
         });
 
       return reply.send({ accessToken });
@@ -131,10 +161,15 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
 
   // POST /auth/logout
   fastify.post('/logout', { preHandler: [authenticate] }, async (req, reply) => {
+    const token = req.cookies?.['refresh_token'] || (req.body as any)?.refreshToken;
+    if (token && req.user) {
+      const sessionRow = await findRefreshTokenRow(req.user.id, token);
+      if (sessionRow) await prisma.refreshToken.delete({ where: { id: sessionRow.id } });
+    }
     await audit(req, 'auth.logout');
     reply
       .clearCookie('access_token', { path: '/' })
-      .clearCookie('refresh_token', { path: '/api/auth/refresh' });
+      .clearCookie('refresh_token', { path: '/api/auth' });
     return reply.send({ success: true });
   });
 
