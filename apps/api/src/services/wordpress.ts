@@ -1,4 +1,5 @@
 import sharp from 'sharp';
+import { decode } from 'he';
 import { createId } from '@paralleldrive/cuid2';
 import { prisma } from '../plugins/prisma.js';
 import { uploadToS3 } from '../utils/s3.js';
@@ -38,16 +39,12 @@ export interface MigrationProgress {
   finishedAt?: string;
 }
 
-// Decode numeric and common named HTML entities (WP REST API returns rendered HTML)
-function decodeEntities(str: string): string {
-  return str
-    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code, 10)))
-    .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCharCode(parseInt(code, 16)))
-    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&nbsp;/g, ' ')
-    .replace(/&ndash;/g, '–').replace(/&mdash;/g, '—')
-    .replace(/&lsquo;/g, '‘').replace(/&rsquo;/g, '’')
-    .replace(/&ldquo;/g, '“').replace(/&rdquo;/g, '”');
+// Decode numeric and named HTML entities (WP REST API returns rendered HTML).
+// Delegates to `he` for the full HTML5 named-entity table (hellip, copy, deg,
+// eacute, trade, frac12, etc.) instead of a hand-rolled list that only ever
+// covered a handful of common ones.
+export function decodeEntities(str: string): string {
+  return decode(str);
 }
 
 // In-memory job store — fine for single-server; jobs are short-lived
