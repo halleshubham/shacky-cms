@@ -159,16 +159,72 @@ export async function testWPConnection(cfg: WPConfig): Promise<{
 }
 
 // ─── Progress helpers ────────────────────────────────────────────────────────
+//
+// The in-memory `jobs` map is the hot path (every setProgress call, including
+// once per post in the main import loop) — fast and good enough while the API
+// process serving the job is still up. It's mirrored into MigrationJob so a
+// poll of GET /migration/wordpress/status/:jobId still finds the job's last
+// known state after a restart, instead of just 404ing because the map is gone.
+// Persistence is fire-and-forget: a failed/slow DB write must never stall or
+// crash the migration itself.
 
-function setProgress(jobId: string, p: Partial<MigrationProgress>): void {
+// setProgress fires writes without awaiting them, so calls for the same job
+// can resolve out of order (Prisma's connection pool gives no ordering
+// guarantee across concurrent queries) — without serializing per job, a
+// slower earlier write can land after a later one and leave the DB mirror
+// stuck on stale progress, or even overwrite the final 'done'/'failed'
+// state. Chaining each write onto the previous one for the same jobId fixes
+// that while still never blocking the (synchronous) caller.
+const pendingWrites = new Map<string, Promise<void>>();
+
+function setProgress(jobId: string, p: Partial<MigrationProgress>, userId?: string): void {
   const current = jobs.get(jobId) ?? {
     jobId, status: 'running' as const, phase: '', total: 0, done: 0, skipped: 0, errors: 0, errorLog: [], startedAt: new Date().toISOString(),
   };
-  jobs.set(jobId, { ...current, ...p });
+  const next = { ...current, ...p };
+  jobs.set(jobId, next);
+
+  const prior = pendingWrites.get(jobId) ?? Promise.resolve();
+  const chained = prior.then(() => persistProgress(jobId, next, userId)).catch(() => {});
+  pendingWrites.set(jobId, chained);
 }
 
-export function getProgress(jobId: string): MigrationProgress | null {
-  return jobs.get(jobId) ?? null;
+async function persistProgress(jobId: string, p: MigrationProgress, userId?: string): Promise<void> {
+  const shared = {
+    status: p.status,
+    phase: p.phase,
+    total: p.total,
+    done: p.done,
+    skipped: p.skipped,
+    errors: p.errors,
+    errorLog: p.errorLog,
+    finishedAt: p.finishedAt ? new Date(p.finishedAt) : null,
+  };
+  await prisma.migrationJob.upsert({
+    where: { id: jobId },
+    create: { id: jobId, userId: userId ?? null, startedAt: new Date(p.startedAt), ...shared },
+    update: shared,
+  });
+}
+
+export async function getProgress(jobId: string): Promise<MigrationProgress | null> {
+  const inMemory = jobs.get(jobId);
+  if (inMemory) return inMemory;
+
+  const row = await prisma.migrationJob.findUnique({ where: { id: jobId } });
+  if (!row) return null;
+  return {
+    jobId: row.id,
+    status: row.status,
+    phase: row.phase,
+    total: row.total,
+    done: row.done,
+    skipped: row.skipped,
+    errors: row.errors,
+    errorLog: row.errorLog as string[],
+    startedAt: row.startedAt.toISOString(),
+    finishedAt: row.finishedAt?.toISOString(),
+  };
 }
 
 export function cancelJob(jobId: string): void {
@@ -409,7 +465,7 @@ export async function runMigration(
   jobId: string,
   userId: string,
 ): Promise<void> {
-  setProgress(jobId, { status: 'running', phase: 'Starting…', total: 0, done: 0, skipped: 0, errors: 0, errorLog: [] });
+  setProgress(jobId, { status: 'running', phase: 'Starting…', total: 0, done: 0, skipped: 0, errors: 0, errorLog: [] }, userId);
 
   const errorLog: string[] = [];
   const addError = (msg: string) => { errorLog.push(msg); if (errorLog.length > 50) errorLog.shift(); };
