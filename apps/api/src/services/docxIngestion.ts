@@ -223,17 +223,26 @@ export async function previewIngestion(zipBuffer: Buffer): Promise<IngestPreview
     warnings.push(`Summary lists ${parsed.length} articles but found ${docxFiles.length} .docx files`);
   }
 
-  return {
-    articles: parsed.map((a) => ({
-      number: a.number,
-      title: a.title,
-      authorName: a.authorName,
-      excerpt: a.excerpt,
-      wordCount: 0,
-    })),
-    totalArticles: parsed.length,
-    warnings,
-  };
+  const articles = await Promise.all(parsed.map(async (a) => {
+    let wordCount = 0;
+    const docxKey = Object.keys(zip.files).find((f) => {
+      const name = f.split('/').pop() || '';
+      return name.match(new RegExp(`^${a.number}[-.\\s]`)) && name.endsWith('.docx');
+    });
+    if (docxKey) {
+      try {
+        const buffer = Buffer.from(await zip.files[docxKey].async('arraybuffer'));
+        const { value } = await mammoth.extractRawText({ buffer: buffer as any });
+        wordCount = value.trim().split(/\s+/).filter(Boolean).length;
+      } catch {
+        // Leave wordCount at 0 if this one article's docx can't be read —
+        // the real ingest below will surface the per-article warning.
+      }
+    }
+    return { number: a.number, title: a.title, authorName: a.authorName, excerpt: a.excerpt, wordCount };
+  }));
+
+  return { articles, totalArticles: parsed.length, warnings };
 }
 
 export interface PostForAI {
