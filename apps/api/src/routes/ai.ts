@@ -70,8 +70,10 @@ const aiRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   // GET /ai/models — available models per provider
-  // Pass ?ollamaUrl=http://localhost:11434 to dynamically fetch installed Ollama models
-  fastify.get('/models', { preHandler: [authenticate] }, async (req, reply) => {
+  // Pass ?ollamaUrl=http://localhost:11434 to dynamically fetch installed Ollama models.
+  // Admin-only: ollamaUrl is attacker-controlled input to a server-side fetch (SSRF) if
+  // reachable by any authenticated role — only an admin configuring AI settings needs this.
+  fastify.get('/models', { preHandler: [authenticate, requireAdmin] }, async (req, reply) => {
     const { ollamaUrl } = req.query as { ollamaUrl?: string };
 
     const ollamaBase = ollamaUrl || 'http://localhost:11434';
