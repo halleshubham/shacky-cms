@@ -11,7 +11,8 @@ const prisma = vi.hoisted(() => ({
 const mockUser = vi.hoisted(() => ({ current: { id: 'u1', email: 'a@b.test', role: 'superadmin', name: 'Admin' } }));
 vi.mock('../src/plugins/prisma.js', () => ({ prisma }));
 vi.mock('../src/utils/audit.js', () => ({ audit: vi.fn() }));
-vi.mock('../src/utils/webhooks.js', () => ({ fireWebhook: vi.fn() }));
+const fireWebhook = vi.hoisted(() => vi.fn());
+vi.mock('../src/utils/webhooks.js', () => ({ fireWebhook }));
 vi.mock('../src/middleware/auth.js', () => ({
   authenticate: async (req: any) => {
     req.user = mockUser.current;
@@ -73,6 +74,41 @@ describe('PATCH /api/posts/:id slug handling', () => {
   it('returns 404 for an unknown post', async () => {
     prisma.post.findUnique.mockResolvedValueOnce(null);
     expect((await patch({ title: 'x' })).statusCode).toBe(404);
+  });
+});
+
+describe('webhook events', () => {
+  it('fires post.created on create', async () => {
+    prisma.post.findUnique.mockResolvedValueOnce(null);
+    prisma.post.create.mockResolvedValueOnce({ id: 'p9', title: 'New', slug: 'new', authors: [], categories: [], tags: [] });
+    await post({ title: 'New' });
+    expect(fireWebhook).toHaveBeenCalledWith('post.created', expect.objectContaining({ id: 'p9' }));
+  });
+
+  it('fires post.updated and post.published when a draft transitions to published', async () => {
+    prisma.post.findUnique.mockResolvedValueOnce(existing);
+    prisma.post.update.mockResolvedValueOnce({ ...updated, status: 'published' });
+    await patch({ status: 'published' });
+    expect(fireWebhook).toHaveBeenCalledWith('post.updated', expect.objectContaining({ id: 'p1' }));
+    expect(fireWebhook).toHaveBeenCalledWith('post.published', expect.objectContaining({ id: 'p1' }));
+    expect(fireWebhook).not.toHaveBeenCalledWith('post.unpublished', expect.anything());
+  });
+
+  it('fires post.updated and post.unpublished when a published post reverts to draft', async () => {
+    prisma.post.findUnique.mockResolvedValueOnce({ ...existing, status: 'published' });
+    prisma.post.update.mockResolvedValueOnce({ ...updated, status: 'draft' });
+    await patch({ status: 'draft' });
+    expect(fireWebhook).toHaveBeenCalledWith('post.updated', expect.objectContaining({ id: 'p1' }));
+    expect(fireWebhook).toHaveBeenCalledWith('post.unpublished', expect.objectContaining({ id: 'p1' }));
+    expect(fireWebhook).not.toHaveBeenCalledWith('post.published', expect.anything());
+  });
+
+  it('fires only post.updated when status does not change', async () => {
+    prisma.post.findUnique.mockResolvedValueOnce(existing);
+    await patch({ title: 'New title' });
+    expect(fireWebhook).toHaveBeenCalledWith('post.updated', expect.objectContaining({ id: 'p1' }));
+    expect(fireWebhook).not.toHaveBeenCalledWith('post.published', expect.anything());
+    expect(fireWebhook).not.toHaveBeenCalledWith('post.unpublished', expect.anything());
   });
 });
 
