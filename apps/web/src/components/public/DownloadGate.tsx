@@ -135,7 +135,10 @@ export function DownloadGate({ formSlug, title, intro, consent, lang }: Props) {
       onMouseDown={(e) => { if (e.target === e.currentTarget) close(); }}>
       <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="dg-title" data-download-gate-panel
         className="w-full sm:max-w-md max-h-[92vh] overflow-y-auto bg-background text-foreground rounded-t-xl sm:rounded-xl shadow-xl p-5 sm:p-6">
-        <h2 id="dg-title" className="text-xl font-bold leading-tight">{title || t.title}</h2>
+        <h2 id="dg-title" className="text-xl font-bold leading-tight">
+          {/* a bilingual title written as "English · मराठी" stacks as two lines instead of wrapping mid-phrase */}
+          {(title || t.title).split(' · ').map((part, i) => <span key={i} className="block">{part}</span>)}
+        </h2>
         <p className="mt-1 text-sm text-muted-foreground">{intro || t.intro}</p>
         <p className="mt-3 text-xs text-muted-foreground break-all" data-gate-file><span className="font-semibold">{t.file}:</span> {pending.file.name}</p>
         <form onSubmit={submit} noValidate className="mt-4 space-y-4" data-gate-form>
