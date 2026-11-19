@@ -65,9 +65,9 @@ const migrationRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   // GET /migration/wordpress/status/:jobId — poll progress
-  fastify.get('/wordpress/status/:jobId', { preHandler: [authenticate] }, async (req, reply) => {
+  fastify.get('/wordpress/status/:jobId', { preHandler: [authenticate, requireAdmin] }, async (req, reply) => {
     const { jobId } = req.params as { jobId: string };
-    const progress = getProgress(jobId);
+    const progress = await getProgress(jobId);
     if (!progress) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Job not found' });
     return reply.send(progress);
   });

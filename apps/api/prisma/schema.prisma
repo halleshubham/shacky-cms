@@ -25,6 +25,7 @@ model User {
   revisions            Revision[]
   oauthAuthCodes       OAuthAuthCode[]
   oauthAccessTokens    OAuthAccessToken[]
+  migrationJobs        MigrationJob[]
 
   @@map("users")
 }
@@ -81,6 +82,36 @@ model AuditLog {
   @@index([userId])
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+enum MigrationJobStatus {
+  queued
+  running
+  done
+  failed
+  cancelled
+}
+
+// Persists WordPress migration progress so a poll of GET
+// /migration/wordpress/status/:jobId survives an API restart instead of
+// 404ing just because the in-memory job map it used to live in is gone.
+model MigrationJob {
+  id         String             @id
+  userId     String?
+  status     MigrationJobStatus @default(queued)
+  phase      String             @default("")
+  total      Int                @default(0)
+  done       Int                @default(0)
+  skipped    Int                @default(0)
+  errors     Int                @default(0)
+  errorLog   Json               @default("[]")
+  startedAt  DateTime           @default(now())
+  finishedAt DateTime?
+  updatedAt  DateTime           @updatedAt
+  user       User?              @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("migration_jobs")
 }
 
 model Author {
