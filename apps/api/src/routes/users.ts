@@ -32,6 +32,21 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
     if (body.role) data.role = body.role;
     if (body.password) data.passwordHash = await hashPassword(body.password);
 
+    if (body.role && body.role !== 'superadmin') {
+      const target = await prisma.user.findUnique({ where: { id }, select: { role: true } });
+      if (!target) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'User not found' });
+      if (target.role === 'superadmin') {
+        const superadminCount = await prisma.user.count({ where: { role: 'superadmin' } });
+        if (superadminCount <= 1) {
+          return reply.status(400).send({
+            statusCode: 400,
+            error: 'Bad Request',
+            message: 'Cannot change the role of the last superadmin — promote another user first',
+          });
+        }
+      }
+    }
+
     const user = await prisma.user.update({
       where: { id },
       data,
@@ -65,6 +80,18 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
     const { id } = req.params as { id: string };
     if (id === req.user!.id) {
       return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'Cannot delete yourself' });
+    }
+    const target = await prisma.user.findUnique({ where: { id }, select: { role: true } });
+    if (!target) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'User not found' });
+    if (target.role === 'superadmin') {
+      const superadminCount = await prisma.user.count({ where: { role: 'superadmin' } });
+      if (superadminCount <= 1) {
+        return reply.status(400).send({
+          statusCode: 400,
+          error: 'Bad Request',
+          message: 'Cannot delete the last superadmin — promote another user first',
+        });
+      }
     }
     await prisma.user.delete({ where: { id } });
     await audit(req, 'user.deleted', { entity: 'user', entityId: id });
