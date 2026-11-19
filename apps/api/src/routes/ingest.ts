@@ -43,8 +43,12 @@ const ingestRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     const buffer = await data.toBuffer();
-    const preview = await previewIngestion(buffer);
-    return reply.send(preview);
+    try {
+      const preview = await previewIngestion(buffer);
+      return reply.send(preview);
+    } catch (err: any) {
+      return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: err?.message || 'Could not read the ZIP file' });
+    }
   });
 
   // POST /ingest — perform actual ingestion into an existing issue
@@ -69,13 +73,18 @@ const ingestRoutes: FastifyPluginAsync = async (fastify) => {
     if (!zipBuffer) return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'No ZIP file' });
     if (!issueId) return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'issueId required' });
 
-    const { created, warnings, postsForAI } = await ingestIssue(zipBuffer, {
-      issueId,
-      categoryIds: [],
-      publishHour,
-      uploadedById: req.user!.id,
-      aiOptions: undefined, // Phase 1 only; enhancements go to queue below
-    });
+    let created: number, warnings: string[], postsForAI: Awaited<ReturnType<typeof ingestIssue>>['postsForAI'];
+    try {
+      ({ created, warnings, postsForAI } = await ingestIssue(zipBuffer, {
+        issueId,
+        categoryIds: [],
+        publishHour,
+        uploadedById: req.user!.id,
+        aiOptions: undefined, // Phase 1 only; enhancements go to queue below
+      }));
+    } catch (err: any) {
+      return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: err?.message || 'Could not process the ZIP file' });
+    }
 
     let jobId: string | undefined;
     if (hasAnyEnhancement(aiOptions) && postsForAI.length > 0) {
@@ -156,13 +165,22 @@ const ingestRoutes: FastifyPluginAsync = async (fastify) => {
     });
 
     // Phase 1: create articles from ZIP (synchronous — must finish before we respond)
-    const { created, warnings, postsForAI } = await ingestIssue(zipBuffer, {
-      issueId: issue.id,
-      categoryIds: [],
-      publishHour,
-      uploadedById: req.user!.id,
-      aiOptions: undefined, // Phase 1 only
-    });
+    let created: number, warnings: string[], postsForAI: Awaited<ReturnType<typeof ingestIssue>>['postsForAI'];
+    try {
+      ({ created, warnings, postsForAI } = await ingestIssue(zipBuffer, {
+        issueId: issue.id,
+        categoryIds: [],
+        publishHour,
+        uploadedById: req.user!.id,
+        aiOptions: undefined, // Phase 1 only
+      }));
+    } catch (err: any) {
+      return reply.status(400).send({
+        statusCode: 400,
+        error: 'Bad Request',
+        message: `${err?.message || 'Could not process the ZIP file'} (issue "${issue.title}" was created but has no articles yet — retry the ingest from its detail page)`,
+      });
+    }
 
     // Phase 2: enqueue AI/stock enhancements as a background job
     let jobId: string | undefined;
@@ -196,6 +214,12 @@ const ingestRoutes: FastifyPluginAsync = async (fastify) => {
     const { jobId } = req.params as { jobId: string };
     const job = await ingestQueue.getJob(jobId);
     if (!job) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Job not found' });
+
+    const isOwner = job.data?.uploadedById === req.user!.id;
+    const isAdmin = req.user!.role === 'superadmin' || req.user!.role === 'editor';
+    if (!isOwner && !isAdmin) {
+      return reply.status(403).send({ statusCode: 403, error: 'Forbidden', message: 'This ingest job belongs to another user' });
+    }
 
     const state = await job.getState();
     const result = job.returnvalue as { warnings: string[] } | undefined;
