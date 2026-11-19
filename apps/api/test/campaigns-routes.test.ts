@@ -111,6 +111,31 @@ describe('POST /api/campaigns/:id/send — accurate status on delivery failure',
   });
 });
 
+describe('POST /api/campaigns/:id/test-send — error handling', () => {
+  const testSend = (email = 'me@test.local') =>
+    app.inject({ method: 'POST', url: '/api/campaigns/c1/test-send', payload: { email } });
+
+  it('returns a clean 502 instead of a raw 500 when sendMail throws', async () => {
+    sendMail.mockRejectedValue(new Error('SMTP host not configured. Add it in Settings → Email.'));
+    const res = await testSend();
+    expect(res.statusCode).toBe(502);
+    expect(res.json()).toMatchObject({ error: 'Bad Gateway', message: expect.stringContaining('SMTP host not configured') });
+  });
+
+  it('returns success when the test email sends fine', async () => {
+    sendMail.mockResolvedValue(undefined);
+    const res = await testSend();
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ success: true, sentTo: 'me@test.local' });
+  });
+
+  it('still 404s for an unknown campaign', async () => {
+    prisma.campaign.findUnique.mockResolvedValue(null);
+    const res = await testSend();
+    expect(res.statusCode).toBe(404);
+  });
+});
+
 describe('POST /api/campaigns/:id/send — campaign.sent webhook', () => {
   it('fires campaign.sent when the send succeeds (even partially)', async () => {
     prisma.subscriber.findMany.mockResolvedValue(makeSubscribers(3));

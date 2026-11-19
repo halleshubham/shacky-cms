@@ -130,7 +130,15 @@ const campaignsRoutes: FastifyPluginAsync = async (fastify) => {
     if (!issue) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Issue not found' });
 
     const html = await generateNewsletterHtml(issue, { subscriberToken: 'test-preview' }, campaign.blocks as any);
-    await sendMail({ to: email, subject: `[TEST] ${issue.title}`, html });
+    try {
+      await sendMail({ to: email, subject: `[TEST] ${issue.title}`, html });
+    } catch (err: any) {
+      return reply.status(502).send({
+        statusCode: 502,
+        error: 'Bad Gateway',
+        message: err?.message || 'Failed to send test email — check your email provider settings',
+      });
+    }
     return reply.send({ success: true, sentTo: email });
   });
 
