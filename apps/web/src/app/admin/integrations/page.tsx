@@ -482,9 +482,11 @@ export default function IntegrationsPage() {
             <div className="grid grid-cols-2 gap-2 text-xs">
               {[
                 { scope: 'posts:read', label: 'Read posts & taxonomy' },
-                { scope: 'posts:write', label: 'Create & update posts' },
+                { scope: 'posts:write', label: 'Create & update posts, pages, issues, categories & tags' },
                 { scope: 'media:read', label: 'Browse media library' },
                 { scope: 'subscribers:read', label: 'View subscribers' },
+                { scope: 'campaigns:read', label: 'View campaigns' },
+                { scope: 'campaigns:write', label: 'Create campaigns & send real emails to subscribers' },
               ].map(({ scope, label }) => (
                 <div key={scope} className="flex items-center gap-1.5 text-muted-foreground">
                   <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />

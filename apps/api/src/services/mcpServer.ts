@@ -624,9 +624,20 @@ export function createMcpServer(prisma: PrismaClient, userId: string, scopes: st
 
     server.tool(
       'send_campaign',
-      'Send a campaign to all subscribers on the list. This delivers real emails — confirm with the user before calling this.',
-      { campaignId: z.string().describe('Campaign ID to send') },
-      async ({ campaignId }) => {
+      'Send a campaign to all subscribers on the list. This delivers real emails and cannot be undone. ' +
+        'Always confirm with the user before calling this, then pass confirm: true — the call is rejected without it.',
+      {
+        campaignId: z.string().describe('Campaign ID to send'),
+        confirm: z.boolean().describe('Must be true. Set this only after the user has explicitly confirmed they want to send real emails to this campaign\'s subscribers.'),
+      },
+      async ({ campaignId, confirm }) => {
+        if (!confirm) {
+          return {
+            content: [{ type: 'text' as const, text: 'Not sent: confirm must be true. Ask the user to explicitly confirm before sending — this delivers real emails to every subscriber on the list.' }],
+            isError: true,
+          };
+        }
+
         const campaign = await prisma.campaign.findUnique({ where: { id: campaignId }, include: { issue: { include: { posts: { include: { authors: { include: { author: true } }, categories: { include: { category: true } }, tags: { include: { tag: true } }, featuredMedia: true } } } } } });
         if (!campaign) return { content: [{ type: 'text' as const, text: 'Campaign not found.' }], isError: true };
         if (campaign.status === 'sent') return { content: [{ type: 'text' as const, text: 'Campaign already sent.' }], isError: true };
@@ -646,7 +657,17 @@ export function createMcpServer(prisma: PrismaClient, userId: string, scopes: st
           } catch { /* continue on per-subscriber failure */ }
         }
 
-        await prisma.campaign.update({ where: { id: campaignId }, data: { status: 'sent', sentAt: new Date(), sentCount: sent } });
+        // Same "don't claim success when every send failed" rule as the main
+        // /api/campaigns/:id/send route — a misconfigured email provider must
+        // not come back as success: true.
+        const allFailed = subscribers.length > 0 && sent === 0;
+        await prisma.campaign.update({
+          where: { id: campaignId },
+          data: { status: allFailed ? 'failed' : 'sent', sentAt: allFailed ? null : new Date(), sentCount: sent },
+        });
+        if (allFailed) {
+          return { content: [{ type: 'text' as const, text: `Failed to send to all ${subscribers.length} subscriber(s) — check the email provider settings.` }], isError: true };
+        }
         return { content: [{ type: 'text' as const, text: JSON.stringify({ success: true, sent, total: subscribers.length }, null, 2) }] };
       },
     );
