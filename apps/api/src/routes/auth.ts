@@ -44,10 +44,43 @@ async function findRefreshTokenRow(userId: string, rawToken: string) {
   });
 }
 
+// Per-account login lockout. The server-wide rate limit on every route is
+// keyed by IP, so it does nothing against a distributed brute force (or
+// simply caps out at a still-generous 200 guesses/minute from one IP) — it
+// never looks at *which account* is being hammered. This counts recent
+// failures for the specific email being attempted, reusing the audit log
+// that already records every failed login/TOTP attempt rather than adding
+// a second place to track the same thing. Checked before the password is
+// even verified, and applies identically whether or not the email belongs
+// to a real account, so a locked-out response can't be used to enumerate
+// which emails are registered.
+const LOGIN_LOCKOUT_WINDOW_MS = 15 * 60 * 1000;
+const LOGIN_MAX_ATTEMPTS = 5;
+
+async function isLoginLockedOut(email: string): Promise<boolean> {
+  const since = new Date(Date.now() - LOGIN_LOCKOUT_WINDOW_MS);
+  const count = await prisma.auditLog.count({
+    where: {
+      action: { in: ['auth.login.failed', 'auth.login.totp_failed'] },
+      createdAt: { gte: since },
+      meta: { path: ['email'], equals: email },
+    },
+  });
+  return count >= LOGIN_MAX_ATTEMPTS;
+}
+
 const authRoutes: FastifyPluginAsync = async (fastify) => {
   // POST /auth/login
   fastify.post('/login', async (req, reply) => {
     const body = loginSchema.parse(req.body);
+
+    if (await isLoginLockedOut(body.email)) {
+      return reply.status(429).send({
+        statusCode: 429,
+        error: 'Too Many Requests',
+        message: 'Too many failed login attempts for this account. Please try again in a few minutes.',
+      });
+    }
 
     const user = await prisma.user.findUnique({ where: { email: body.email } });
     if (!user || !(await verifyPassword(body.password, user.passwordHash))) {
