@@ -149,7 +149,11 @@ const formsRoutes: FastifyPluginAsync = async (fastify) => {
 
   // --- Entries ---
 
-  fastify.get('/:id/entries', { preHandler: [authenticate] }, async (req, reply) => {
+  // Form entries can hold visitor PII (names, emails, phone numbers, free
+  // text) submitted through a public form (e.g. a sensitive contact/intake
+  // form never meant for content staff) — requireAdmin matches the delete/
+  // bulk-delete/to-list routes below, which were already admin-gated.
+  fastify.get('/:id/entries', { preHandler: [authenticate, requireAdmin] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const query = req.query as { page?: string; pageSize?: string };
     const page = parseInt(query.page || '1');
@@ -174,7 +178,7 @@ const formsRoutes: FastifyPluginAsync = async (fastify) => {
     return reply.send({ success: true });
   });
 
-  fastify.get('/:id/entries/export', { preHandler: [authenticate] }, async (req, reply) => {
+  fastify.get('/:id/entries/export', { preHandler: [authenticate, requireAdmin] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const query = req.query as { ids?: string };
     const form = await prisma.form.findUnique({ where: { id } });
