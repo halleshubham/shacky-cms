@@ -144,6 +144,15 @@ const postsRoutes: FastifyPluginAsync = async (fastify) => {
     const { id } = req.params as { id: string };
     const post = await prisma.post.findUnique({ where: { id }, include });
     if (!post) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Post not found' });
+
+    // Same ownership rule as the list endpoint and PATCH/restore below —
+    // without it, an author could read any other author's draft by ID even
+    // though the list is filtered to their own posts.
+    if (req.user?.role === 'author') {
+      const isAuthor = await prisma.postAuthor.findFirst({ where: { postId: id, userId: req.user.id } });
+      if (!isAuthor) return reply.status(403).send({ statusCode: 403, error: 'Forbidden', message: 'Cannot view this post' });
+    }
+
     return reply.send(formatPost(post));
   });
 
@@ -291,6 +300,13 @@ const postsRoutes: FastifyPluginAsync = async (fastify) => {
     const src = await prisma.post.findUnique({ where: { id }, include });
     if (!src) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Post not found' });
 
+    // Same ownership rule as PATCH/restore — otherwise an author could
+    // clone (and thus read in full) any other author's draft post.
+    if (req.user?.role === 'author') {
+      const isAuthor = await prisma.postAuthor.findFirst({ where: { postId: id, userId: req.user.id } });
+      if (!isAuthor) return reply.status(403).send({ statusCode: 403, error: 'Forbidden', message: 'Cannot duplicate this post' });
+    }
+
     const baseSlug = `${src.slug}-copy`;
     let slug = baseSlug;
     let i = 1;
@@ -365,6 +381,14 @@ const postsRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /posts/:id/revisions
   fastify.get('/:id/revisions', { preHandler: [authenticate] }, async (req, reply) => {
     const { id } = req.params as { id: string };
+
+    // Same ownership rule as GET /:id/PATCH/restore — otherwise an author
+    // could read the full revision history of any other author's post.
+    if (req.user?.role === 'author') {
+      const isAuthor = await prisma.postAuthor.findFirst({ where: { postId: id, userId: req.user.id } });
+      if (!isAuthor) return reply.status(403).send({ statusCode: 403, error: 'Forbidden', message: 'Cannot view this post' });
+    }
+
     const revisions = await prisma.revision.findMany({
       where: { postId: id },
       include: { createdBy: { select: { id: true, name: true } } },
