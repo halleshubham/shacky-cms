@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../plugins/prisma.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
 import { sendMail } from '../services/email.js';
+import { invalidateSettingsCache } from '../utils/settingsCache.js';
 
 // requireAdmin lets both superadmin and editor through, but these keys hold
 // live third-party credentials (AI provider key, SMTP password, Botsab/
@@ -77,6 +78,7 @@ const settingsRoutes: FastifyPluginAsync = async (fastify) => {
         }),
       ),
     );
+    invalidateSettingsCache();
     return reply.send({ success: true });
   });
 
@@ -84,6 +86,7 @@ const settingsRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.delete('/:key', { preHandler: [authenticate, requireAdmin] }, async (req, reply) => {
     const { key } = req.params as { key: string };
     await prisma.setting.deleteMany({ where: { key } });
+    invalidateSettingsCache();
     return reply.send({ success: true });
   });
 

@@ -8,6 +8,9 @@ import { generateNewsletterHtml, getNewsletterSettings } from './newsletter.js';
 import { sendMail } from './email.js';
 import { defaultCampaignBlocks } from '../routes/campaigns.js';
 import { escapeLikeWildcards, type Role } from '@shacky/shared';
+import { mapWithConcurrency } from '../utils/concurrency.js';
+
+const SEND_CONCURRENCY = 10;
 
 export function createMcpServer(prisma: PrismaClient, userId: string, role: Role, scopes: string[]): McpServer {
   const server = new McpServer({
@@ -672,13 +675,13 @@ export function createMcpServer(prisma: PrismaClient, userId: string, role: Role
         });
 
         let sent = 0;
-        for (const sub of subscribers) {
+        await mapWithConcurrency(subscribers, SEND_CONCURRENCY, async (sub) => {
           try {
             const html = await generateNewsletterHtml(campaign.issue as any, { subscriberToken: sub.unsubscribeToken }, campaign.blocks as any);
             await sendMail({ to: sub.email!, subject: campaign.issue.title, html });
             sent++;
           } catch { /* continue on per-subscriber failure */ }
-        }
+        });
 
         // Same "don't claim success when every send failed" rule as the main
         // /api/campaigns/:id/send route — a misconfigured email provider must
