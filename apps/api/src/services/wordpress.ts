@@ -147,7 +147,7 @@ export async function testWPConnection(cfg: WPConfig): Promise<{
     safeFetch(`${cfg.baseUrl.replace(/\/$/, '')}/wp-json/`, {
       headers: { Authorization: authHeader(cfg) },
       signal: AbortSignal.timeout(10_000),
-    }).then((r) => r.json()).catch(() => ({})),
+    }).then((r) => r.json() as Promise<any>).catch(() => ({})),
   ]);
   return {
     siteTitle: root.name || cfg.baseUrl,

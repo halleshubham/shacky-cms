@@ -32,7 +32,7 @@ export async function getBotsabConfig(): Promise<BotsabConfig | null> {
   });
 }
 
-async function botsabFetch(config: BotsabConfig, path: string, init?: RequestInit) {
+async function botsabFetch(config: BotsabConfig, path: string, init?: RequestInit): Promise<any> {
   const res = await safeFetch(`${config.baseUrl}${path}`, {
     ...init,
     headers: {
