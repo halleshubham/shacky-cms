@@ -30,8 +30,8 @@ function makePrisma() {
   } as any;
 }
 
-function getSendCampaignHandler(prisma: any) {
-  const server = createMcpServer(prisma, 'user1', ['campaigns:write', 'campaigns:read']);
+function getSendCampaignHandler(prisma: any, role: any = 'superadmin') {
+  const server = createMcpServer(prisma, 'user1', role, ['campaigns:write', 'campaigns:read']);
   return (server as any)._registeredTools['send_campaign'].handler;
 }
 
