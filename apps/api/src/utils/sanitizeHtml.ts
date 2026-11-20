@@ -16,6 +16,10 @@ const ALLOWED_TAGS = [
   'blockquote', 'ul', 'ol', 'li', 'pre', 'code',
   'img', 'a', 'hr', 'br',
   'table', 'thead', 'tbody', 'tr', 'th', 'td',
+  // Layout wrappers and captions used by imported/themed content (no style attr allowed).
+  'figure', 'figcaption', 'div', 'span', 'sup', 'sub',
+  // Video embeds, restricted to the hosts the web CSP's frame-src already allows.
+  'iframe',
 ];
 
 const ALLOWED_ATTRIBUTES: sanitizeHtml.IOptions['allowedAttributes'] = {
@@ -23,7 +27,14 @@ const ALLOWED_ATTRIBUTES: sanitizeHtml.IOptions['allowedAttributes'] = {
   img: ['src', 'alt', 'title', 'width', 'height'],
   th: ['colspan', 'rowspan'],
   td: ['colspan', 'rowspan'],
+  div: ['class'],
+  span: ['class'],
+  figure: ['class'],
+  figcaption: ['class'],
+  iframe: ['src', 'width', 'height', 'title', 'allowfullscreen', 'loading', 'referrerpolicy'],
 };
+
+const ALLOWED_IFRAME_HOSTNAMES = ['www.youtube.com', 'www.youtube-nocookie.com', 'player.vimeo.com'];
 
 export function sanitizePostContent(html: string): string {
   if (!html) return html;
@@ -32,6 +43,9 @@ export function sanitizePostContent(html: string): string {
     allowedAttributes: ALLOWED_ATTRIBUTES,
     allowedSchemes: ['http', 'https', 'mailto'],
     allowProtocolRelative: false,
+    allowedIframeHostnames: ALLOWED_IFRAME_HOSTNAMES,
+    // An iframe whose src was rejected (other host / bad scheme) is removed, not left empty.
+    exclusiveFilter: (frame) => frame.tag === 'iframe' && !frame.attribs.src,
     disallowedTagsMode: 'discard',
   });
 }
