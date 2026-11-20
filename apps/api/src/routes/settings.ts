@@ -1,8 +1,31 @@
-import type { FastifyPluginAsync } from 'fastify';
+import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../plugins/prisma.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
 import { sendMail } from '../services/email.js';
+
+// requireAdmin lets both superadmin and editor through, but these keys hold
+// live third-party credentials (AI provider key, SMTP password, Botsab/
+// Resend/stock-photo API keys). An editor account needs to see THAT one is
+// configured (to know whether e.g. AI generation will work) but not the
+// plaintext value itself — only superadmin gets the real value back.
+const SECRET_KEYS = new Set([
+  'ai_api_key',
+  'smtp_pass',
+  'resend_api_key',
+  'botsab_api_key',
+  'stock_unsplash_key',
+  'stock_pexels_key',
+  'stock_pixabay_key',
+]);
+
+function redactSecretsForNonSuperadmin(req: FastifyRequest, out: Record<string, string>): Record<string, string> {
+  if (req.user?.role === 'superadmin') return out;
+  for (const key of SECRET_KEYS) {
+    if (out[key]) out[key] = '***';
+  }
+  return out;
+}
 
 // Public site settings keys (returned without auth)
 const PUBLIC_KEYS = [
@@ -34,12 +57,12 @@ const settingsRoutes: FastifyPluginAsync = async (fastify) => {
     return reply.send(out);
   });
 
-  // GET /settings — all settings, admin only
-  fastify.get('/', { preHandler: [authenticate, requireAdmin] }, async (_req, reply) => {
+  // GET /settings — all settings, admin only (editor gets secret values redacted)
+  fastify.get('/', { preHandler: [authenticate, requireAdmin] }, async (req, reply) => {
     const rows = await prisma.setting.findMany({ orderBy: { key: 'asc' } });
     const out: Record<string, string> = {};
     for (const r of rows) out[r.key] = r.value;
-    return reply.send(out);
+    return reply.send(redactSecretsForNonSuperadmin(req, out));
   });
 
   // PATCH /settings — upsert multiple settings
