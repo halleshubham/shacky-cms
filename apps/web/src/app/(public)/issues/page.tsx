@@ -14,8 +14,9 @@ async function getIssues(page = 1) {
   } catch { return { data: [], total: 0, totalPages: 0 }; }
 }
 
-export default async function IssuesPage({ searchParams }: { searchParams: { page?: string } }) {
-  const page = Number(searchParams.page || 1);
+export default async function IssuesPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
+  const { page: pageParam } = await searchParams;
+  const page = Number(pageParam || 1);
   const { data: issues, total, totalPages } = await getIssues(page);
 
   return (

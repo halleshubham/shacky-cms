@@ -6,7 +6,7 @@ import { fetchAllPublishedPosts } from '@/lib/sitemap';
 const API = process.env.API_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL;
 
 export async function GET() {
-  const SITE = siteUrl(headers());
+  const SITE = siteUrl(await headers());
   try {
     const [posts, catsRes, authorsRes, tagsRes, pagesRes] = await Promise.all([
       fetchAllPublishedPosts(API),

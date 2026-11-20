@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, use } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Download, Trash2, UserPlus, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -11,7 +11,8 @@ import { api } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
 import toast from 'react-hot-toast';
 
-export default function FormEntriesPage({ params }: { params: { id: string } }) {
+export default function FormEntriesPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
   const [form, setForm] = useState<any>(null);
   const [entries, setEntries] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
@@ -34,12 +35,12 @@ export default function FormEntriesPage({ params }: { params: { id: string } }) 
   const [newListName, setNewListName] = useState('');
   const [addingToList, setAddingToList] = useState(false);
 
-  const loadForm = () => api.get<any>(`/api/forms/${params.id}`).then(setForm);
+  const loadForm = () => api.get<any>(`/api/forms/${id}`).then(setForm);
 
   const loadEntries = async () => {
     setLoading(true);
     try {
-      const data = await api.get<any>(`/api/forms/${params.id}/entries?page=${page}&pageSize=${pageSize}`);
+      const data = await api.get<any>(`/api/forms/${id}/entries?page=${page}&pageSize=${pageSize}`);
       setEntries(data.data);
       setTotal(data.total);
     } finally {
@@ -47,8 +48,8 @@ export default function FormEntriesPage({ params }: { params: { id: string } }) 
     }
   };
 
-  useEffect(() => { loadForm(); }, [params.id]);
-  useEffect(() => { loadEntries(); }, [params.id, page]);
+  useEffect(() => { loadForm(); }, [id]);
+  useEffect(() => { loadEntries(); }, [id, page]);
 
   const fields: any[] = form?.fields || [];
   const totalPages = Math.ceil(total / pageSize);
@@ -87,7 +88,7 @@ export default function FormEntriesPage({ params }: { params: { id: string } }) 
 
   const handleExport = (idsOnly = false) => {
     const ids = idsOnly ? [...selected].join(',') : undefined;
-    const url = `/api/forms/${params.id}/entries/export${ids ? `?ids=${ids}` : ''}`;
+    const url = `/api/forms/${id}/entries/export${ids ? `?ids=${ids}` : ''}`;
     window.open(url, '_blank');
   };
 
@@ -95,7 +96,7 @@ export default function FormEntriesPage({ params }: { params: { id: string } }) 
     const ids = [...selected];
     if (!confirm(`Delete ${ids.length} selected entr${ids.length !== 1 ? 'ies' : 'y'}? This cannot be undone.`)) return;
     try {
-      await api.post(`/api/forms/${params.id}/entries/bulk-delete`, { ids });
+      await api.post(`/api/forms/${id}/entries/bulk-delete`, { ids });
       toast.success(`${ids.length} entr${ids.length !== 1 ? 'ies' : 'y'} deleted`);
       setSelected(new Set());
       await loadEntries();
@@ -107,7 +108,7 @@ export default function FormEntriesPage({ params }: { params: { id: string } }) 
   const handleDeleteEntry = async (entryId: string) => {
     if (!confirm('Delete this entry?')) return;
     try {
-      await api.delete(`/api/forms/${params.id}/entries/${entryId}`);
+      await api.delete(`/api/forms/${id}/entries/${entryId}`);
       toast.success('Entry deleted');
       setSelected((prev) => { const next = new Set(prev); next.delete(entryId); return next; });
       await loadEntries();
@@ -119,7 +120,7 @@ export default function FormEntriesPage({ params }: { params: { id: string } }) 
   const handleDeleteAll = async () => {
     if (!confirm(`Delete all ${total} entries? This cannot be undone.`)) return;
     try {
-      await api.delete(`/api/forms/${params.id}/entries`);
+      await api.delete(`/api/forms/${id}/entries`);
       toast.success('All entries deleted');
       setSelected(new Set());
       setPage(1);
@@ -136,7 +137,7 @@ export default function FormEntriesPage({ params }: { params: { id: string } }) 
 
     setAddingToList(true);
     try {
-      const result = await api.post<any>(`/api/forms/${params.id}/entries/to-list`, {
+      const result = await api.post<any>(`/api/forms/${id}/entries/to-list`, {
         entryIds: [...selected],
         emailField: emailField || undefined,
         phoneField: phoneField || undefined,
@@ -160,7 +161,7 @@ export default function FormEntriesPage({ params }: { params: { id: string } }) 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" asChild>
-            <Link href={`/admin/forms/${params.id}`}><ArrowLeft className="h-4 w-4" /></Link>
+            <Link href={`/admin/forms/${id}`}><ArrowLeft className="h-4 w-4" /></Link>
           </Button>
           <div>
             <h1 className="text-2xl font-bold">{form?.name || 'Form'} — Entries</h1>

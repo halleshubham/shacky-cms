@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, use } from 'react';
 import { CheckCircle2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,7 +23,8 @@ interface FormDef {
   successMessage?: string;
 }
 
-export default function PublicFormPage({ params }: { params: { slug: string } }) {
+export default function PublicFormPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = use(params);
   const [form, setForm] = useState<FormDef | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [values, setValues] = useState<Record<string, string>>({});
@@ -36,7 +37,7 @@ export default function PublicFormPage({ params }: { params: { slug: string } })
   const siteName = siteSettings.site_title || 'Shacky CMS';
 
   useEffect(() => {
-    fetch(`/api/forms/public/${params.slug}`)
+    fetch(`/api/forms/public/${slug}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
       .then((d) => {
         setForm(d);
@@ -45,7 +46,7 @@ export default function PublicFormPage({ params }: { params: { slug: string } })
         setValues(initial);
       })
       .catch(() => setNotFound(true));
-  }, [params.slug]);
+  }, [slug]);
 
   const set = (name: string, value: string) => {
     setValues((prev) => ({ ...prev, [name]: value }));
@@ -70,7 +71,7 @@ export default function PublicFormPage({ params }: { params: { slug: string } })
     setSubmitting(true);
     setServerError('');
     try {
-      const res = await fetch(`/api/forms/public/${params.slug}`, {
+      const res = await fetch(`/api/forms/public/${slug}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(values),

@@ -21,8 +21,9 @@ async function getPost(slug: string) {
   } catch { return null; }
 }
 
-export async function generateMetadata({ params }: { params: { slug: string } }) {
-  const post = await getPost(params.slug);
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const post = await getPost(slug);
   if (!post) return { title: 'Not Found' };
   return {
     title: post.seoTitle || post.title,
@@ -30,8 +31,9 @@ export async function generateMetadata({ params }: { params: { slug: string } })
   };
 }
 
-export default async function ArticlePage({ params }: { params: { slug: string } }) {
-  const [post, settings] = await Promise.all([getPost(params.slug), getSiteSettings()]);
+export default async function ArticlePage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const [post, settings] = await Promise.all([getPost(slug), getSiteSettings()]);
   if (!post) notFound();
 
   const authors = post.authors || [];

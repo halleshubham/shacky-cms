@@ -20,11 +20,12 @@ async function postExists(slug: string) {
 //   2. a CMS page with that slug → rendered in place (keeps the clean legacy URL, and
 //      is what navigation menu items of type "page" link to: /<slug>)
 //   3. otherwise 404 (raised by the page view).
-export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   return pageMetadata({ params });
 }
 
-export default async function LegacySlug({ params }: { params: { slug: string } }) {
-  if (await postExists(params.slug)) permanentRedirect(`/articles/${params.slug}`);
+export default async function LegacySlug({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  if (await postExists(slug)) permanentRedirect(`/articles/${slug}`);
   return PublicPageView({ params });
 }
