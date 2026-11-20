@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
 import { prisma } from '../plugins/prisma.js';
+import { cachedSettings } from '../utils/settingsCache.js';
 
 interface SendMailOptions {
   to: string | string[];
@@ -20,28 +21,30 @@ interface EmailConfig {
 }
 
 export async function getEmailConfig(): Promise<EmailConfig> {
-  const rows = await prisma.setting.findMany({
-    where: {
-      key: { in: ['email_provider', 'email_from', 'email_from_name', 'smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass', 'resend_api_key'] },
-    },
+  return cachedSettings('email', async () => {
+    const rows = await prisma.setting.findMany({
+      where: {
+        key: { in: ['email_provider', 'email_from', 'email_from_name', 'smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass', 'resend_api_key'] },
+      },
+    });
+    const s: Record<string, string> = {};
+    for (const r of rows) s[r.key] = r.value;
+
+    const provider = (s.email_provider === 'smtp' ? 'smtp' : 'resend') as EmailConfig['provider'];
+    const from = s.email_from || 'noreply@localhost';
+    const fromName = s.email_from_name || '';
+
+    return {
+      provider,
+      from,
+      fromName,
+      smtpHost: s.smtp_host,
+      smtpPort: s.smtp_port ? Number(s.smtp_port) : 587,
+      smtpUser: s.smtp_user,
+      smtpPass: s.smtp_pass,
+      resendApiKey: s.resend_api_key,
+    };
   });
-  const s: Record<string, string> = {};
-  for (const r of rows) s[r.key] = r.value;
-
-  const provider = (s.email_provider === 'smtp' ? 'smtp' : 'resend') as EmailConfig['provider'];
-  const from = s.email_from || 'noreply@localhost';
-  const fromName = s.email_from_name || '';
-
-  return {
-    provider,
-    from,
-    fromName,
-    smtpHost: s.smtp_host,
-    smtpPort: s.smtp_port ? Number(s.smtp_port) : 587,
-    smtpUser: s.smtp_user,
-    smtpPass: s.smtp_pass,
-    resendApiKey: s.resend_api_key,
-  };
 }
 
 async function sendViaResend(cfg: EmailConfig, opts: SendMailOptions): Promise<void> {

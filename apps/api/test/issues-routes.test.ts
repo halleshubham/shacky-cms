@@ -3,6 +3,7 @@ import Fastify from 'fastify';
 
 const prisma = vi.hoisted(() => ({
   issue: { create: vi.fn(), update: vi.fn(), findUnique: vi.fn() },
+  post: { updateMany: vi.fn() },
 }));
 vi.mock('../src/plugins/prisma.js', () => ({ prisma }));
 vi.mock('../src/utils/audit.js', () => ({ audit: vi.fn() }));
@@ -45,5 +46,33 @@ describe('POST /api/issues — duplicate volume+issue', () => {
     prisma.issue.create.mockRejectedValue(new Error('connection lost'));
     const res = await app.inject({ method: 'POST', url: '/api/issues', payload: body });
     expect(res.statusCode).toBe(500);
+  });
+});
+
+// Regression coverage: bulk-publish used a per-post sequential loop
+// (prisma.post.update inside a for...of) instead of batched updateMany
+// calls — an issue with 50 articles meant 50 sequential round-trips.
+describe('POST /api/issues/:id/bulk-publish — batched instead of per-row', () => {
+  it('publishing uses two updateMany calls split on publishedAt, not one update per post', async () => {
+    prisma.post.updateMany.mockResolvedValueOnce({ count: 3 }).mockResolvedValueOnce({ count: 2 });
+    const res = await app.inject({ method: 'POST', url: '/api/issues/i1/bulk-publish', payload: { status: 'published' } });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ success: true, count: 5 });
+    expect(prisma.post.updateMany).toHaveBeenCalledTimes(2);
+
+    const calls = prisma.post.updateMany.mock.calls;
+    const freshDateCall = calls.find((c: any) => c[0].where.publishedAt === null);
+    expect(freshDateCall[0].data.publishedAt).toBeInstanceOf(Date);
+    const preserveDateCall = calls.find((c: any) => c[0].where.publishedAt?.not === null);
+    expect(preserveDateCall[0].data).not.toHaveProperty('publishedAt');
+  });
+
+  it('setting back to draft is a single updateMany clearing publishedAt', async () => {
+    prisma.post.updateMany.mockResolvedValueOnce({ count: 4 });
+    const res = await app.inject({ method: 'POST', url: '/api/issues/i1/bulk-publish', payload: { status: 'draft' } });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ success: true, count: 4 });
+    expect(prisma.post.updateMany).toHaveBeenCalledTimes(1);
+    expect(prisma.post.updateMany.mock.calls[0][0].data).toMatchObject({ status: 'draft', publishedAt: null });
   });
 });
