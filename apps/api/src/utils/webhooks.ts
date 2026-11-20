@@ -1,5 +1,6 @@
 import { prisma } from '../plugins/prisma.js';
 import crypto from 'crypto';
+import { safeFetch } from './ssrfGuard.js';
 
 export async function fireWebhook(event: string, payload: unknown): Promise<void> {
   const hooks = await prisma.webhook.findMany({ where: { event, isActive: true } });
@@ -16,9 +17,9 @@ export async function fireWebhook(event: string, payload: unknown): Promise<void
       }
 
       try {
-        await fetch(hook.targetUrl, { method: 'POST', headers, body, signal: AbortSignal.timeout(10000) });
+        await safeFetch(hook.targetUrl, { method: 'POST', headers, body, signal: AbortSignal.timeout(10000) });
       } catch {
-        // Fire-and-forget; failures are silent
+        // Fire-and-forget; failures (including a blocked target) are silent
       }
     }),
   );

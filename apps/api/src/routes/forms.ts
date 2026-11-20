@@ -4,6 +4,7 @@ import { prisma } from '../plugins/prisma.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
 import { sendMail } from '../services/email.js';
 import { createId } from '@paralleldrive/cuid2';
+import { safeFetch } from '../utils/ssrfGuard.js';
 
 const fieldSchema = z.object({
   name: z.string().min(1),
@@ -96,14 +97,14 @@ function digestEmailHtml(formName: string, fields: FormField[], entries: { data:
 async function fireFormWebhook(webhookUrl: string, formSlug: string, data: Record<string, unknown>): Promise<void> {
   try {
     const body = JSON.stringify({ event: 'form.entry', form: formSlug, data, timestamp: new Date().toISOString() });
-    await fetch(webhookUrl, {
+    await safeFetch(webhookUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body,
       signal: AbortSignal.timeout(10000),
     });
   } catch {
-    // fire-and-forget
+    // fire-and-forget (including a blocked target)
   }
 }
 

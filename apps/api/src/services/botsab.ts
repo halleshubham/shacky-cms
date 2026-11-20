@@ -1,4 +1,5 @@
 import { prisma } from '../plugins/prisma.js';
+import { safeFetch } from '../utils/ssrfGuard.js';
 
 export interface BotsabGroup {
   id: string;
@@ -29,7 +30,7 @@ export async function getBotsabConfig(): Promise<BotsabConfig | null> {
 }
 
 async function botsabFetch(config: BotsabConfig, path: string, init?: RequestInit) {
-  const res = await fetch(`${config.baseUrl}${path}`, {
+  const res = await safeFetch(`${config.baseUrl}${path}`, {
     ...init,
     headers: {
       'x-api-key': config.apiKey,
