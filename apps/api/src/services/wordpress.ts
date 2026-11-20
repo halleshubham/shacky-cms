@@ -4,6 +4,7 @@ import { createId } from '@paralleldrive/cuid2';
 import { prisma } from '../plugins/prisma.js';
 import { uploadToS3 } from '../utils/s3.js';
 import { slugify } from '@shacky/shared';
+import { sanitizePostContent } from '../utils/sanitizeHtml.js';
 
 export interface WPConfig {
   baseUrl: string;
@@ -787,10 +788,13 @@ export async function runMigration(
           if (wp.status === 'publish') status = 'published';
           else if (wp.status === 'future') status = 'scheduled';
 
-          // Rewrite inline content images to point to our MinIO storage
+          // Rewrite inline content images to point to our MinIO storage, then
+          // sanitize — the WordPress source could be a spoofed or compromised
+          // site, and this content reaches the public site unsanitized
+          // otherwise (same sink as the TipTap editor's own content).
           const rawContent = wp.content?.rendered || '';
           const content = rawContent
-            ? await rewriteContentImages(rawContent, cfg.baseUrl, userId, imageUrlCache)
+            ? sanitizePostContent(await rewriteContentImages(rawContent, cfg.baseUrl, userId, imageUrlCache))
             : rawContent;
 
           // Upsert post (update if slug exists and skipExisting is false)

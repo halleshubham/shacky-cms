@@ -12,6 +12,7 @@ import { audit } from '../utils/audit.js';
 import { slugify, escapeLikeWildcards } from '@shacky/shared';
 import { fireWebhook } from '../utils/webhooks.js';
 import { createId } from '@paralleldrive/cuid2';
+import { sanitizePostContent } from '../utils/sanitizeHtml.js';
 
 const postBodySchema = z.object({
   title: z.string().min(1),
@@ -163,7 +164,7 @@ const postsRoutes: FastifyPluginAsync = async (fastify) => {
       data: {
         title: body.title,
         slug,
-        content: body.content,
+        content: sanitizePostContent(body.content),
         excerpt: body.excerpt,
         status: (body.status || 'draft') as any,
         isFeatured: body.isFeatured ?? false,
@@ -232,7 +233,7 @@ const postsRoutes: FastifyPluginAsync = async (fastify) => {
       data: {
         ...(body.title && { title: body.title }),
         ...(newSlug && { slug: newSlug }),
-        ...(body.content !== undefined && { content: body.content }),
+        ...(body.content !== undefined && { content: sanitizePostContent(body.content) }),
         ...(body.excerpt !== undefined && { excerpt: body.excerpt }),
         ...(body.status && { status: body.status as any }),
         ...(body.isFeatured !== undefined && { isFeatured: body.isFeatured }),

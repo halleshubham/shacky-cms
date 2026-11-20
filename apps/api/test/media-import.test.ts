@@ -88,3 +88,35 @@ describe('POST /api/media/import', () => {
     expect(uploadToS3).not.toHaveBeenCalled();
   });
 });
+
+// Regression coverage: POST /upload stored non-image files with whatever
+// Content-Type the uploader claimed, with no validation at all — an
+// attacker could set Content-Type: text/html (or text/javascript,
+// image/svg+xml, etc) on any file and get it served back from the same
+// origin as if it were a real document, a stored-XSS vector. Only a fixed
+// allowlist of document/media types may now pass through unmodified;
+// anything else is rejected before it ever reaches uploadToS3.
+describe('POST /api/media/upload — non-image content-type allowlist', () => {
+  it('rejects text/html outright', async () => {
+    const { payload, headers } = form({}, { name: 'evil.html', type: 'text/html', body: Buffer.from('<script>alert(1)</script>') });
+    const res = await app.inject({ method: 'POST', url: '/api/media/upload', payload, headers });
+    expect(res.statusCode).toBe(415);
+    expect(uploadToS3).not.toHaveBeenCalled();
+    expect(prisma.media.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects an executable script content-type outright', async () => {
+    const { payload, headers } = form({}, { name: 'evil.js', type: 'text/javascript', body: Buffer.from('alert(1)') });
+    const res = await app.inject({ method: 'POST', url: '/api/media/upload', payload, headers });
+    expect(res.statusCode).toBe(415);
+    expect(uploadToS3).not.toHaveBeenCalled();
+  });
+
+  it('allows an allowlisted document type through untouched', async () => {
+    const body = Buffer.from('%PDF-1.4 real-ish pdf bytes');
+    const { payload, headers } = form({}, { name: 'report.pdf', type: 'application/pdf', body });
+    const res = await app.inject({ method: 'POST', url: '/api/media/upload', payload, headers });
+    expect(res.statusCode).toBe(201);
+    expect(uploadToS3).toHaveBeenCalledWith(expect.stringContaining('media/'), body, 'application/pdf');
+  });
+});

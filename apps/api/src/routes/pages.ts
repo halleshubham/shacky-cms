@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../plugins/prisma.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
 import { slugify, escapeLikeWildcards } from '@shacky/shared';
+import { sanitizePostContent } from '../utils/sanitizeHtml.js';
 
 const pageBodySchema = z.object({
   title: z.string().min(1),
@@ -59,7 +60,7 @@ const pagesRoutes: FastifyPluginAsync = async (fastify) => {
       data: {
         title: body.title,
         slug,
-        content: body.content,
+        content: sanitizePostContent(body.content),
         sectionsJson: body.sectionsJson ?? null,
         excerpt: body.excerpt,
         status: (body.status || 'draft') as any,
@@ -79,6 +80,7 @@ const pagesRoutes: FastifyPluginAsync = async (fastify) => {
       where: { id },
       data: {
         ...body,
+        ...(body.content !== undefined && { content: sanitizePostContent(body.content) }),
         ...(body.publishedAt !== undefined && { publishedAt: body.publishedAt ? new Date(body.publishedAt) : null }),
         ...(body.sectionsJson !== undefined && { sectionsJson: body.sectionsJson }),
         status: body.status as any,
