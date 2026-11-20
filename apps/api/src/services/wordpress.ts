@@ -4,6 +4,7 @@ import { createId } from '@paralleldrive/cuid2';
 import { prisma } from '../plugins/prisma.js';
 import { uploadToS3 } from '../utils/s3.js';
 import { slugify } from '@shacky/shared';
+import { safeFetch } from '../utils/ssrfGuard.js';
 
 export interface WPConfig {
   baseUrl: string;
@@ -60,7 +61,7 @@ function authHeader(cfg: WPConfig): string {
 async function wpFetch(cfg: WPConfig, path: string, params: Record<string, string> = {}): Promise<any> {
   const url = new URL(`${cfg.baseUrl.replace(/\/$/, '')}/wp-json/wp/v2/${path}`);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
-  const res = await fetch(url.toString(), {
+  const res = await safeFetch(url.toString(), {
     headers: { Authorization: authHeader(cfg), 'User-Agent': 'ShackyCMS-Migrator/1.0' },
     signal: AbortSignal.timeout(120_000),
   });
@@ -78,7 +79,7 @@ async function wpFetch(cfg: WPConfig, path: string, params: Record<string, strin
 // the display name from the nearest span element.
 async function scrapeAuthorFromPost(postUrl: string, baseUrl: string): Promise<{ name: string; slug: string } | null> {
   try {
-    const res = await fetch(postUrl, {
+    const res = await safeFetch(postUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -142,7 +143,7 @@ export async function testWPConnection(cfg: WPConfig): Promise<{
     wpFetch(cfg, 'categories', { per_page: '1' }),
     wpFetch(cfg, 'tags', { per_page: '1' }),
     safeUserFetch,
-    fetch(`${cfg.baseUrl.replace(/\/$/, '')}/wp-json/`, {
+    safeFetch(`${cfg.baseUrl.replace(/\/$/, '')}/wp-json/`, {
       headers: { Authorization: authHeader(cfg) },
       signal: AbortSignal.timeout(10_000),
     }).then((r) => r.json()).catch(() => ({})),
@@ -348,7 +349,7 @@ async function importFeaturedImage(
   userId: string,
 ): Promise<string | null> {
   try {
-    const res = await fetch(imageUrl, { signal: AbortSignal.timeout(30_000) });
+    const res = await safeFetch(imageUrl, { signal: AbortSignal.timeout(30_000) });
     if (!res.ok) return null;
     const buffer = Buffer.from(await res.arrayBuffer());
     const originalName = imageUrl.split('/').pop()?.split('?')[0] || 'image.jpg';
@@ -394,7 +395,7 @@ async function importFeaturedImage(
 
 async function downloadToS3(imageUrl: string, userId: string): Promise<string | null> {
   try {
-    const res = await fetch(imageUrl, { signal: AbortSignal.timeout(30_000) });
+    const res = await safeFetch(imageUrl, { signal: AbortSignal.timeout(30_000) });
     if (!res.ok) return null;
     const buffer = Buffer.from(await res.arrayBuffer());
 
