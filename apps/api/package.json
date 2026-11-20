@@ -53,13 +53,14 @@
     "@types/bcryptjs": "^2.4.6",
     "@types/he": "^1.2.3",
     "@types/multer": "^1.4.12",
-    "@types/node": "^20.14.11",
+    "@types/node": "^22.0.0",
     "@types/nodemailer": "^6.4.15",
     "@types/qrcode": "^1.5.5",
     "@types/sanitize-html": "^2.16.2",
     "tsx": "^4.16.2",
     "typescript": "^5.4.5",
-    "vitest": "^2.1.9"
+    "vite": "^7.3.8",
+    "vitest": "^5.1.1"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
