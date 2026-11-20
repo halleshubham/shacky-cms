@@ -212,6 +212,24 @@ describe('role enforcement (privilege-escalation fix)', () => {
   });
 });
 
+// Regression coverage: post content reached storage (and from there the
+// public site, via dangerouslySetInnerHTML) completely unsanitized.
+describe('content sanitization on create/update', () => {
+  it('strips a <script> tag from create', async () => {
+    prisma.post.findUnique.mockResolvedValueOnce(null); // slug not taken
+    prisma.post.create.mockResolvedValueOnce({ ...existing, authors: [], categories: [], tags: [] });
+    await post({ title: 'T', content: '<p>hi</p><script>alert(1)</script>' });
+    expect(prisma.post.create.mock.calls[0][0].data.content).not.toContain('<script');
+    expect(prisma.post.create.mock.calls[0][0].data.content).toContain('<p>hi</p>');
+  });
+
+  it('strips an onerror handler from update', async () => {
+    prisma.post.findUnique.mockResolvedValueOnce(existing);
+    await patch({ content: '<img src="x.jpg" onerror="alert(1)">' });
+    expect(prisma.post.update.mock.calls[0][0].data.content).not.toContain('onerror');
+  });
+});
+
 // Regression coverage: GET /:id, GET /:id/revisions, and POST /:id/duplicate
 // had no ownership check for the author role at all — the list endpoint
 // filters to the author's own posts, but fetching/duplicating by ID bypassed
