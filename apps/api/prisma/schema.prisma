@@ -81,6 +81,7 @@ model AuditLog {
 
   @@index([userId])
   @@index([createdAt])
+  @@index([action, createdAt])
   @@map("audit_logs")
 }
 
@@ -218,6 +219,7 @@ model PostAuthor {
   user     User?   @relation(fields: [userId], references: [id])
 
   @@id([postId, authorId])
+  @@index([authorId])
   @@map("post_authors")
 }
 
@@ -228,6 +230,7 @@ model PostCategory {
   post       Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   @@id([postId, categoryId])
+  @@index([categoryId])
   @@map("post_categories")
 }
 
@@ -238,6 +241,7 @@ model PostTag {
   tag    Tag    @relation(fields: [tagId], references: [id])
 
   @@id([postId, tagId])
+  @@index([tagId])
   @@map("post_tags")
 }
 
@@ -303,6 +307,7 @@ model Subscriber {
   unsubscribedAt   DateTime?
   lists            SubscriberListMember[]
 
+  @@index([status])
   @@map("subscribers")
 }
 
@@ -498,5 +503,6 @@ model OAuthAccessToken {
   createdAt DateTime    @default(now())
 
   @@index([token])
+  @@index([userId, revoked])
   @@map("oauth_access_tokens")
 }
