@@ -3,7 +3,7 @@ import Fastify from 'fastify';
 
 const prisma = vi.hoisted(() => ({
   post: { findUnique: vi.fn(), update: vi.fn(), create: vi.fn() },
-  revision: { create: vi.fn() },
+  revision: { create: vi.fn(), findMany: vi.fn() },
   postAuthor: { findFirst: vi.fn() },
 }));
 // Mutable per-test "logged in as" — real role-checking logic (not a no-op), so
@@ -43,6 +43,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   mockUser.current = { id: 'u1', email: 'a@b.test', role: 'superadmin', name: 'Admin' };
   prisma.post.update.mockResolvedValue(updated);
+  prisma.revision.findMany.mockResolvedValue([]);
 });
 
 const asRole = (role: string) => { mockUser.current = { ...mockUser.current, role }; };
@@ -208,5 +209,88 @@ describe('role enforcement (privilege-escalation fix)', () => {
     const res = await patch({ codeInjectionHead: '<script>trusted()</script>' });
     expect(res.statusCode).toBe(200);
     expect(prisma.post.update.mock.calls[0][0].data.codeInjectionHead).toBe('<script>trusted()</script>');
+  });
+});
+
+// Regression coverage: post content reached storage (and from there the
+// public site, via dangerouslySetInnerHTML) completely unsanitized.
+describe('content sanitization on create/update', () => {
+  it('strips a <script> tag from create', async () => {
+    prisma.post.findUnique.mockResolvedValueOnce(null); // slug not taken
+    prisma.post.create.mockResolvedValueOnce({ ...existing, authors: [], categories: [], tags: [] });
+    await post({ title: 'T', content: '<p>hi</p><script>alert(1)</script>' });
+    expect(prisma.post.create.mock.calls[0][0].data.content).not.toContain('<script');
+    expect(prisma.post.create.mock.calls[0][0].data.content).toContain('<p>hi</p>');
+  });
+
+  it('strips an onerror handler from update', async () => {
+    prisma.post.findUnique.mockResolvedValueOnce(existing);
+    await patch({ content: '<img src="x.jpg" onerror="alert(1)">' });
+    expect(prisma.post.update.mock.calls[0][0].data.content).not.toContain('onerror');
+  });
+});
+
+// Regression coverage: GET /:id, GET /:id/revisions, and POST /:id/duplicate
+// had no ownership check for the author role at all — the list endpoint
+// filters to the author's own posts, but fetching/duplicating by ID bypassed
+// that entirely, letting any author read or clone any other author's draft.
+describe('author ownership on GET /:id, GET /:id/revisions, POST /:id/duplicate (IDOR fix)', () => {
+  beforeEach(() => {
+    prisma.post.findUnique.mockResolvedValue(updated); // has authors/categories/tags for formatPost
+    prisma.post.create.mockResolvedValue(updated);
+  });
+
+  it('blocks an author from reading a post they are not credited on', async () => {
+    asRole('author');
+    prisma.postAuthor.findFirst.mockResolvedValueOnce(null);
+    const res = await app.inject({ method: 'GET', url: '/api/posts/p1' });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('allows an author to read their own post', async () => {
+    asRole('author');
+    prisma.postAuthor.findFirst.mockResolvedValueOnce({ id: 'pa1' });
+    const res = await app.inject({ method: 'GET', url: '/api/posts/p1' });
+    expect(res.statusCode).toBe(200);
+  });
+
+  it.each(['superadmin', 'editor'])('%s can read any post with no ownership check', async (role) => {
+    asRole(role);
+    const res = await app.inject({ method: 'GET', url: '/api/posts/p1' });
+    expect(res.statusCode).toBe(200);
+    expect(prisma.postAuthor.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('blocks an author from reading revision history of a post they are not credited on', async () => {
+    asRole('author');
+    prisma.postAuthor.findFirst.mockResolvedValueOnce(null);
+    const res = await app.inject({ method: 'GET', url: '/api/posts/p1/revisions' });
+    expect(res.statusCode).toBe(403);
+    expect(prisma.revision.findMany).not.toHaveBeenCalled();
+  });
+
+  it('allows an author to read revision history of their own post', async () => {
+    asRole('author');
+    prisma.postAuthor.findFirst.mockResolvedValueOnce({ id: 'pa1' });
+    const res = await app.inject({ method: 'GET', url: '/api/posts/p1/revisions' });
+    expect(res.statusCode).toBe(200);
+    expect(prisma.revision.findMany).toHaveBeenCalled();
+  });
+
+  it('blocks an author from duplicating a post they are not credited on', async () => {
+    asRole('author');
+    prisma.postAuthor.findFirst.mockResolvedValueOnce(null);
+    const res = await app.inject({ method: 'POST', url: '/api/posts/p1/duplicate' });
+    expect(res.statusCode).toBe(403);
+    expect(prisma.post.create).not.toHaveBeenCalled();
+  });
+
+  it('allows an author to duplicate their own post', async () => {
+    asRole('author');
+    prisma.postAuthor.findFirst.mockResolvedValueOnce({ id: 'pa1' });
+    prisma.post.findUnique.mockResolvedValueOnce({ ...existing, authors: [], categories: [], tags: [] }).mockResolvedValueOnce(null);
+    const res = await app.inject({ method: 'POST', url: '/api/posts/p1/duplicate' });
+    expect(res.statusCode).toBe(201);
+    expect(prisma.post.create).toHaveBeenCalled();
   });
 });

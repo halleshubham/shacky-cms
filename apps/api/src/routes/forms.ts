@@ -4,6 +4,7 @@ import { prisma } from '../plugins/prisma.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
 import { sendMail } from '../services/email.js';
 import { createId } from '@paralleldrive/cuid2';
+import { safeFetch } from '../utils/ssrfGuard.js';
 
 const fieldSchema = z.object({
   name: z.string().min(1),
@@ -96,14 +97,14 @@ function digestEmailHtml(formName: string, fields: FormField[], entries: { data:
 async function fireFormWebhook(webhookUrl: string, formSlug: string, data: Record<string, unknown>): Promise<void> {
   try {
     const body = JSON.stringify({ event: 'form.entry', form: formSlug, data, timestamp: new Date().toISOString() });
-    await fetch(webhookUrl, {
+    await safeFetch(webhookUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body,
       signal: AbortSignal.timeout(10000),
     });
   } catch {
-    // fire-and-forget
+    // fire-and-forget (including a blocked target)
   }
 }
 
@@ -149,7 +150,11 @@ const formsRoutes: FastifyPluginAsync = async (fastify) => {
 
   // --- Entries ---
 
-  fastify.get('/:id/entries', { preHandler: [authenticate] }, async (req, reply) => {
+  // Form entries can hold visitor PII (names, emails, phone numbers, free
+  // text) submitted through a public form (e.g. a sensitive contact/intake
+  // form never meant for content staff) — requireAdmin matches the delete/
+  // bulk-delete/to-list routes below, which were already admin-gated.
+  fastify.get('/:id/entries', { preHandler: [authenticate, requireAdmin] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const query = req.query as { page?: string; pageSize?: string };
     const page = parseInt(query.page || '1');
@@ -174,7 +179,7 @@ const formsRoutes: FastifyPluginAsync = async (fastify) => {
     return reply.send({ success: true });
   });
 
-  fastify.get('/:id/entries/export', { preHandler: [authenticate] }, async (req, reply) => {
+  fastify.get('/:id/entries/export', { preHandler: [authenticate, requireAdmin] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const query = req.query as { ids?: string };
     const form = await prisma.form.findUnique({ where: { id } });

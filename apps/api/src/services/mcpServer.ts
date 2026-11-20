@@ -7,15 +7,29 @@ import type { StockPhoto } from './stockSearch.js';
 import { generateNewsletterHtml, getNewsletterSettings } from './newsletter.js';
 import { sendMail } from './email.js';
 import { defaultCampaignBlocks } from '../routes/campaigns.js';
-import { escapeLikeWildcards } from '@shacky/shared';
+import { escapeLikeWildcards, type Role } from '@shacky/shared';
 
-export function createMcpServer(prisma: PrismaClient, userId: string, scopes: string[]): McpServer {
+export function createMcpServer(prisma: PrismaClient, userId: string, role: Role, scopes: string[]): McpServer {
   const server = new McpServer({
     name: 'shacky-cms',
     version: '1.0.0',
   });
 
   const can = (scope: string) => scopes.includes(scope);
+
+  // OAuth scope says what a client was *granted*; these say what the
+  // approving user's current CMS role actually permits — mirroring the
+  // same role sets the equivalent REST routes enforce (requireContentRole
+  // in posts.ts, requireAdmin in issues/pages/categories/tags.ts, canManage
+  // in campaigns.ts / the role list on every subscribers.ts route). A tool
+  // is only registered when both the scope AND the role allow it, so an
+  // over-granted scope (or a user demoted after the token was issued —
+  // role is looked up fresh on every /mcp call, never cached on the token)
+  // simply makes the tool unavailable rather than silently bypassing the
+  // role boundary the REST API enforces for the same action.
+  const isContentRole = (['superadmin', 'editor', 'author'] as Role[]).includes(role);
+  const isAdminRole = (['superadmin', 'editor'] as Role[]).includes(role);
+  const isSubscriberManagerRole = (['superadmin', 'editor', 'subscriber_manager'] as Role[]).includes(role);
 
   // ── Site info (always available) ──────────────────────────────────────────
   server.tool(
@@ -131,8 +145,8 @@ export function createMcpServer(prisma: PrismaClient, userId: string, scopes: st
     );
   }
 
-  // ── Posts write (posts:write) ─────────────────────────────────────────────
-  if (can('posts:write')) {
+  // ── Posts write (posts:write, author/editor/superadmin) ───────────────────
+  if (can('posts:write') && isContentRole) {
     server.tool(
       'create_post',
       'Create a new draft post in the CMS.',
@@ -243,7 +257,12 @@ export function createMcpServer(prisma: PrismaClient, userId: string, scopes: st
         return { content: [{ type: 'text' as const, text: JSON.stringify(photos, null, 2) }] };
       },
     );
+  }
 
+  // This tool writes to a post (sets featuredMediaId), so it needs the same
+  // write-capable role as create_post/update_post — not just media:read,
+  // which (like GET /media) is otherwise a read-only capability.
+  if (can('media:read') && can('posts:write') && isContentRole) {
     server.tool(
       'set_post_featured_image_from_stock',
       'Download a stock photo and set it as the featured image of a post. Use search_stock_images first to find a photo, then pass the imageUrl, downloadUrl, alt, credit, creditUrl, and source fields from that result along with the postId.',
@@ -296,8 +315,9 @@ export function createMcpServer(prisma: PrismaClient, userId: string, scopes: st
     );
   }
 
-  // ── Subscribers (subscribers:read) ────────────────────────────────────────
-  if (can('subscribers:read')) {
+  // ── Subscribers (subscribers:read, same role gate as every subscribers.ts
+  // REST route — superadmin/editor/subscriber_manager only) ────────────────
+  if (can('subscribers:read') && isSubscriberManagerRole) {
     server.tool(
       'list_subscribers',
       'List active subscribers with optional channel filter.',
@@ -433,8 +453,9 @@ export function createMcpServer(prisma: PrismaClient, userId: string, scopes: st
     );
   }
 
-  // ── Issues & Pages write (posts:write) ────────────────────────────────────
-  if (can('posts:write')) {
+  // ── Issues & Pages write (posts:write, but admin-only like the REST routes
+  // for issues.ts/categories.ts/tags.ts/pages.ts — author is NOT enough here) ─
+  if (can('posts:write') && isAdminRole) {
     server.tool(
       'create_issue',
       'Create a new magazine/newsletter issue.',
@@ -549,8 +570,9 @@ export function createMcpServer(prisma: PrismaClient, userId: string, scopes: st
     );
   }
 
-  // ── Campaigns (campaigns:read / campaigns:write) ───────────────────────────
-  if (can('campaigns:read')) {
+  // ── Campaigns (campaigns:read / campaigns:write, same canManage role gate
+  // as every campaigns.ts REST route — superadmin/editor/subscriber_manager) ─
+  if (can('campaigns:read') && isSubscriberManagerRole) {
     server.tool(
       'list_campaigns',
       'List email/newsletter campaigns with their status and send counts.',
@@ -583,7 +605,7 @@ export function createMcpServer(prisma: PrismaClient, userId: string, scopes: st
     );
   }
 
-  if (can('campaigns:write')) {
+  if (can('campaigns:write') && isSubscriberManagerRole) {
     server.tool(
       'create_campaign',
       'Create a new campaign linking an issue to a subscriber list.',

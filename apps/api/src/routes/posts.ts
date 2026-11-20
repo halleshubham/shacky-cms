@@ -12,6 +12,7 @@ import { audit } from '../utils/audit.js';
 import { slugify, escapeLikeWildcards } from '@shacky/shared';
 import { fireWebhook } from '../utils/webhooks.js';
 import { createId } from '@paralleldrive/cuid2';
+import { sanitizePostContent } from '../utils/sanitizeHtml.js';
 
 const postBodySchema = z.object({
   title: z.string().min(1),
@@ -144,6 +145,15 @@ const postsRoutes: FastifyPluginAsync = async (fastify) => {
     const { id } = req.params as { id: string };
     const post = await prisma.post.findUnique({ where: { id }, include });
     if (!post) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Post not found' });
+
+    // Same ownership rule as the list endpoint and PATCH/restore below —
+    // without it, an author could read any other author's draft by ID even
+    // though the list is filtered to their own posts.
+    if (req.user?.role === 'author') {
+      const isAuthor = await prisma.postAuthor.findFirst({ where: { postId: id, userId: req.user.id } });
+      if (!isAuthor) return reply.status(403).send({ statusCode: 403, error: 'Forbidden', message: 'Cannot view this post' });
+    }
+
     return reply.send(formatPost(post));
   });
 
@@ -163,7 +173,7 @@ const postsRoutes: FastifyPluginAsync = async (fastify) => {
       data: {
         title: body.title,
         slug,
-        content: body.content,
+        content: sanitizePostContent(body.content),
         excerpt: body.excerpt,
         status: (body.status || 'draft') as any,
         isFeatured: body.isFeatured ?? false,
@@ -232,7 +242,7 @@ const postsRoutes: FastifyPluginAsync = async (fastify) => {
       data: {
         ...(body.title && { title: body.title }),
         ...(newSlug && { slug: newSlug }),
-        ...(body.content !== undefined && { content: body.content }),
+        ...(body.content !== undefined && { content: sanitizePostContent(body.content) }),
         ...(body.excerpt !== undefined && { excerpt: body.excerpt }),
         ...(body.status && { status: body.status as any }),
         ...(body.isFeatured !== undefined && { isFeatured: body.isFeatured }),
@@ -290,6 +300,13 @@ const postsRoutes: FastifyPluginAsync = async (fastify) => {
     const { id } = req.params as { id: string };
     const src = await prisma.post.findUnique({ where: { id }, include });
     if (!src) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Post not found' });
+
+    // Same ownership rule as PATCH/restore — otherwise an author could
+    // clone (and thus read in full) any other author's draft post.
+    if (req.user?.role === 'author') {
+      const isAuthor = await prisma.postAuthor.findFirst({ where: { postId: id, userId: req.user.id } });
+      if (!isAuthor) return reply.status(403).send({ statusCode: 403, error: 'Forbidden', message: 'Cannot duplicate this post' });
+    }
 
     const baseSlug = `${src.slug}-copy`;
     let slug = baseSlug;
@@ -365,6 +382,14 @@ const postsRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /posts/:id/revisions
   fastify.get('/:id/revisions', { preHandler: [authenticate] }, async (req, reply) => {
     const { id } = req.params as { id: string };
+
+    // Same ownership rule as GET /:id/PATCH/restore — otherwise an author
+    // could read the full revision history of any other author's post.
+    if (req.user?.role === 'author') {
+      const isAuthor = await prisma.postAuthor.findFirst({ where: { postId: id, userId: req.user.id } });
+      if (!isAuthor) return reply.status(403).send({ statusCode: 403, error: 'Forbidden', message: 'Cannot view this post' });
+    }
+
     const revisions = await prisma.revision.findMany({
       where: { postId: id },
       include: { createdBy: { select: { id: true, name: true } } },

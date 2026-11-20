@@ -10,6 +10,36 @@ import { audit } from '../utils/audit.js';
 import { env } from '../utils/env.js';
 import { escapeLikeWildcards } from '@shacky/shared';
 
+// POST /media/upload is reachable by any authenticated role, and non-image
+// files are stored and served back with whatever Content-Type the uploader
+// claims in the multipart part header (processAndUpload's "upload as-is"
+// branch below) — nothing re-checks it against the actual bytes. Without a
+// list, an attacker could set Content-Type: text/html (or text/javascript,
+// image/svg+xml bypassing the sharp re-encode path, etc) and get a same-
+// origin stored-XSS payload served back as if it were an ordinary document.
+// Images are already safe regardless of this list: every image/* upload is
+// always re-encoded to real JPEG pixels by sharp before being stored, which
+// cannot carry executable content through. This only needs to cover the
+// non-image types that are actually safe to serve byte-for-byte.
+const ALLOWED_NON_IMAGE_MIME_TYPES = new Set([
+  'application/pdf',
+  'text/plain',
+  'text/csv',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'audio/mpeg',
+  'audio/mp4',
+  'audio/wav',
+  'audio/ogg',
+  'video/mp4',
+  'video/webm',
+  'video/quicktime',
+]);
+
 const THUMBNAIL_SIZES = [
   { name: 'thumbnail', width: 150, height: 150 },
   { name: 'medium', width: 300, height: 300 },
@@ -139,6 +169,14 @@ const mediaRoutes: FastifyPluginAsync = async (fastify) => {
     const data = await req.file();
     if (!data) {
       return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'No file uploaded' });
+    }
+
+    if (!data.mimetype.startsWith('image/') && !ALLOWED_NON_IMAGE_MIME_TYPES.has(data.mimetype)) {
+      return reply.status(415).send({
+        statusCode: 415,
+        error: 'Unsupported Media Type',
+        message: `File type "${data.mimetype}" is not allowed.`,
+      });
     }
 
     const buffer = await data.toBuffer();
