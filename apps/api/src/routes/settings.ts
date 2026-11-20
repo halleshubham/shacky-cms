@@ -68,7 +68,7 @@ const settingsRoutes: FastifyPluginAsync = async (fastify) => {
 
   // PATCH /settings — upsert multiple settings
   fastify.patch('/', { preHandler: [authenticate, requireAdmin] }, async (req, reply) => {
-    const body = z.record(z.string()).parse(req.body);
+    const body = z.record(z.string(), z.string()).parse(req.body);
     await Promise.all(
       Object.entries(body).map(([key, value]) =>
         prisma.setting.upsert({
