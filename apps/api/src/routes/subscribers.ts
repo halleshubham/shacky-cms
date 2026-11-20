@@ -5,6 +5,9 @@ import { prisma } from '../plugins/prisma.js';
 import { authenticate } from '../middleware/auth.js';
 import { requireRoles } from '../middleware/auth.js';
 import { fireWebhook } from '../utils/webhooks.js';
+import { mapWithConcurrency } from '../utils/concurrency.js';
+
+const IMPORT_CONCURRENCY = 25;
 
 // Minimal RFC-4180-ish CSV parser: handles quoted fields (including embedded
 // commas and escaped "" quotes) and CRLF/LF line endings. A naive
@@ -211,9 +214,15 @@ const subscribersRoutes: FastifyPluginAsync = async (fastify) => {
       let imported = 0;
       let skipped = 0;
 
-      for (const row of rows) {
+      // Each row is an independent upsert (different unique-key column
+      // depending on whether email or phone is present) with its own
+      // skip-on-error handling, so this can't collapse into a single
+      // createMany/updateMany — but it doesn't need to run one row at a
+      // time either. A 10k-row CSV was 10k sequential round-trips inside
+      // one HTTP request; this keeps 25 upserts in flight at once instead.
+      await mapWithConcurrency(rows, IMPORT_CONCURRENCY, async (row) => {
         const [email, phone, name, channels] = row.map((s) => s.trim());
-        if (!email && !phone) { skipped++; continue; }
+        if (!email && !phone) { skipped++; return; }
         try {
           await prisma.subscriber.upsert({
             where: email ? { email } : { phone: phone! },
@@ -233,7 +242,7 @@ const subscribersRoutes: FastifyPluginAsync = async (fastify) => {
           });
           imported++;
         } catch { skipped++; }
-      }
+      });
 
       return reply.send({ imported, skipped });
     },

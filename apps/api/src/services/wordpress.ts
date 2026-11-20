@@ -497,10 +497,11 @@ export async function runMigration(
     } else {
       // Still need to build the map for post category assignment
       const existing = await prisma.category.findMany({ select: { id: true, slug: true } });
+      const existingBySlug = new Map(existing.map((c) => [c.slug, c.id]));
       const wpCats = await fetchAllPages<any>(cfg, 'categories').catch(() => []);
       for (const wc of wpCats) {
-        const match = existing.find((c) => c.slug === wc.slug);
-        if (match) wpCatToLocal.set(wc.id, match.id);
+        const match = existingBySlug.get(wc.slug);
+        if (match) wpCatToLocal.set(wc.id, match);
       }
     }
 
@@ -525,10 +526,11 @@ export async function runMigration(
       }
     } else {
       const existing = await prisma.tag.findMany({ select: { id: true, slug: true } });
+      const existingBySlug = new Map(existing.map((t) => [t.slug, t.id]));
       const wpTags = await fetchAllPages<any>(cfg, 'tags').catch(() => []);
       for (const wt of wpTags) {
-        const match = existing.find((t) => t.slug === wt.slug);
-        if (match) wpTagToLocal.set(wt.id, match.id);
+        const match = existingBySlug.get(wt.slug);
+        if (match) wpTagToLocal.set(wt.id, match);
       }
     }
 
@@ -565,10 +567,11 @@ export async function runMigration(
       }
     } else {
       const existing = await prisma.author.findMany({ select: { id: true, slug: true } });
+      const existingBySlug = new Map(existing.map((a) => [a.slug, a.id]));
       const wpUsers = await fetchAllPages<any>(cfg, 'users').catch(() => []);
       for (const wu of wpUsers) {
-        const match = existing.find((a) => a.slug === wu.slug);
-        if (match) wpAuthorToLocal.set(wu.id, match.id);
+        const match = existingBySlug.get(wu.slug);
+        if (match) wpAuthorToLocal.set(wu.id, match);
       }
     }
 
