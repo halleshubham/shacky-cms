@@ -10,7 +10,7 @@ export async function GET() {
     'Disallow: /login',
     'Disallow: /api/',
     '',
-    `Sitemap: ${siteUrl(headers())}/sitemap.xml`,
+    `Sitemap: ${siteUrl(await headers())}/sitemap.xml`,
     '',
   ].join('\n');
   return new Response(body, { headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=3600' } });

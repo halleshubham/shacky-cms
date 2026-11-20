@@ -202,7 +202,7 @@ function StockTab({ onSelect }: { onSelect: (m: MediaItem) => void }) {
   const [loading, setLoading] = useState(false);
   const [using, setUsing] = useState<string | null>(null);
   const [page, setPage] = useState(1);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const loadPhotos = useCallback(async (q: string, src: StockSource, p: number) => {
     setLoading(true);

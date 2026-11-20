@@ -1,18 +1,19 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, use } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, List } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
 import FormEditor from '../_components/FormEditor';
 
-export default function EditFormPage({ params }: { params: { id: string } }) {
+export default function EditFormPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
   const [form, setForm] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.get<any>(`/api/forms/${params.id}`).then((data) => { setForm(data); setLoading(false); });
-  }, [params.id]);
+    api.get<any>(`/api/forms/${id}`).then((data) => { setForm(data); setLoading(false); });
+  }, [id]);
 
   if (loading) return <div className="text-muted-foreground">Loading…</div>;
   if (!form) return <div className="text-destructive">Form not found.</div>;
@@ -30,11 +31,11 @@ export default function EditFormPage({ params }: { params: { id: string } }) {
           </div>
         </div>
         <Button variant="outline" asChild>
-          <Link href={`/admin/forms/${params.id}/entries`}><List className="h-4 w-4" /> View entries</Link>
+          <Link href={`/admin/forms/${id}/entries`}><List className="h-4 w-4" /> View entries</Link>
         </Button>
       </div>
       <FormEditor
-        formId={params.id}
+        formId={id}
         initialData={{
           name: form.name,
           slug: form.slug,

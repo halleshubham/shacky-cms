@@ -15,14 +15,16 @@ async function getIssue(id: string) {
   } catch { return null; }
 }
 
-export async function generateMetadata({ params }: { params: { id: string } }) {
-  const issue = await getIssue(params.id);
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const issue = await getIssue(id);
   if (!issue) return { title: 'Not Found' };
   return { title: `Vol. ${issue.volumeNumber}, No. ${issue.issueNumber} — ${issue.title}` };
 }
 
-export default async function IssuePage({ params }: { params: { id: string } }) {
-  const issue = await getIssue(params.id);
+export default async function IssuePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const issue = await getIssue(id);
   if (!issue) notFound();
 
   const posts: any[] = issue.posts || [];

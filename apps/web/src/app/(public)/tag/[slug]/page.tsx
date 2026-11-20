@@ -15,14 +15,17 @@ async function getTag(slug: string, page = 1) {
   } catch { return null; }
 }
 
-export async function generateMetadata({ params }: { params: { slug: string } }) {
-  const data = await getTag(params.slug);
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const data = await getTag(slug);
   return { title: data ? `#${data.tag.name} — Articles` : 'Tag' };
 }
 
-export default async function TagPage({ params, searchParams }: { params: { slug: string }; searchParams: { page?: string } }) {
-  const page = Number(searchParams.page || 1);
-  const data = await getTag(params.slug, page);
+export default async function TagPage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ page?: string }> }) {
+  const { slug } = await params;
+  const { page: pageParam } = await searchParams;
+  const page = Number(pageParam || 1);
+  const data = await getTag(slug, page);
   if (!data) notFound();
 
   const { tag, posts: { data: posts, total, totalPages } } = data;

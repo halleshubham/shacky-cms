@@ -15,8 +15,9 @@ async function getPage(slug: string) {
   }
 }
 
-export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
-  const page = await getPage(params.slug);
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  const page = await getPage(slug);
   if (!page) return {};
   return {
     title: page.seoTitle || page.title,
@@ -24,8 +25,9 @@ export async function generateMetadata({ params }: { params: { slug: string } })
   };
 }
 
-export default async function PublicPageView({ params }: { params: { slug: string } }) {
-  const page = await getPage(params.slug);
+export default async function PublicPageView({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const page = await getPage(slug);
   if (!page) notFound();
 
   let sections: Section[] | null = null;

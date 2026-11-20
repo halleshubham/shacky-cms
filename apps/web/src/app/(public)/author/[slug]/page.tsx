@@ -16,14 +16,17 @@ async function getAuthor(slug: string, page = 1) {
   } catch { return null; }
 }
 
-export async function generateMetadata({ params }: { params: { slug: string } }) {
-  const data = await getAuthor(params.slug);
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const data = await getAuthor(slug);
   return { title: data ? `${data.author.displayName} — Author` : 'Author' };
 }
 
-export default async function AuthorPage({ params, searchParams }: { params: { slug: string }; searchParams: { page?: string } }) {
-  const page = Number(searchParams.page || 1);
-  const data = await getAuthor(params.slug, page);
+export default async function AuthorPage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ page?: string }> }) {
+  const { slug } = await params;
+  const { page: pageParam } = await searchParams;
+  const page = Number(pageParam || 1);
+  const data = await getAuthor(slug, page);
   if (!data) notFound();
 
   const { author, posts: { data: posts, total, totalPages } } = data;
