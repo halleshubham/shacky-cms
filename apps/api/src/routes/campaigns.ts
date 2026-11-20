@@ -15,6 +15,9 @@ import { sendMail, getEmailConfig } from '../services/email.js';
 import { sendMessagesToGroups } from '../services/botsab.js';
 import { audit } from '../utils/audit.js';
 import { fireWebhook } from '../utils/webhooks.js';
+import { mapWithConcurrency } from '../utils/concurrency.js';
+
+const SEND_CONCURRENCY = 10;
 
 const emailBlockSchema = z.object({
   id: z.string(),
@@ -237,7 +240,7 @@ const campaignsRoutes: FastifyPluginAsync = async (fastify) => {
     const emailCfg = await getEmailConfig();
     let sent = 0;
     const failures: string[] = [];
-    for (const sub of subscribers) {
+    await mapWithConcurrency(subscribers, SEND_CONCURRENCY, async (sub) => {
       try {
         const html = await generateNewsletterHtml(issue as any, { subscriberToken: sub.unsubscribeToken }, campaign.blocks as any);
         await sendMail({ to: sub.email!, subject: issue!.title, html }, emailCfg);
@@ -246,7 +249,7 @@ const campaignsRoutes: FastifyPluginAsync = async (fastify) => {
         console.error(`Failed to send to ${sub.email}:`, err);
         failures.push(sub.email!);
       }
-    }
+    });
 
     // Only claim "sent" when at least one email actually went out (or there
     // was genuinely no one to send to) — not when every attempt failed, e.g.

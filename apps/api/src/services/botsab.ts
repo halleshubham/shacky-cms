@@ -1,5 +1,6 @@
 import { prisma } from '../plugins/prisma.js';
 import { safeFetch } from '../utils/ssrfGuard.js';
+import { cachedSettings } from '../utils/settingsCache.js';
 
 export interface BotsabGroup {
   id: string;
@@ -14,19 +15,21 @@ export interface BotsabConfig {
 }
 
 export async function getBotsabConfig(): Promise<BotsabConfig | null> {
-  const rows = await prisma.setting.findMany({
-    where: { key: { in: ['botsab_api_key', 'botsab_base_url', 'botsab_instance_id'] } },
+  return cachedSettings('botsab', async () => {
+    const rows = await prisma.setting.findMany({
+      where: { key: { in: ['botsab_api_key', 'botsab_base_url', 'botsab_instance_id'] } },
+    });
+    const m: Record<string, string> = {};
+    for (const r of rows) m[r.key] = r.value;
+
+    if (!m.botsab_api_key || !m.botsab_instance_id) return null;
+
+    return {
+      apiKey: m.botsab_api_key,
+      baseUrl: (m.botsab_base_url || 'https://botsab.shackyapps.in').replace(/\/$/, ''),
+      instanceId: m.botsab_instance_id,
+    };
   });
-  const m: Record<string, string> = {};
-  for (const r of rows) m[r.key] = r.value;
-
-  if (!m.botsab_api_key || !m.botsab_instance_id) return null;
-
-  return {
-    apiKey: m.botsab_api_key,
-    baseUrl: (m.botsab_base_url || 'https://botsab.shackyapps.in').replace(/\/$/, ''),
-    instanceId: m.botsab_instance_id,
-  };
 }
 
 async function botsabFetch(config: BotsabConfig, path: string, init?: RequestInit) {

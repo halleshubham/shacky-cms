@@ -1,5 +1,6 @@
 import { prisma } from '../plugins/prisma.js';
 import { env } from '../utils/env.js';
+import { cachedSettings } from '../utils/settingsCache.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -47,36 +48,38 @@ export interface EmailBlock {
 // ─── Settings ────────────────────────────────────────────────────────────────
 
 export async function getNewsletterSettings(): Promise<NewsletterSettings> {
-  const rows = await prisma.setting.findMany({
-    where: {
-      key: {
-        in: [
-          'site_title', 'site_logo',
-          'newsletter_tagline', 'newsletter_editors', 'newsletter_about',
-          'newsletter_facebook', 'newsletter_subscribe_url',
-          'newsletter_wa_groups', 'newsletter_wa_channels',
-        ],
+  return cachedSettings('newsletter', async () => {
+    const rows = await prisma.setting.findMany({
+      where: {
+        key: {
+          in: [
+            'site_title', 'site_logo',
+            'newsletter_tagline', 'newsletter_editors', 'newsletter_about',
+            'newsletter_facebook', 'newsletter_subscribe_url',
+            'newsletter_wa_groups', 'newsletter_wa_channels',
+          ],
+        },
       },
-    },
+    });
+    const m: Record<string, string> = {};
+    for (const r of rows) m[r.key] = r.value;
+
+    const parseJson = <T>(key: string, fallback: T): T => {
+      try { return JSON.parse(m[key] || ''); } catch { return fallback; }
+    };
+
+    return {
+      siteName: m['site_title'] || 'Shacky CMS',
+      siteLogo: m['site_logo'] || '',
+      tagline: m['newsletter_tagline'] || '',
+      editors: (m['newsletter_editors'] || '').split('\n').map((s) => s.trim()).filter(Boolean),
+      about: m['newsletter_about'] || '',
+      facebookUrl: m['newsletter_facebook'] || '',
+      subscribeUrl: m['newsletter_subscribe_url'] || `${env.APP_URL}/subscribe`,
+      waGroups: parseJson<WaGroup[]>('newsletter_wa_groups', []),
+      waChannels: parseJson<WaChannel[]>('newsletter_wa_channels', []),
+    };
   });
-  const m: Record<string, string> = {};
-  for (const r of rows) m[r.key] = r.value;
-
-  const parseJson = <T>(key: string, fallback: T): T => {
-    try { return JSON.parse(m[key] || ''); } catch { return fallback; }
-  };
-
-  return {
-    siteName: m['site_title'] || 'Shacky CMS',
-    siteLogo: m['site_logo'] || '',
-    tagline: m['newsletter_tagline'] || '',
-    editors: (m['newsletter_editors'] || '').split('\n').map((s) => s.trim()).filter(Boolean),
-    about: m['newsletter_about'] || '',
-    facebookUrl: m['newsletter_facebook'] || '',
-    subscribeUrl: m['newsletter_subscribe_url'] || `${env.APP_URL}/subscribe`,
-    waGroups: parseJson<WaGroup[]>('newsletter_wa_groups', []),
-    waChannels: parseJson<WaChannel[]>('newsletter_wa_channels', []),
-  };
 }
 
 // ─── HTML helpers ─────────────────────────────────────────────────────────────
