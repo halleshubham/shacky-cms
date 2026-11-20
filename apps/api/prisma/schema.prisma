@@ -25,6 +25,7 @@ model User {
   revisions            Revision[]
   oauthAuthCodes       OAuthAuthCode[]
   oauthAccessTokens    OAuthAccessToken[]
+  migrationJobs        MigrationJob[]
 
   @@map("users")
 }
@@ -51,6 +52,21 @@ model RefreshToken {
   @@map("refresh_tokens")
 }
 
+// One-time link sent instead of emailing a plaintext password when an admin
+// creates a user or resets someone's password. tokenHash is a SHA-256 digest
+// of the token (same reasoning as RefreshToken — it's a high-entropy opaque
+// value, not a human password, so bcrypt's 72-byte truncation would be wrong
+// here too); the row is deleted once used.
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@map("password_reset_tokens")
+}
+
 model AuditLog {
   id        String   @id @default(cuid())
   userId    String?
@@ -65,7 +81,38 @@ model AuditLog {
 
   @@index([userId])
   @@index([createdAt])
+  @@index([action, createdAt])
   @@map("audit_logs")
+}
+
+enum MigrationJobStatus {
+  queued
+  running
+  done
+  failed
+  cancelled
+}
+
+// Persists WordPress migration progress so a poll of GET
+// /migration/wordpress/status/:jobId survives an API restart instead of
+// 404ing just because the in-memory job map it used to live in is gone.
+model MigrationJob {
+  id         String             @id
+  userId     String?
+  status     MigrationJobStatus @default(queued)
+  phase      String             @default("")
+  total      Int                @default(0)
+  done       Int                @default(0)
+  skipped    Int                @default(0)
+  errors     Int                @default(0)
+  errorLog   Json               @default("[]")
+  startedAt  DateTime           @default(now())
+  finishedAt DateTime?
+  updatedAt  DateTime           @updatedAt
+  user       User?              @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("migration_jobs")
 }
 
 model Author {
@@ -172,6 +219,7 @@ model PostAuthor {
   user     User?   @relation(fields: [userId], references: [id])
 
   @@id([postId, authorId])
+  @@index([authorId])
   @@map("post_authors")
 }
 
@@ -182,6 +230,7 @@ model PostCategory {
   post       Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   @@id([postId, categoryId])
+  @@index([categoryId])
   @@map("post_categories")
 }
 
@@ -192,6 +241,7 @@ model PostTag {
   tag    Tag    @relation(fields: [tagId], references: [id])
 
   @@id([postId, tagId])
+  @@index([tagId])
   @@map("post_tags")
 }
 
@@ -257,6 +307,7 @@ model Subscriber {
   unsubscribedAt   DateTime?
   lists            SubscriberListMember[]
 
+  @@index([status])
   @@map("subscribers")
 }
 
@@ -447,8 +498,11 @@ model OAuthAccessToken {
   userId    String
   scopes    String[]
   expiresAt DateTime
+  revoked   Boolean     @default(false)
+  revokedAt DateTime?
   createdAt DateTime    @default(now())
 
   @@index([token])
+  @@index([userId, revoked])
   @@map("oauth_access_tokens")
 }

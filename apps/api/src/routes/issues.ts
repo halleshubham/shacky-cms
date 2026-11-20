@@ -55,17 +55,24 @@ const issuesRoutes: FastifyPluginAsync = async (fastify) => {
   // POST /issues
   fastify.post('/', { preHandler: [authenticate, requireAdmin] }, async (req, reply) => {
     const body = issueBodySchema.parse(req.body);
-    const issue = await prisma.issue.create({
-      data: {
-        volumeNumber: body.volumeNumber,
-        issueNumber: body.issueNumber,
-        title: body.title,
-        publishDate: new Date(body.publishDate),
-        type: body.type as any,
-      },
-    });
-    await audit(req, 'issue.created', { entity: 'issue', entityId: issue.id });
-    return reply.status(201).send(issue);
+    try {
+      const issue = await prisma.issue.create({
+        data: {
+          volumeNumber: body.volumeNumber,
+          issueNumber: body.issueNumber,
+          title: body.title,
+          publishDate: new Date(body.publishDate),
+          type: body.type as any,
+        },
+      });
+      await audit(req, 'issue.created', { entity: 'issue', entityId: issue.id });
+      return reply.status(201).send(issue);
+    } catch (e: any) {
+      if (e?.code === 'P2002') {
+        return reply.status(409).send({ statusCode: 409, error: 'Conflict', message: `Vol. ${body.volumeNumber}, No. ${body.issueNumber} is already taken by another issue` });
+      }
+      throw e;
+    }
   });
 
   // PATCH /issues/:id
@@ -142,24 +149,32 @@ const issuesRoutes: FastifyPluginAsync = async (fastify) => {
     const { id } = req.params as { id: string };
     const { status = 'published' } = req.body as { status?: string };
 
-    const posts = await prisma.post.findMany({
-      where: { issueId: id },
-      orderBy: { issueOrder: 'asc' },
-    });
-
-    for (const post of posts) {
-      await prisma.post.update({
-        where: { id: post.id },
-        data: {
-          status: status as any,
-          ...(status === 'published' && !post.publishedAt && { publishedAt: new Date() }),
-          ...(status === 'draft' && { publishedAt: null }),
-        },
-      });
+    // Same two-updateMany pattern posts.ts's bulk-action uses, instead of a
+    // per-row loop: publishedAt only needs to change for rows that don't
+    // already have one (preserve the original publish date on republish),
+    // so that's exactly one batched call per publishedAt-null/not-null split.
+    let count: number;
+    if (status === 'published') {
+      const [withoutDate, withDate] = await Promise.all([
+        prisma.post.updateMany({
+          where: { issueId: id, publishedAt: null },
+          data: { status: status as any, publishedAt: new Date() },
+        }),
+        prisma.post.updateMany({
+          where: { issueId: id, publishedAt: { not: null } },
+          data: { status: status as any },
+        }),
+      ]);
+      count = withoutDate.count + withDate.count;
+    } else {
+      const data: Record<string, unknown> = { status: status as any };
+      if (status === 'draft') data.publishedAt = null;
+      const result = await prisma.post.updateMany({ where: { issueId: id }, data });
+      count = result.count;
     }
 
-    await audit(req, `issue.bulk_${status}`, { entity: 'issue', entityId: id, meta: { count: posts.length } });
-    return reply.send({ success: true, count: posts.length });
+    await audit(req, `issue.bulk_${status}`, { entity: 'issue', entityId: id, meta: { count } });
+    return reply.send({ success: true, count });
   });
 
   // POST /issues/:id/auto-attach

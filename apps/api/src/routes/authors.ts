@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../plugins/prisma.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
 import { audit } from '../utils/audit.js';
-import { slugify } from '@shacky/shared';
+import { slugify, escapeLikeWildcards } from '@shacky/shared';
 
 const authorBodySchema = z.object({
   displayName: z.string().min(1),
@@ -18,7 +18,7 @@ const authorsRoutes: FastifyPluginAsync = async (fastify) => {
     const { search, page: pageStr, pageSize: pageSizeStr } = req.query as { search?: string; page?: string; pageSize?: string };
     const page = Math.max(1, parseInt(pageStr || '1', 10));
     const pageSize = Math.max(1, parseInt(pageSizeStr || '100', 10));
-    const where = search ? { displayName: { contains: search, mode: 'insensitive' as const } } : undefined;
+    const where = search ? { displayName: { contains: escapeLikeWildcards(search), mode: 'insensitive' as const } } : undefined;
     const [authors, total] = await Promise.all([
       prisma.author.findMany({
         where,
@@ -67,6 +67,12 @@ const authorsRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.patch('/:id', { preHandler: [authenticate, requireAdmin] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const body = authorBodySchema.partial().parse(req.body);
+    if (body.slug) {
+      const existing = await prisma.author.findUnique({ where: { slug: body.slug } });
+      if (existing && existing.id !== id) {
+        return reply.status(409).send({ statusCode: 409, error: 'Conflict', message: 'Slug already in use' });
+      }
+    }
     const author = await prisma.author.update({ where: { id }, data: body });
     await audit(req, 'author.updated', { entity: 'author', entityId: id });
     return reply.send(author);
@@ -74,6 +80,23 @@ const authorsRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.delete('/:id', { preHandler: [authenticate, requireAdmin] }, async (req, reply) => {
     const { id } = req.params as { id: string };
+    const author = await prisma.author.findUnique({ where: { id } });
+    if (!author) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Author not found' });
+
+    const postsUsingIt = await prisma.postAuthor.count({ where: { authorId: id } });
+    if (postsUsingIt > 0) {
+      const { force } = req.query as { force?: string };
+      if (force !== 'true') {
+        return reply.status(409).send({
+          statusCode: 409,
+          error: 'Conflict',
+          message: `Author is used in ${postsUsingIt} post(s). Use ?force=true to delete anyway, or /authors/:id/merge/:targetId to reassign first.`,
+          usedIn: postsUsingIt,
+        });
+      }
+      await prisma.postAuthor.deleteMany({ where: { authorId: id } });
+    }
+
     await prisma.author.delete({ where: { id } });
     await audit(req, 'author.deleted', { entity: 'author', entityId: id });
     return reply.send({ success: true });

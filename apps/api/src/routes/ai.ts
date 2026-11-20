@@ -11,6 +11,7 @@ import {
   buildImagePrompt,
 } from '../services/ai.js';
 import { audit } from '../utils/audit.js';
+import { invalidateSettingsCache } from '../utils/settingsCache.js';
 
 const generateContentSchema = z.object({
   title: z.string().min(1),
@@ -70,8 +71,10 @@ const aiRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   // GET /ai/models — available models per provider
-  // Pass ?ollamaUrl=http://localhost:11434 to dynamically fetch installed Ollama models
-  fastify.get('/models', { preHandler: [authenticate] }, async (req, reply) => {
+  // Pass ?ollamaUrl=http://localhost:11434 to dynamically fetch installed Ollama models.
+  // Admin-only: ollamaUrl is attacker-controlled input to a server-side fetch (SSRF) if
+  // reachable by any authenticated role — only an admin configuring AI settings needs this.
+  fastify.get('/models', { preHandler: [authenticate, requireAdmin] }, async (req, reply) => {
     const { ollamaUrl } = req.query as { ollamaUrl?: string };
 
     const ollamaBase = ollamaUrl || 'http://localhost:11434';
@@ -105,6 +108,7 @@ const aiRoutes: FastifyPluginAsync = async (fastify) => {
     await prisma.setting.deleteMany({
       where: { key: { in: ['ai_provider', 'ai_api_key', 'ai_text_model', 'ai_image_model', 'ai_api_url'] } },
     });
+    invalidateSettingsCache();
     await audit(req, 'ai.config.deleted');
     return reply.send({ success: true });
   });

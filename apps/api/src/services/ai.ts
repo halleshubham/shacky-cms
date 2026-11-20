@@ -3,6 +3,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { prisma } from '../plugins/prisma.js';
 import { uploadToS3 } from '../utils/s3.js';
 import { createId } from '@paralleldrive/cuid2';
+import { cachedSettings, invalidateSettingsCache } from '../utils/settingsCache.js';
 
 export type AIProvider = 'openai' | 'gemini' | 'ollama' | 'groq';
 
@@ -43,24 +44,26 @@ export interface GeneratedImage {
 // ─── Config helpers ──────────────────────────────────────────────────────────
 
 export async function getAIConfig(): Promise<AIConfig | null> {
-  const rows = await prisma.setting.findMany({
-    where: { key: { in: ['ai_provider', 'ai_api_key', 'ai_text_model', 'ai_image_model', 'ai_api_url'] } },
+  return cachedSettings('ai', async () => {
+    const rows = await prisma.setting.findMany({
+      where: { key: { in: ['ai_provider', 'ai_api_key', 'ai_text_model', 'ai_image_model', 'ai_api_url'] } },
+    });
+    const map: Record<string, string> = {};
+    for (const r of rows) map[r.key] = r.value;
+
+    if (!map['ai_provider']) return null;
+    // Ollama doesn't require an API key — all other providers do
+    if (!map['ai_api_key'] && map['ai_provider'] !== 'ollama') return null;
+
+    const provider = map['ai_provider'] as AIProvider;
+    return {
+      provider,
+      apiKey: map['ai_api_key'] || '',
+      apiUrl: map['ai_api_url'],
+      textModel: map['ai_text_model'] || defaultTextModel(provider),
+      imageModel: map['ai_image_model'] || defaultImageModel(provider),
+    };
   });
-  const map: Record<string, string> = {};
-  for (const r of rows) map[r.key] = r.value;
-
-  if (!map['ai_provider']) return null;
-  // Ollama doesn't require an API key — all other providers do
-  if (!map['ai_api_key'] && map['ai_provider'] !== 'ollama') return null;
-
-  const provider = map['ai_provider'] as AIProvider;
-  return {
-    provider,
-    apiKey: map['ai_api_key'] || '',
-    apiUrl: map['ai_api_url'],
-    textModel: map['ai_text_model'] || defaultTextModel(provider),
-    imageModel: map['ai_image_model'] || defaultImageModel(provider),
-  };
 }
 
 export async function saveAIConfig(config: Partial<AIConfig>): Promise<void> {
@@ -80,6 +83,7 @@ export async function saveAIConfig(config: Partial<AIConfig>): Promise<void> {
       }),
     ),
   );
+  invalidateSettingsCache();
 }
 
 function defaultTextModel(provider: AIProvider): string {

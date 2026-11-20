@@ -1,21 +1,21 @@
 import { NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 import { siteUrl } from '@/lib/site-url';
+import { fetchAllPublishedPosts } from '@/lib/sitemap';
 
 const API = process.env.API_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL;
 
 export async function GET() {
-  const SITE = siteUrl(headers());
+  const SITE = siteUrl(await headers());
   try {
-    const [postsRes, catsRes, authorsRes, tagsRes, pagesRes] = await Promise.all([
-      fetch(`${API}/api/public/posts?pageSize=500`, { next: { revalidate: 300 } }),
+    const [posts, catsRes, authorsRes, tagsRes, pagesRes] = await Promise.all([
+      fetchAllPublishedPosts(API),
       fetch(`${API}/api/public/categories`, { next: { revalidate: 300 } }),
       fetch(`${API}/api/public/authors`, { next: { revalidate: 300 } }),
       fetch(`${API}/api/public/tags`, { next: { revalidate: 300 } }),
       fetch(`${API}/api/public/pages`, { next: { revalidate: 300 } }),
     ]);
 
-    const posts = postsRes.ok ? (await postsRes.json()).data || [] : [];
     const cats = catsRes.ok ? await catsRes.json() : [];
     const authors = authorsRes.ok ? await authorsRes.json() : [];
     const tags = tagsRes.ok ? await tagsRes.json() : [];

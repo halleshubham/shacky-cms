@@ -4,6 +4,7 @@ import { prisma } from '../plugins/prisma.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
 import { sendMail } from '../services/email.js';
 import { createId } from '@paralleldrive/cuid2';
+import { safeFetch } from '../utils/ssrfGuard.js';
 
 const fieldSchema = z.object({
   name: z.string().min(1),
@@ -26,6 +27,33 @@ const formSchema = z.object({
 });
 
 type FormField = z.infer<typeof fieldSchema>;
+
+// Returns an error message when a submitted value doesn't match its field's
+// declared type, or null when it's fine. Empty/missing values are left to
+// the required-field check — this only catches garbage in a value that was
+// actually provided.
+function validateFieldValue(field: FormField, value: unknown): string | null {
+  if (value === null || value === undefined || value === '') return null;
+  switch (field.type) {
+    case 'email':
+      if (typeof value !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+        return `"${field.label}" must be a valid email address`;
+      }
+      return null;
+    case 'number':
+      if (typeof value !== 'number' && (typeof value !== 'string' || value.trim() === '' || Number.isNaN(Number(value)))) {
+        return `"${field.label}" must be a number`;
+      }
+      return null;
+    case 'date':
+      if (typeof value !== 'string' || Number.isNaN(Date.parse(value))) {
+        return `"${field.label}" must be a valid date`;
+      }
+      return null;
+    default:
+      return null;
+  }
+}
 
 function escHtml(s: unknown): string {
   return String(s ?? '—')
@@ -69,14 +97,14 @@ function digestEmailHtml(formName: string, fields: FormField[], entries: { data:
 async function fireFormWebhook(webhookUrl: string, formSlug: string, data: Record<string, unknown>): Promise<void> {
   try {
     const body = JSON.stringify({ event: 'form.entry', form: formSlug, data, timestamp: new Date().toISOString() });
-    await fetch(webhookUrl, {
+    await safeFetch(webhookUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body,
       signal: AbortSignal.timeout(10000),
     });
   } catch {
-    // fire-and-forget
+    // fire-and-forget (including a blocked target)
   }
 }
 
@@ -122,7 +150,11 @@ const formsRoutes: FastifyPluginAsync = async (fastify) => {
 
   // --- Entries ---
 
-  fastify.get('/:id/entries', { preHandler: [authenticate] }, async (req, reply) => {
+  // Form entries can hold visitor PII (names, emails, phone numbers, free
+  // text) submitted through a public form (e.g. a sensitive contact/intake
+  // form never meant for content staff) — requireAdmin matches the delete/
+  // bulk-delete/to-list routes below, which were already admin-gated.
+  fastify.get('/:id/entries', { preHandler: [authenticate, requireAdmin] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const query = req.query as { page?: string; pageSize?: string };
     const page = parseInt(query.page || '1');
@@ -147,7 +179,7 @@ const formsRoutes: FastifyPluginAsync = async (fastify) => {
     return reply.send({ success: true });
   });
 
-  fastify.get('/:id/entries/export', { preHandler: [authenticate] }, async (req, reply) => {
+  fastify.get('/:id/entries/export', { preHandler: [authenticate, requireAdmin] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const query = req.query as { ids?: string };
     const form = await prisma.form.findUnique({ where: { id } });
@@ -271,6 +303,12 @@ const formsRoutes: FastifyPluginAsync = async (fastify) => {
       if (field.required && !submitted[field.name]) {
         return reply.status(400).send({ message: `"${field.label}" is required` });
       }
+    }
+
+    // Validate field types (email must look like an email, number must parse, etc.)
+    for (const field of fields) {
+      const error = validateFieldValue(field, submitted[field.name]);
+      if (error) return reply.status(400).send({ message: error });
     }
 
     // Only keep known field values

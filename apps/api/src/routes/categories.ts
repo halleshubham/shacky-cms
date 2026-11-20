@@ -2,7 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../plugins/prisma.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
-import { slugify } from '@shacky/shared';
+import { slugify, escapeLikeWildcards } from '@shacky/shared';
 
 const schema = z.object({
   name: z.string().min(1),
@@ -16,7 +16,7 @@ const categoriesRoutes: FastifyPluginAsync = async (fastify) => {
     const { search, page: pageStr, pageSize: pageSizeStr } = req.query as { search?: string; page?: string; pageSize?: string };
     const page = Math.max(1, parseInt(pageStr || '1', 10));
     const pageSize = Math.max(1, parseInt(pageSizeStr || '100', 10));
-    const where = search ? { name: { contains: search, mode: 'insensitive' as const } } : undefined;
+    const where = search ? { name: { contains: escapeLikeWildcards(search), mode: 'insensitive' as const } } : undefined;
     const [categories, total] = await Promise.all([
       prisma.category.findMany({
         where,
@@ -49,6 +49,10 @@ const categoriesRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post('/', { preHandler: [authenticate, requireAdmin] }, async (req, reply) => {
     const body = schema.parse(req.body);
     const slug = body.slug || slugify(body.name);
+    const existing = await prisma.category.findUnique({ where: { slug } });
+    if (existing) {
+      return reply.status(409).send({ statusCode: 409, error: 'Conflict', message: 'Slug already in use' });
+    }
     const cat = await prisma.category.create({
       data: { name: body.name, slug, description: body.description, parentId: body.parentId },
     });
@@ -58,12 +62,35 @@ const categoriesRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.patch('/:id', { preHandler: [authenticate, requireAdmin] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const body = schema.partial().parse(req.body);
+    if (body.slug) {
+      const existing = await prisma.category.findUnique({ where: { slug: body.slug } });
+      if (existing && existing.id !== id) {
+        return reply.status(409).send({ statusCode: 409, error: 'Conflict', message: 'Slug already in use' });
+      }
+    }
     const cat = await prisma.category.update({ where: { id }, data: body });
     return reply.send(cat);
   });
 
   fastify.delete('/:id', { preHandler: [authenticate, requireAdmin] }, async (req, reply) => {
     const { id } = req.params as { id: string };
+    const cat = await prisma.category.findUnique({ where: { id } });
+    if (!cat) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Category not found' });
+
+    const postsUsingIt = await prisma.postCategory.count({ where: { categoryId: id } });
+    if (postsUsingIt > 0) {
+      const { force } = req.query as { force?: string };
+      if (force !== 'true') {
+        return reply.status(409).send({
+          statusCode: 409,
+          error: 'Conflict',
+          message: `Category is used in ${postsUsingIt} post(s). Use ?force=true to delete anyway, or /categories/:id/merge/:targetId to reassign first.`,
+          usedIn: postsUsingIt,
+        });
+      }
+      await prisma.postCategory.deleteMany({ where: { categoryId: id } });
+    }
+
     await prisma.category.delete({ where: { id } });
     return reply.send({ success: true });
   });

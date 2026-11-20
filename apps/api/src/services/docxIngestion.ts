@@ -84,6 +84,32 @@ function normaliseExcerpt(raw: string): string {
   return raw.replace(/^[‘’‚‛“”"'‹›]+/, '').trim();
 }
 
+// Maps each article number to its .docx and image zip entry key, scanning
+// the full file-name list exactly once instead of re-scanning it (via
+// Array#find) once per article — and, for images, up to imgExts.length
+// times per article even though every one of those passes checked the
+// exact same combined regex and could only ever find the same result.
+// First match wins per number, matching the Array#find() this replaces.
+export function buildArticleFileKeyMaps(zipFileNames: string[]): {
+  docxKeyByNumber: Map<number, string>;
+  imageKeyByNumber: Map<number, string>;
+} {
+  const imgExts = ['jpg', 'jpeg', 'png', 'webp'];
+  const imgExtRe = new RegExp(`^(\\d+)\\.(${imgExts.join('|')})$`, 'i');
+  const docxKeyByNumber = new Map<number, string>();
+  const imageKeyByNumber = new Map<number, string>();
+  for (const f of zipFileNames) {
+    const name = f.split('/').pop() || '';
+    if (name.endsWith('.docx')) {
+      const m = name.match(/^(\d+)[-.\s]/);
+      if (m && !docxKeyByNumber.has(Number(m[1]))) docxKeyByNumber.set(Number(m[1]), f);
+    }
+    const imgMatch = name.match(imgExtRe);
+    if (imgMatch && !imageKeyByNumber.has(Number(imgMatch[1]))) imageKeyByNumber.set(Number(imgMatch[1]), f);
+  }
+  return { docxKeyByNumber, imageKeyByNumber };
+}
+
 // Parse Summary.docx — supports three formats:
 //   Pipe-delimited:  "1. Title | Author | Excerpt"
 //   Multi-line:      "1. Title\n[by] Author\nExcerpt"
@@ -223,17 +249,26 @@ export async function previewIngestion(zipBuffer: Buffer): Promise<IngestPreview
     warnings.push(`Summary lists ${parsed.length} articles but found ${docxFiles.length} .docx files`);
   }
 
-  return {
-    articles: parsed.map((a) => ({
-      number: a.number,
-      title: a.title,
-      authorName: a.authorName,
-      excerpt: a.excerpt,
-      wordCount: 0,
-    })),
-    totalArticles: parsed.length,
-    warnings,
-  };
+  const articles = await Promise.all(parsed.map(async (a) => {
+    let wordCount = 0;
+    const docxKey = Object.keys(zip.files).find((f) => {
+      const name = f.split('/').pop() || '';
+      return name.match(new RegExp(`^${a.number}[-.\\s]`)) && name.endsWith('.docx');
+    });
+    if (docxKey) {
+      try {
+        const buffer = Buffer.from(await zip.files[docxKey].async('arraybuffer'));
+        const { value } = await mammoth.extractRawText({ buffer: buffer as any });
+        wordCount = value.trim().split(/\s+/).filter(Boolean).length;
+      } catch {
+        // Leave wordCount at 0 if this one article's docx can't be read —
+        // the real ingest below will surface the per-article warning.
+      }
+    }
+    return { number: a.number, title: a.title, authorName: a.authorName, excerpt: a.excerpt, wordCount };
+  }));
+
+  return { articles, totalArticles: parsed.length, warnings };
 }
 
 export interface PostForAI {
@@ -267,13 +302,12 @@ export async function ingestIssue(zipBuffer: Buffer, options: IngestOptions): Pr
   let created = 0;
   const postsForAI: PostForAI[] = [];
 
+  const { docxKeyByNumber, imageKeyByNumber } = buildArticleFileKeyMaps(Object.keys(zip.files));
+
   // Phase 1: create all posts sequentially (ZIP reading + DB writes must stay serial)
   for (const summary of summaryArticles) {
     try {
-      const docxKey = Object.keys(zip.files).find((f) => {
-        const name = f.split('/').pop() || '';
-        return name.match(new RegExp(`^${summary.number}[-.\\s]`)) && name.endsWith('.docx');
-      });
+      const docxKey = docxKeyByNumber.get(summary.number);
 
       let htmlContent = '';
       if (docxKey) {
@@ -284,20 +318,13 @@ export async function ingestIssue(zipBuffer: Buffer, options: IngestOptions): Pr
       }
 
       let featuredMediaId: string | null = null;
-      const imgExts = ['jpg', 'jpeg', 'png', 'webp'];
-      for (const ext of imgExts) {
-        const imgKey = Object.keys(zip.files).find((f) => {
-          const name = f.split('/').pop() || '';
-          return name.match(new RegExp(`^${summary.number}\\.(${imgExts.join('|')})$`, 'i'));
-        });
-        if (imgKey) {
-          const imgBuffer = Buffer.from(await zip.files[imgKey].async('arraybuffer'));
-          const url = await processArticleImage(imgBuffer, summary.number);
-          if (url) {
-            const media = await prisma.media.findFirst({ where: { url } });
-            if (media) featuredMediaId = media.id;
-          }
-          break;
+      const imgKey = imageKeyByNumber.get(summary.number);
+      if (imgKey) {
+        const imgBuffer = Buffer.from(await zip.files[imgKey].async('arraybuffer'));
+        const url = await processArticleImage(imgBuffer, summary.number);
+        if (url) {
+          const media = await prisma.media.findFirst({ where: { url } });
+          if (media) featuredMediaId = media.id;
         }
       }
 

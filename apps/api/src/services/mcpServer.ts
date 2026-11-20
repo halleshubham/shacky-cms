@@ -7,14 +7,32 @@ import type { StockPhoto } from './stockSearch.js';
 import { generateNewsletterHtml, getNewsletterSettings } from './newsletter.js';
 import { sendMail } from './email.js';
 import { defaultCampaignBlocks } from '../routes/campaigns.js';
+import { escapeLikeWildcards, type Role } from '@shacky/shared';
+import { mapWithConcurrency } from '../utils/concurrency.js';
 
-export function createMcpServer(prisma: PrismaClient, userId: string, scopes: string[]): McpServer {
+const SEND_CONCURRENCY = 10;
+
+export function createMcpServer(prisma: PrismaClient, userId: string, role: Role, scopes: string[]): McpServer {
   const server = new McpServer({
     name: 'shacky-cms',
     version: '1.0.0',
   });
 
   const can = (scope: string) => scopes.includes(scope);
+
+  // OAuth scope says what a client was *granted*; these say what the
+  // approving user's current CMS role actually permits — mirroring the
+  // same role sets the equivalent REST routes enforce (requireContentRole
+  // in posts.ts, requireAdmin in issues/pages/categories/tags.ts, canManage
+  // in campaigns.ts / the role list on every subscribers.ts route). A tool
+  // is only registered when both the scope AND the role allow it, so an
+  // over-granted scope (or a user demoted after the token was issued —
+  // role is looked up fresh on every /mcp call, never cached on the token)
+  // simply makes the tool unavailable rather than silently bypassing the
+  // role boundary the REST API enforces for the same action.
+  const isContentRole = (['superadmin', 'editor', 'author'] as Role[]).includes(role);
+  const isAdminRole = (['superadmin', 'editor'] as Role[]).includes(role);
+  const isSubscriberManagerRole = (['superadmin', 'editor', 'subscriber_manager'] as Role[]).includes(role);
 
   // ── Site info (always available) ──────────────────────────────────────────
   server.tool(
@@ -51,7 +69,7 @@ export function createMcpServer(prisma: PrismaClient, userId: string, scopes: st
           where: {
             ...(status ? { status } : {}),
             ...(search
-              ? { OR: [{ title: { contains: search, mode: 'insensitive' } }, { excerpt: { contains: search, mode: 'insensitive' } }] }
+              ? { OR: [{ title: { contains: escapeLikeWildcards(search), mode: 'insensitive' } }, { excerpt: { contains: escapeLikeWildcards(search), mode: 'insensitive' } }] }
               : {}),
           },
           select: {
@@ -130,8 +148,8 @@ export function createMcpServer(prisma: PrismaClient, userId: string, scopes: st
     );
   }
 
-  // ── Posts write (posts:write) ─────────────────────────────────────────────
-  if (can('posts:write')) {
+  // ── Posts write (posts:write, author/editor/superadmin) ───────────────────
+  if (can('posts:write') && isContentRole) {
     server.tool(
       'create_post',
       'Create a new draft post in the CMS.',
@@ -208,7 +226,7 @@ export function createMcpServer(prisma: PrismaClient, userId: string, scopes: st
       async ({ search, limit = 20 }) => {
         const media = await prisma.media.findMany({
           where: search
-            ? { OR: [{ filename: { contains: search, mode: 'insensitive' } }, { altText: { contains: search, mode: 'insensitive' } }] }
+            ? { OR: [{ filename: { contains: escapeLikeWildcards(search), mode: 'insensitive' } }, { altText: { contains: escapeLikeWildcards(search), mode: 'insensitive' } }] }
             : {},
           select: { id: true, filename: true, url: true, mimeType: true, size: true, altText: true, width: true, height: true, createdAt: true },
           orderBy: { createdAt: 'desc' },
@@ -242,7 +260,12 @@ export function createMcpServer(prisma: PrismaClient, userId: string, scopes: st
         return { content: [{ type: 'text' as const, text: JSON.stringify(photos, null, 2) }] };
       },
     );
+  }
 
+  // This tool writes to a post (sets featuredMediaId), so it needs the same
+  // write-capable role as create_post/update_post — not just media:read,
+  // which (like GET /media) is otherwise a read-only capability.
+  if (can('media:read') && can('posts:write') && isContentRole) {
     server.tool(
       'set_post_featured_image_from_stock',
       'Download a stock photo and set it as the featured image of a post. Use search_stock_images first to find a photo, then pass the imageUrl, downloadUrl, alt, credit, creditUrl, and source fields from that result along with the postId.',
@@ -295,8 +318,9 @@ export function createMcpServer(prisma: PrismaClient, userId: string, scopes: st
     );
   }
 
-  // ── Subscribers (subscribers:read) ────────────────────────────────────────
-  if (can('subscribers:read')) {
+  // ── Subscribers (subscribers:read, same role gate as every subscribers.ts
+  // REST route — superadmin/editor/subscriber_manager only) ────────────────
+  if (can('subscribers:read') && isSubscriberManagerRole) {
     server.tool(
       'list_subscribers',
       'List active subscribers with optional channel filter.',
@@ -432,8 +456,9 @@ export function createMcpServer(prisma: PrismaClient, userId: string, scopes: st
     );
   }
 
-  // ── Issues & Pages write (posts:write) ────────────────────────────────────
-  if (can('posts:write')) {
+  // ── Issues & Pages write (posts:write, but admin-only like the REST routes
+  // for issues.ts/categories.ts/tags.ts/pages.ts — author is NOT enough here) ─
+  if (can('posts:write') && isAdminRole) {
     server.tool(
       'create_issue',
       'Create a new magazine/newsletter issue.',
@@ -548,8 +573,9 @@ export function createMcpServer(prisma: PrismaClient, userId: string, scopes: st
     );
   }
 
-  // ── Campaigns (campaigns:read / campaigns:write) ───────────────────────────
-  if (can('campaigns:read')) {
+  // ── Campaigns (campaigns:read / campaigns:write, same canManage role gate
+  // as every campaigns.ts REST route — superadmin/editor/subscriber_manager) ─
+  if (can('campaigns:read') && isSubscriberManagerRole) {
     server.tool(
       'list_campaigns',
       'List email/newsletter campaigns with their status and send counts.',
@@ -582,7 +608,7 @@ export function createMcpServer(prisma: PrismaClient, userId: string, scopes: st
     );
   }
 
-  if (can('campaigns:write')) {
+  if (can('campaigns:write') && isSubscriberManagerRole) {
     server.tool(
       'create_campaign',
       'Create a new campaign linking an issue to a subscriber list.',
@@ -624,9 +650,20 @@ export function createMcpServer(prisma: PrismaClient, userId: string, scopes: st
 
     server.tool(
       'send_campaign',
-      'Send a campaign to all subscribers on the list. This delivers real emails — confirm with the user before calling this.',
-      { campaignId: z.string().describe('Campaign ID to send') },
-      async ({ campaignId }) => {
+      'Send a campaign to all subscribers on the list. This delivers real emails and cannot be undone. ' +
+        'Always confirm with the user before calling this, then pass confirm: true — the call is rejected without it.',
+      {
+        campaignId: z.string().describe('Campaign ID to send'),
+        confirm: z.boolean().describe('Must be true. Set this only after the user has explicitly confirmed they want to send real emails to this campaign\'s subscribers.'),
+      },
+      async ({ campaignId, confirm }) => {
+        if (!confirm) {
+          return {
+            content: [{ type: 'text' as const, text: 'Not sent: confirm must be true. Ask the user to explicitly confirm before sending — this delivers real emails to every subscriber on the list.' }],
+            isError: true,
+          };
+        }
+
         const campaign = await prisma.campaign.findUnique({ where: { id: campaignId }, include: { issue: { include: { posts: { include: { authors: { include: { author: true } }, categories: { include: { category: true } }, tags: { include: { tag: true } }, featuredMedia: true } } } } } });
         if (!campaign) return { content: [{ type: 'text' as const, text: 'Campaign not found.' }], isError: true };
         if (campaign.status === 'sent') return { content: [{ type: 'text' as const, text: 'Campaign already sent.' }], isError: true };
@@ -638,15 +675,25 @@ export function createMcpServer(prisma: PrismaClient, userId: string, scopes: st
         });
 
         let sent = 0;
-        for (const sub of subscribers) {
+        await mapWithConcurrency(subscribers, SEND_CONCURRENCY, async (sub) => {
           try {
             const html = await generateNewsletterHtml(campaign.issue as any, { subscriberToken: sub.unsubscribeToken }, campaign.blocks as any);
             await sendMail({ to: sub.email!, subject: campaign.issue.title, html });
             sent++;
           } catch { /* continue on per-subscriber failure */ }
-        }
+        });
 
-        await prisma.campaign.update({ where: { id: campaignId }, data: { status: 'sent', sentAt: new Date(), sentCount: sent } });
+        // Same "don't claim success when every send failed" rule as the main
+        // /api/campaigns/:id/send route — a misconfigured email provider must
+        // not come back as success: true.
+        const allFailed = subscribers.length > 0 && sent === 0;
+        await prisma.campaign.update({
+          where: { id: campaignId },
+          data: { status: allFailed ? 'failed' : 'sent', sentAt: allFailed ? null : new Date(), sentCount: sent },
+        });
+        if (allFailed) {
+          return { content: [{ type: 'text' as const, text: `Failed to send to all ${subscribers.length} subscriber(s) — check the email provider settings.` }], isError: true };
+        }
         return { content: [{ type: 'text' as const, text: JSON.stringify({ success: true, sent, total: subscribers.length }, null, 2) }] };
       },
     );

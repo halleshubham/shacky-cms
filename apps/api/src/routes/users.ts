@@ -6,6 +6,7 @@ import { hashPassword } from '../utils/password.js';
 import { audit } from '../utils/audit.js';
 import { sendMail } from '../services/email.js';
 import { env } from '../utils/env.js';
+import { createPasswordResetToken } from '../utils/passwordReset.js';
 
 const updateUserSchema = z.object({
   name: z.string().min(1).optional(),
@@ -32,6 +33,21 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
     if (body.role) data.role = body.role;
     if (body.password) data.passwordHash = await hashPassword(body.password);
 
+    if (body.role && body.role !== 'superadmin') {
+      const target = await prisma.user.findUnique({ where: { id }, select: { role: true } });
+      if (!target) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'User not found' });
+      if (target.role === 'superadmin') {
+        const superadminCount = await prisma.user.count({ where: { role: 'superadmin' } });
+        if (superadminCount <= 1) {
+          return reply.status(400).send({
+            statusCode: 400,
+            error: 'Bad Request',
+            message: 'Cannot change the role of the last superadmin — promote another user first',
+          });
+        }
+      }
+    }
+
     const user = await prisma.user.update({
       where: { id },
       data,
@@ -43,17 +59,24 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
       const siteName = await prisma.setting.findUnique({ where: { key: 'site_title' } })
         .then((r) => r?.value || 'Shacky CMS');
 
+      // Send a one-time set-your-own-password link instead of the password
+      // an admin typed into this request — email isn't a secure transport,
+      // and a plaintext password sits in that inbox indefinitely. The admin's
+      // own value still takes effect immediately above; this just lets the
+      // user replace it with one of their own choosing right away.
+      const resetToken = await createPasswordResetToken(user.id);
+      const resetUrl = `${env.APP_URL}/set-password?token=${resetToken}`;
+
       sendMail({
         to: user.email,
         subject: `Your ${siteName} password has been reset`,
         html: `
           <p>Hi ${user.name},</p>
           <p>An administrator has reset your <strong>${siteName}</strong> password.</p>
-          <p><strong>New password:</strong> ${body.password}</p>
-          <p><a href="${env.APP_URL}/login">Log in now</a> and change your password from your profile settings.</p>
+          <p><a href="${resetUrl}">Choose a new password</a> now (link expires in 48 hours).</p>
           <p>If you did not expect this change, please contact your administrator.</p>
         `,
-        text: `Hi ${user.name},\n\nAn administrator has reset your ${siteName} password.\n\nNew password: ${body.password}\n\nLogin: ${env.APP_URL}/login\n\nIf you did not expect this change, please contact your administrator.`,
+        text: `Hi ${user.name},\n\nAn administrator has reset your ${siteName} password.\n\nChoose a new password now (link expires in 48 hours):\n${resetUrl}\n\nIf you did not expect this change, please contact your administrator.`,
       }).catch((err) => fastify.log.warn({ err }, 'Failed to send password-reset notification'));
     }
 
@@ -65,6 +88,18 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
     const { id } = req.params as { id: string };
     if (id === req.user!.id) {
       return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'Cannot delete yourself' });
+    }
+    const target = await prisma.user.findUnique({ where: { id }, select: { role: true } });
+    if (!target) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'User not found' });
+    if (target.role === 'superadmin') {
+      const superadminCount = await prisma.user.count({ where: { role: 'superadmin' } });
+      if (superadminCount <= 1) {
+        return reply.status(400).send({
+          statusCode: 400,
+          error: 'Bad Request',
+          message: 'Cannot delete the last superadmin — promote another user first',
+        });
+      }
     }
     await prisma.user.delete({ where: { id } });
     await audit(req, 'user.deleted', { entity: 'user', entityId: id });

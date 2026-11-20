@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../plugins/prisma.js';
+import { escapeLikeWildcards } from '@shacky/shared';
 
 const postInclude = {
   featuredMedia: true,
@@ -50,10 +51,11 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
 
     const where: any = { status: 'published' };
     if (q.search) {
+      const term = escapeLikeWildcards(q.search);
       where.OR = [
-        { title: { contains: q.search, mode: 'insensitive' } },
-        { excerpt: { contains: q.search, mode: 'insensitive' } },
-        { content: { contains: q.search, mode: 'insensitive' } },
+        { title: { contains: term, mode: 'insensitive' } },
+        { excerpt: { contains: term, mode: 'insensitive' } },
+        { content: { contains: term, mode: 'insensitive' } },
       ];
     }
     if (q.categorySlug) where.categories = { some: { category: { slug: q.categorySlug } } };
@@ -141,9 +143,16 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
     });
   });
 
-  // GET /public/issues/latest — most recent issue with all its posts
+  // GET /public/issues/latest — most recent *ready* issue with all its posts.
+  // "Latest" by volumeNumber/issueNumber alone picks whatever issue has the
+  // highest numbers, even one just created for next week with no published
+  // posts in it yet — the public homepage would show an empty issue instead
+  // of the actual current one. Only an issue with at least one published
+  // post (status, not publishDate — the scheduler already turns a post
+  // 'published' exactly when it's really live) counts as ready.
   fastify.get('/issues/latest', async (_req, reply) => {
     const issue = await prisma.issue.findFirst({
+      where: { posts: { some: { status: 'published' } } },
       orderBy: [{ volumeNumber: 'desc' }, { issueNumber: 'desc' }],
       include: {
         posts: {
@@ -362,17 +371,6 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
     });
     if (!page) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Page not found' });
     return reply.send(page);
-  });
-
-  // GET /public/settings — site settings for frontend
-  fastify.get('/settings', async (_req, reply) => {
-    const keys = ['site_title', 'site_description', 'site_logo', 'site_icon', 'nav_primary', 'nav_secondary'];
-    const rows = await prisma.setting.findMany({ where: { key: { in: keys } } });
-    const out: Record<string, any> = {};
-    for (const r of rows) {
-      try { out[r.key] = JSON.parse(r.value); } catch { out[r.key] = r.value; }
-    }
-    return reply.send(out);
   });
 };
 

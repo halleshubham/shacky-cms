@@ -1,8 +1,10 @@
 'use client';
+import { use } from 'react';
 import { PublicForm } from '@/components/public/PublicForm';
 import { useSiteSettings } from '@/hooks/useSiteSettings';
 
-export default function PublicFormPage({ params }: { params: { slug: string } }) {
+export default function PublicFormPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = use(params);
   const siteSettings = useSiteSettings();
   const siteName = siteSettings.site_title || 'Shacky CMS';
 
@@ -15,7 +17,7 @@ export default function PublicFormPage({ params }: { params: { slug: string } })
       </header>
       <main className="flex-1 flex items-start justify-center px-4 py-10">
         <div className="w-full max-w-lg">
-          <PublicForm slug={params.slug} />
+          <PublicForm slug={slug} />
         </div>
       </main>
     </div>

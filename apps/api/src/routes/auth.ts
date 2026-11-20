@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
-import bcrypt from 'bcryptjs';
+import { createHash } from 'crypto';
 import { authenticator } from 'otplib';
 import QRCode from 'qrcode';
 import { prisma } from '../plugins/prisma.js';
@@ -10,6 +10,7 @@ import { authenticate, requireSuperAdmin } from '../middleware/auth.js';
 import { audit } from '../utils/audit.js';
 import { env } from '../utils/env.js';
 import { sendMail } from '../services/email.js';
+import { createPasswordResetToken, consumePasswordResetToken } from '../utils/passwordReset.js';
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -24,10 +25,62 @@ const registerSchema = z.object({
   role: z.enum(['superadmin', 'editor', 'author', 'subscriber_manager']).optional(),
 });
 
+// Refresh tokens are long opaque JWTs, not human passwords — bcrypt is the
+// wrong tool: it silently truncates input at 72 bytes, and every refresh
+// token issued to the same user shares an identical first-72-byte prefix
+// (header + the sub/email/role/type claims, in that fixed order), so bcrypt
+// would treat ALL of a user's tokens, past and present, as equal. A plain
+// SHA-256 digest has no such truncation and gives an exact, O(1)-lookupable
+// key — correct for a token (which is already high-entropy, unlike a
+// password) and the reason /refresh and /logout can actually revoke one
+// specific session instead of matching every session a user ever had.
+function hashToken(rawToken: string): string {
+  return createHash('sha256').update(rawToken).digest('hex');
+}
+
+async function findRefreshTokenRow(userId: string, rawToken: string) {
+  return prisma.refreshToken.findFirst({
+    where: { userId, tokenHash: hashToken(rawToken), expiresAt: { gt: new Date() } },
+  });
+}
+
+// Per-account login lockout. The server-wide rate limit on every route is
+// keyed by IP, so it does nothing against a distributed brute force (or
+// simply caps out at a still-generous 200 guesses/minute from one IP) — it
+// never looks at *which account* is being hammered. This counts recent
+// failures for the specific email being attempted, reusing the audit log
+// that already records every failed login/TOTP attempt rather than adding
+// a second place to track the same thing. Checked before the password is
+// even verified, and applies identically whether or not the email belongs
+// to a real account, so a locked-out response can't be used to enumerate
+// which emails are registered.
+const LOGIN_LOCKOUT_WINDOW_MS = 15 * 60 * 1000;
+const LOGIN_MAX_ATTEMPTS = 5;
+
+async function isLoginLockedOut(email: string): Promise<boolean> {
+  const since = new Date(Date.now() - LOGIN_LOCKOUT_WINDOW_MS);
+  const count = await prisma.auditLog.count({
+    where: {
+      action: { in: ['auth.login.failed', 'auth.login.totp_failed'] },
+      createdAt: { gte: since },
+      meta: { path: ['email'], equals: email },
+    },
+  });
+  return count >= LOGIN_MAX_ATTEMPTS;
+}
+
 const authRoutes: FastifyPluginAsync = async (fastify) => {
   // POST /auth/login
   fastify.post('/login', async (req, reply) => {
     const body = loginSchema.parse(req.body);
+
+    if (await isLoginLockedOut(body.email)) {
+      return reply.status(429).send({
+        statusCode: 429,
+        error: 'Too Many Requests',
+        message: 'Too many failed login attempts for this account. Please try again in a few minutes.',
+      });
+    }
 
     const user = await prisma.user.findUnique({ where: { email: body.email } });
     if (!user || !(await verifyPassword(body.password, user.passwordHash))) {
@@ -52,7 +105,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     await prisma.refreshToken.create({
       data: {
         userId: user.id,
-        tokenHash: await bcrypt.hash(refreshToken, 8),
+        tokenHash: hashToken(refreshToken),
         expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
       },
     });
@@ -72,7 +125,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
         secure: env.NODE_ENV === 'production',
         sameSite: 'strict',
         maxAge: 30 * 24 * 60 * 60,
-        path: '/api/auth/refresh',
+        path: '/api/auth',
       });
 
     return reply.send({
@@ -96,16 +149,27 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       const user = await prisma.user.findUnique({ where: { id: payload.sub } });
       if (!user) throw new Error('User not found');
 
+      // Reject a refresh token whose session row has already been revoked
+      // (logout) or rotated away (reused after a later /refresh) — a valid
+      // JWT signature alone is no longer enough.
+      const sessionRow = await findRefreshTokenRow(user.id, token);
+      if (!sessionRow) throw new Error('Session revoked');
+
       const accessToken = await signAccessToken({ sub: user.id, email: user.email, role: user.role as any });
       const newRefreshToken = await signRefreshToken({ sub: user.id, email: user.email, role: user.role as any });
 
-      await prisma.refreshToken.create({
-        data: {
-          userId: user.id,
-          tokenHash: await bcrypt.hash(newRefreshToken, 8),
-          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-        },
-      });
+      // Rotate: this session's row is replaced by the new token's row, so the
+      // old refresh token can never be used again even if it leaks afterward.
+      await prisma.$transaction([
+        prisma.refreshToken.delete({ where: { id: sessionRow.id } }),
+        prisma.refreshToken.create({
+          data: {
+            userId: user.id,
+            tokenHash: hashToken(newRefreshToken),
+            expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          },
+        }),
+      ]);
 
       reply
         .setCookie('access_token', accessToken, {
@@ -120,7 +184,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
           secure: env.NODE_ENV === 'production',
           sameSite: 'strict',
           maxAge: 30 * 24 * 60 * 60,
-          path: '/api/auth/refresh',
+          path: '/api/auth',
         });
 
       return reply.send({ accessToken });
@@ -131,10 +195,15 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
 
   // POST /auth/logout
   fastify.post('/logout', { preHandler: [authenticate] }, async (req, reply) => {
+    const token = req.cookies?.['refresh_token'] || (req.body as any)?.refreshToken;
+    if (token && req.user) {
+      const sessionRow = await findRefreshTokenRow(req.user.id, token);
+      if (sessionRow) await prisma.refreshToken.delete({ where: { id: sessionRow.id } });
+    }
     await audit(req, 'auth.logout');
     reply
       .clearCookie('access_token', { path: '/' })
-      .clearCookie('refresh_token', { path: '/api/auth/refresh' });
+      .clearCookie('refresh_token', { path: '/api/auth' });
     return reply.send({ success: true });
   });
 
@@ -161,6 +230,13 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     const siteName = await prisma.setting.findUnique({ where: { key: 'site_title' } })
       .then((r) => r?.value || 'Shacky CMS');
 
+    // A one-time link to choose their own password, instead of emailing the
+    // password an admin happened to type into the create-user form — email
+    // is not a secure transport, and a plaintext password sits in that
+    // inbox (and any mail server logs/backups) indefinitely.
+    const resetToken = await createPasswordResetToken(user.id);
+    const resetUrl = `${env.APP_URL}/set-password?token=${resetToken}`;
+
     sendMail({
       to: user.email,
       subject: `Your ${siteName} account has been created`,
@@ -169,12 +245,11 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
         <p>A <strong>${siteName}</strong> account has been created for you by an administrator.</p>
         <table>
           <tr><td><strong>Email:</strong></td><td>${user.email}</td></tr>
-          <tr><td><strong>Password:</strong></td><td>${body.password}</td></tr>
           <tr><td><strong>Role:</strong></td><td>${user.role}</td></tr>
         </table>
-        <p><a href="${env.APP_URL}/login">Log in now</a> and change your password after your first sign-in.</p>
+        <p><a href="${resetUrl}">Set your password</a> to activate your account (link expires in 48 hours).</p>
       `,
-      text: `Hi ${user.name},\n\nA ${siteName} account has been created for you.\n\nEmail: ${user.email}\nPassword: ${body.password}\nRole: ${user.role}\n\nLogin: ${env.APP_URL}/login\n\nPlease change your password after your first sign-in.`,
+      text: `Hi ${user.name},\n\nA ${siteName} account has been created for you.\n\nEmail: ${user.email}\nRole: ${user.role}\n\nSet your password to activate your account (link expires in 48 hours):\n${resetUrl}`,
     }).catch((err) => fastify.log.warn({ err }, 'Failed to send welcome email'));
 
     return reply.status(201).send({
@@ -183,6 +258,22 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       name: user.name,
       role: user.role,
     });
+  });
+
+  // POST /auth/set-password — consume a one-time link (from /register or an
+  // admin password reset) to choose your own password. Public: the token
+  // itself, not a session, is the credential here.
+  fastify.post('/set-password', async (req, reply) => {
+    const body = z.object({ token: z.string().min(1), password: z.string().min(12) }).parse(req.body);
+
+    const userId = await consumePasswordResetToken(body.token);
+    if (!userId) {
+      return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'This link is invalid or has expired' });
+    }
+
+    await prisma.user.update({ where: { id: userId }, data: { passwordHash: await hashPassword(body.password) } });
+    await audit(req, 'auth.password_set', { entity: 'user', entityId: userId });
+    return reply.send({ success: true });
   });
 
   // GET /auth/me
@@ -237,6 +328,17 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
     if (!user) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'User not found' });
 
+    // Re-setup while 2FA is already enabled must prove possession of the
+    // CURRENT factor first — otherwise a hijacked session could silently
+    // swap in an attacker-controlled secret without ever touching the
+    // user's real authenticator app.
+    if (user.totpEnabled) {
+      const { currentCode } = (req.body as { currentCode?: string }) ?? {};
+      if (!currentCode || !authenticator.verify({ token: currentCode, secret: user.totpSecret! })) {
+        return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'Enter your current 2FA code to set up a new one.' });
+      }
+    }
+
     const secret = authenticator.generateSecret();
     const otpauth = authenticator.keyuri(user.email, 'Shacky CMS', secret);
     const qrCode = await QRCode.toDataURL(otpauth);
@@ -265,13 +367,32 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   // POST /auth/totp/disable
-  fastify.post('/totp/disable', { preHandler: [authenticate, requireSuperAdmin] }, async (req, reply) => {
-    const { userId } = req.body as { userId: string };
+  // Self-service (no userId, or userId === caller): requires proof of the
+  // current TOTP code, so a hijacked session alone can't turn off 2FA.
+  // Admin override (userId for someone else): superadmin only, no code
+  // needed — for recovering an account whose owner lost their device.
+  fastify.post('/totp/disable', { preHandler: [authenticate] }, async (req, reply) => {
+    const { userId, code } = (req.body as { userId?: string; code?: string }) ?? {};
+    const targetUserId = userId || req.user!.id;
+
+    if (targetUserId !== req.user!.id) {
+      if (req.user!.role !== 'superadmin') {
+        return reply.status(403).send({ statusCode: 403, error: 'Forbidden', message: 'Only a superadmin can disable another user\'s 2FA' });
+      }
+    } else {
+      const user = await prisma.user.findUnique({ where: { id: targetUserId } });
+      if (user?.totpEnabled) {
+        if (!code || !authenticator.verify({ token: code, secret: user.totpSecret! })) {
+          return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'Enter your current 2FA code to disable it.' });
+        }
+      }
+    }
+
     await prisma.user.update({
-      where: { id: userId },
+      where: { id: targetUserId },
       data: { totpEnabled: false, totpSecret: null },
     });
-    await audit(req, 'auth.totp.disabled', { entity: 'user', entityId: userId });
+    await audit(req, 'auth.totp.disabled', { entity: 'user', entityId: targetUserId });
     return reply.send({ success: true });
   });
 

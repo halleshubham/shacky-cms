@@ -23,16 +23,19 @@ async function getPosts(slug: string, page = 1) {
   } catch { return { data: [], total: 0, totalPages: 0 }; }
 }
 
-export async function generateMetadata({ params }: { params: { slug: string } }) {
-  const cat = await getCategory(params.slug);
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const cat = await getCategory(slug);
   return { title: cat ? `${cat.name} — Articles` : 'Category' };
 }
 
-export default async function CategoryPage({ params, searchParams }: { params: { slug: string }; searchParams: { page?: string } }) {
-  const page = Number(searchParams.page || 1);
+export default async function CategoryPage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ page?: string }> }) {
+  const { slug } = await params;
+  const { page: pageParam } = await searchParams;
+  const page = Number(pageParam || 1);
   const [cat, { data: posts, total, totalPages }] = await Promise.all([
-    getCategory(params.slug),
-    getPosts(params.slug, page),
+    getCategory(slug),
+    getPosts(slug, page),
   ]);
 
   if (!cat) notFound();

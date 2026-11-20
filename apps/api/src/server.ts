@@ -1,4 +1,4 @@
-import Fastify from 'fastify';
+import Fastify, { type FastifyError } from 'fastify';
 import cookie from '@fastify/cookie';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
@@ -8,6 +8,7 @@ import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 import { env } from './utils/env.js';
 import prismaPlugin from './plugins/prisma.js';
+import { authenticate, requireAdmin } from './middleware/auth.js';
 
 import authRoutes from './routes/auth.js';
 import postsRoutes from './routes/posts.js';
@@ -42,7 +43,7 @@ const fastify = Fastify({
     transport: env.NODE_ENV !== 'production' ? { target: 'pino-pretty' } : undefined,
   },
   trustProxy: true,
-  maxParamLength: 500,
+  routerOptions: { maxParamLength: 500 },
 });
 
 async function main() {
@@ -115,9 +116,20 @@ async function main() {
     },
   });
 
+  // /docs is API documentation, not a public reader-facing page — require an
+  // authenticated admin session so the full route map + schemas (and the
+  // static-file server bundled inside @fastify/swagger-ui) aren't reachable
+  // by an unauthenticated internet client.
   await fastify.register(swaggerUi, {
     routePrefix: '/docs',
     uiConfig: { docExpansion: 'list', deepLinking: false },
+    uiHooks: {
+      onRequest: async (req, reply) => {
+        await authenticate(req, reply);
+        if (reply.sent) return;
+        await requireAdmin(req, reply);
+      },
+    },
   });
 
   // Health check
@@ -149,7 +161,7 @@ async function main() {
   fastify.register(mcpRoutes);    // /mcp
 
   // Global error handler
-  fastify.setErrorHandler((error, req, reply) => {
+  fastify.setErrorHandler((error: FastifyError, req, reply) => {
     fastify.log.error(error);
     if (error.name === 'ZodError') {
       return reply.status(400).send({

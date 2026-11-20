@@ -4,6 +4,40 @@ import { createId } from '@paralleldrive/cuid2';
 import { prisma } from '../plugins/prisma.js';
 import { authenticate } from '../middleware/auth.js';
 import { requireRoles } from '../middleware/auth.js';
+import { fireWebhook } from '../utils/webhooks.js';
+import { mapWithConcurrency } from '../utils/concurrency.js';
+
+const IMPORT_CONCURRENCY = 25;
+
+// Minimal RFC-4180-ish CSV parser: handles quoted fields (including embedded
+// commas and escaped "" quotes) and CRLF/LF line endings. A naive
+// line.split(',') breaks the moment a name field like `"Doe, Jane"` shows up,
+// which splitting the whole file on '\n' first (before resolving quotes)
+// would also get wrong for a quoted field containing a literal newline.
+export function parseCsv(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = '';
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; } else { inQuotes = false; }
+      } else {
+        field += ch;
+      }
+      continue;
+    }
+    if (ch === '"') { inQuotes = true; continue; }
+    if (ch === ',') { row.push(field); field = ''; continue; }
+    if (ch === '\r') continue;
+    if (ch === '\n') { row.push(field); rows.push(row); row = []; field = ''; continue; }
+    field += ch;
+  }
+  if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row); }
+  return rows;
+}
 
 const subscribeSchema = z.object({
   email: z.string().email().optional(),
@@ -63,6 +97,7 @@ const subscribersRoutes: FastifyPluginAsync = async (fastify) => {
           unsubscribeToken: createId(),
         },
       });
+      fireWebhook('member.created', { id: subscriber.id, email: subscriber.email, phone: subscriber.phone });
     }
 
     if (body.listId) {
@@ -88,6 +123,7 @@ const subscribersRoutes: FastifyPluginAsync = async (fastify) => {
       where: { id: subscriber.id },
       data: { status: 'unsubscribed', unsubscribedAt: new Date() },
     });
+    fireWebhook('member.updated', { id: subscriber.id, email: subscriber.email, status: 'unsubscribed' });
 
     return reply.send({ success: true, message: 'You have been unsubscribed.' });
   });
@@ -99,6 +135,7 @@ const subscribersRoutes: FastifyPluginAsync = async (fastify) => {
     async (req, reply) => {
       const { id } = req.params as { id: string };
       await prisma.subscriber.delete({ where: { id } });
+      fireWebhook('member.deleted', { id });
       return reply.send({ success: true });
     },
   );
@@ -173,13 +210,19 @@ const subscribersRoutes: FastifyPluginAsync = async (fastify) => {
       if (!data) return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'No file' });
 
       const csv = (await data.toBuffer()).toString('utf-8');
-      const lines = csv.split('\n').slice(1); // skip header
+      const rows = parseCsv(csv).slice(1); // skip header
       let imported = 0;
       let skipped = 0;
 
-      for (const line of lines) {
-        const [email, phone, name, channels] = line.split(',').map((s) => s.trim().replace(/^"|"$/g, ''));
-        if (!email && !phone) { skipped++; continue; }
+      // Each row is an independent upsert (different unique-key column
+      // depending on whether email or phone is present) with its own
+      // skip-on-error handling, so this can't collapse into a single
+      // createMany/updateMany — but it doesn't need to run one row at a
+      // time either. A 10k-row CSV was 10k sequential round-trips inside
+      // one HTTP request; this keeps 25 upserts in flight at once instead.
+      await mapWithConcurrency(rows, IMPORT_CONCURRENCY, async (row) => {
+        const [email, phone, name, channels] = row.map((s) => s.trim());
+        if (!email && !phone) { skipped++; return; }
         try {
           await prisma.subscriber.upsert({
             where: email ? { email } : { phone: phone! },
@@ -191,11 +234,15 @@ const subscribersRoutes: FastifyPluginAsync = async (fastify) => {
               source: 'import',
               unsubscribeToken: createId(),
             },
-            update: { name: name || undefined },
+            update: {
+              name: name || undefined,
+              phone: phone || undefined,
+              channels: (channels as any) || undefined,
+            },
           });
           imported++;
         } catch { skipped++; }
-      }
+      });
 
       return reply.send({ imported, skipped });
     },

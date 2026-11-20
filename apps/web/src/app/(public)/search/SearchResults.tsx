@@ -12,7 +12,7 @@ export function SearchResults({ q, page }: { q: string; page: number }) {
   const [results, setResults] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
     setQuery(q);

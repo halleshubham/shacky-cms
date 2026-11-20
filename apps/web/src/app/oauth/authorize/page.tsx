@@ -9,9 +9,11 @@ import { useAuth } from '@/lib/auth';
 
 const SCOPE_LABELS: Record<string, { label: string; description: string }> = {
   'posts:read':       { label: 'Read posts',       description: 'View posts, pages, categories and tags' },
-  'posts:write':      { label: 'Write posts',      description: 'Create and update posts and pages' },
+  'posts:write':      { label: 'Write posts',      description: 'Create and update posts, pages, issues, categories and tags' },
   'media:read':       { label: 'Read media',        description: 'View media library files' },
   'subscribers:read': { label: 'Read subscribers',  description: 'View subscriber list and counts' },
+  'campaigns:read':   { label: 'Read campaigns',    description: 'View campaigns and their send status' },
+  'campaigns:write':  { label: 'Send campaigns',    description: 'Create campaigns and send real emails to your subscribers' },
 };
 
 function AuthorizeInner() {

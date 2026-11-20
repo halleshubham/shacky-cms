@@ -18,7 +18,15 @@
     "typescript": "^5.4.5"
   },
   "engines": {
-    "node": ">=18.0.0",
+    "node": ">=20.0.0",
     "pnpm": ">=9.0.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "handlebars": ">=4.7.10",
+      "@xmldom/xmldom": ">=0.8.15",
+      "fast-xml-parser": ">=5.12.0",
+      "sharp": "0.33.5"
+    }
   }
 }

@@ -1,8 +1,11 @@
 import sharp from 'sharp';
+import { decode } from 'he';
 import { createId } from '@paralleldrive/cuid2';
 import { prisma } from '../plugins/prisma.js';
 import { uploadToS3 } from '../utils/s3.js';
 import { slugify } from '@shacky/shared';
+import { sanitizePostContent } from '../utils/sanitizeHtml.js';
+import { safeFetch } from '../utils/ssrfGuard.js';
 
 export interface WPConfig {
   baseUrl: string;
@@ -38,16 +41,12 @@ export interface MigrationProgress {
   finishedAt?: string;
 }
 
-// Decode numeric and common named HTML entities (WP REST API returns rendered HTML)
-function decodeEntities(str: string): string {
-  return str
-    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code, 10)))
-    .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCharCode(parseInt(code, 16)))
-    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&nbsp;/g, ' ')
-    .replace(/&ndash;/g, '–').replace(/&mdash;/g, '—')
-    .replace(/&lsquo;/g, '‘').replace(/&rsquo;/g, '’')
-    .replace(/&ldquo;/g, '“').replace(/&rdquo;/g, '”');
+// Decode numeric and named HTML entities (WP REST API returns rendered HTML).
+// Delegates to `he` for the full HTML5 named-entity table (hellip, copy, deg,
+// eacute, trade, frac12, etc.) instead of a hand-rolled list that only ever
+// covered a handful of common ones.
+export function decodeEntities(str: string): string {
+  return decode(str);
 }
 
 // In-memory job store — fine for single-server; jobs are short-lived
@@ -63,7 +62,7 @@ function authHeader(cfg: WPConfig): string {
 async function wpFetch(cfg: WPConfig, path: string, params: Record<string, string> = {}): Promise<any> {
   const url = new URL(`${cfg.baseUrl.replace(/\/$/, '')}/wp-json/wp/v2/${path}`);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
-  const res = await fetch(url.toString(), {
+  const res = await safeFetch(url.toString(), {
     headers: { Authorization: authHeader(cfg), 'User-Agent': 'ShackyCMS-Migrator/1.0' },
     signal: AbortSignal.timeout(120_000),
   });
@@ -81,7 +80,7 @@ async function wpFetch(cfg: WPConfig, path: string, params: Record<string, strin
 // the display name from the nearest span element.
 async function scrapeAuthorFromPost(postUrl: string, baseUrl: string): Promise<{ name: string; slug: string } | null> {
   try {
-    const res = await fetch(postUrl, {
+    const res = await safeFetch(postUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -145,10 +144,10 @@ export async function testWPConnection(cfg: WPConfig): Promise<{
     wpFetch(cfg, 'categories', { per_page: '1' }),
     wpFetch(cfg, 'tags', { per_page: '1' }),
     safeUserFetch,
-    fetch(`${cfg.baseUrl.replace(/\/$/, '')}/wp-json/`, {
+    safeFetch(`${cfg.baseUrl.replace(/\/$/, '')}/wp-json/`, {
       headers: { Authorization: authHeader(cfg) },
       signal: AbortSignal.timeout(10_000),
-    }).then((r) => r.json()).catch(() => ({})),
+    }).then((r) => r.json() as Promise<any>).catch(() => ({})),
   ]);
   return {
     siteTitle: root.name || cfg.baseUrl,
@@ -162,16 +161,72 @@ export async function testWPConnection(cfg: WPConfig): Promise<{
 }
 
 // ─── Progress helpers ────────────────────────────────────────────────────────
+//
+// The in-memory `jobs` map is the hot path (every setProgress call, including
+// once per post in the main import loop) — fast and good enough while the API
+// process serving the job is still up. It's mirrored into MigrationJob so a
+// poll of GET /migration/wordpress/status/:jobId still finds the job's last
+// known state after a restart, instead of just 404ing because the map is gone.
+// Persistence is fire-and-forget: a failed/slow DB write must never stall or
+// crash the migration itself.
 
-function setProgress(jobId: string, p: Partial<MigrationProgress>): void {
+// setProgress fires writes without awaiting them, so calls for the same job
+// can resolve out of order (Prisma's connection pool gives no ordering
+// guarantee across concurrent queries) — without serializing per job, a
+// slower earlier write can land after a later one and leave the DB mirror
+// stuck on stale progress, or even overwrite the final 'done'/'failed'
+// state. Chaining each write onto the previous one for the same jobId fixes
+// that while still never blocking the (synchronous) caller.
+const pendingWrites = new Map<string, Promise<void>>();
+
+function setProgress(jobId: string, p: Partial<MigrationProgress>, userId?: string): void {
   const current = jobs.get(jobId) ?? {
     jobId, status: 'running' as const, phase: '', total: 0, done: 0, skipped: 0, errors: 0, errorLog: [], startedAt: new Date().toISOString(),
   };
-  jobs.set(jobId, { ...current, ...p });
+  const next = { ...current, ...p };
+  jobs.set(jobId, next);
+
+  const prior = pendingWrites.get(jobId) ?? Promise.resolve();
+  const chained = prior.then(() => persistProgress(jobId, next, userId)).catch(() => {});
+  pendingWrites.set(jobId, chained);
 }
 
-export function getProgress(jobId: string): MigrationProgress | null {
-  return jobs.get(jobId) ?? null;
+async function persistProgress(jobId: string, p: MigrationProgress, userId?: string): Promise<void> {
+  const shared = {
+    status: p.status,
+    phase: p.phase,
+    total: p.total,
+    done: p.done,
+    skipped: p.skipped,
+    errors: p.errors,
+    errorLog: p.errorLog,
+    finishedAt: p.finishedAt ? new Date(p.finishedAt) : null,
+  };
+  await prisma.migrationJob.upsert({
+    where: { id: jobId },
+    create: { id: jobId, userId: userId ?? null, startedAt: new Date(p.startedAt), ...shared },
+    update: shared,
+  });
+}
+
+export async function getProgress(jobId: string): Promise<MigrationProgress | null> {
+  const inMemory = jobs.get(jobId);
+  if (inMemory) return inMemory;
+
+  const row = await prisma.migrationJob.findUnique({ where: { id: jobId } });
+  if (!row) return null;
+  return {
+    jobId: row.id,
+    status: row.status,
+    phase: row.phase,
+    total: row.total,
+    done: row.done,
+    skipped: row.skipped,
+    errors: row.errors,
+    errorLog: row.errorLog as string[],
+    startedAt: row.startedAt.toISOString(),
+    finishedAt: row.finishedAt?.toISOString(),
+  };
 }
 
 export function cancelJob(jobId: string): void {
@@ -295,7 +350,7 @@ async function importFeaturedImage(
   userId: string,
 ): Promise<string | null> {
   try {
-    const res = await fetch(imageUrl, { signal: AbortSignal.timeout(30_000) });
+    const res = await safeFetch(imageUrl, { signal: AbortSignal.timeout(30_000) });
     if (!res.ok) return null;
     const buffer = Buffer.from(await res.arrayBuffer());
     const originalName = imageUrl.split('/').pop()?.split('?')[0] || 'image.jpg';
@@ -341,7 +396,7 @@ async function importFeaturedImage(
 
 async function downloadToS3(imageUrl: string, userId: string): Promise<string | null> {
   try {
-    const res = await fetch(imageUrl, { signal: AbortSignal.timeout(30_000) });
+    const res = await safeFetch(imageUrl, { signal: AbortSignal.timeout(30_000) });
     if (!res.ok) return null;
     const buffer = Buffer.from(await res.arrayBuffer());
 
@@ -412,7 +467,7 @@ export async function runMigration(
   jobId: string,
   userId: string,
 ): Promise<void> {
-  setProgress(jobId, { status: 'running', phase: 'Starting…', total: 0, done: 0, skipped: 0, errors: 0, errorLog: [] });
+  setProgress(jobId, { status: 'running', phase: 'Starting…', total: 0, done: 0, skipped: 0, errors: 0, errorLog: [] }, userId);
 
   const errorLog: string[] = [];
   const addError = (msg: string) => { errorLog.push(msg); if (errorLog.length > 50) errorLog.shift(); };
@@ -442,10 +497,11 @@ export async function runMigration(
     } else {
       // Still need to build the map for post category assignment
       const existing = await prisma.category.findMany({ select: { id: true, slug: true } });
+      const existingBySlug = new Map(existing.map((c) => [c.slug, c.id]));
       const wpCats = await fetchAllPages<any>(cfg, 'categories').catch(() => []);
       for (const wc of wpCats) {
-        const match = existing.find((c) => c.slug === wc.slug);
-        if (match) wpCatToLocal.set(wc.id, match.id);
+        const match = existingBySlug.get(wc.slug);
+        if (match) wpCatToLocal.set(wc.id, match);
       }
     }
 
@@ -470,10 +526,11 @@ export async function runMigration(
       }
     } else {
       const existing = await prisma.tag.findMany({ select: { id: true, slug: true } });
+      const existingBySlug = new Map(existing.map((t) => [t.slug, t.id]));
       const wpTags = await fetchAllPages<any>(cfg, 'tags').catch(() => []);
       for (const wt of wpTags) {
-        const match = existing.find((t) => t.slug === wt.slug);
-        if (match) wpTagToLocal.set(wt.id, match.id);
+        const match = existingBySlug.get(wt.slug);
+        if (match) wpTagToLocal.set(wt.id, match);
       }
     }
 
@@ -510,10 +567,11 @@ export async function runMigration(
       }
     } else {
       const existing = await prisma.author.findMany({ select: { id: true, slug: true } });
+      const existingBySlug = new Map(existing.map((a) => [a.slug, a.id]));
       const wpUsers = await fetchAllPages<any>(cfg, 'users').catch(() => []);
       for (const wu of wpUsers) {
-        const match = existing.find((a) => a.slug === wu.slug);
-        if (match) wpAuthorToLocal.set(wu.id, match.id);
+        const match = existingBySlug.get(wu.slug);
+        if (match) wpAuthorToLocal.set(wu.id, match);
       }
     }
 
@@ -734,10 +792,13 @@ export async function runMigration(
           if (wp.status === 'publish') status = 'published';
           else if (wp.status === 'future') status = 'scheduled';
 
-          // Rewrite inline content images to point to our MinIO storage
+          // Rewrite inline content images to point to our MinIO storage, then
+          // sanitize — the WordPress source could be a spoofed or compromised
+          // site, and this content reaches the public site unsanitized
+          // otherwise (same sink as the TipTap editor's own content).
           const rawContent = wp.content?.rendered || '';
           const content = rawContent
-            ? await rewriteContentImages(rawContent, cfg.baseUrl, userId, imageUrlCache)
+            ? sanitizePostContent(await rewriteContentImages(rawContent, cfg.baseUrl, userId, imageUrlCache))
             : rawContent;
 
           // Upsert post (update if slug exists and skipExisting is false)

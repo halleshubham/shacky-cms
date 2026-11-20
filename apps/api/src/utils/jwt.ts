@@ -1,4 +1,5 @@
 import { SignJWT, jwtVerify } from 'jose';
+import { randomUUID } from 'crypto';
 import type { JwtPayload, Role } from '@shacky/shared';
 import { env } from './env.js';
 
@@ -22,7 +23,13 @@ export async function signAccessToken(payload: { sub: string; email: string; rol
 
 export async function signRefreshToken(payload: { sub: string; email: string; role: Role }): Promise<string> {
   const secret = new TextEncoder().encode(env.JWT_REFRESH_SECRET);
-  return new SignJWT({ ...payload, type: 'refresh' })
+  // jti makes every issued refresh token byte-distinct, even from one signed
+  // in the same wall-clock second for the same user (iat alone isn't enough —
+  // two logins/refreshes within the same second otherwise produce an
+  // identical signed token, which breaks per-session revocation: deleting
+  // the DB row for "this" token also invalidates any other still-live
+  // session that happens to hold the same byte-identical token).
+  return new SignJWT({ ...payload, type: 'refresh', jti: randomUUID() })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime(`${parseExpiry(env.JWT_REFRESH_EXPIRES_IN)}s`)

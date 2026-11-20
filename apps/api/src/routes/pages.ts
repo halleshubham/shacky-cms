@@ -2,7 +2,8 @@ import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../plugins/prisma.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
-import { slugify } from '@shacky/shared';
+import { slugify, escapeLikeWildcards } from '@shacky/shared';
+import { sanitizePostContent } from '../utils/sanitizeHtml.js';
 
 const pageBodySchema = z.object({
   title: z.string().min(1),
@@ -22,7 +23,7 @@ const pagesRoutes: FastifyPluginAsync = async (fastify) => {
     const { search, page: pageStr, pageSize: pageSizeStr } = req.query as { search?: string; page?: string; pageSize?: string };
     const page = Math.max(1, parseInt(pageStr || '1', 10));
     const pageSize = Math.max(1, parseInt(pageSizeStr || '50', 10));
-    const where = search ? { title: { contains: search, mode: 'insensitive' as const } } : undefined;
+    const where = search ? { title: { contains: escapeLikeWildcards(search), mode: 'insensitive' as const } } : undefined;
     const [pages, total] = await Promise.all([
       prisma.page.findMany({
         where,
@@ -59,7 +60,7 @@ const pagesRoutes: FastifyPluginAsync = async (fastify) => {
       data: {
         title: body.title,
         slug,
-        content: body.content,
+        content: sanitizePostContent(body.content),
         sectionsJson: body.sectionsJson ?? null,
         excerpt: body.excerpt,
         status: (body.status || 'draft') as any,
@@ -79,6 +80,7 @@ const pagesRoutes: FastifyPluginAsync = async (fastify) => {
       where: { id },
       data: {
         ...body,
+        ...(body.content !== undefined && { content: sanitizePostContent(body.content) }),
         ...(body.publishedAt !== undefined && { publishedAt: body.publishedAt ? new Date(body.publishedAt) : null }),
         ...(body.sectionsJson !== undefined && { sectionsJson: body.sectionsJson }),
         status: body.status as any,

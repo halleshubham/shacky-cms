@@ -5,10 +5,10 @@ import { siteUrl } from '@/lib/site-url';
 const API = process.env.API_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL;
 
 export async function GET() {
-  const SITE = siteUrl(headers());
+  const SITE = siteUrl(await headers());
   try {
     const [settingsRes, postsRes] = await Promise.all([
-      fetch(`${API}/api/public/settings`, { next: { revalidate: 300 } }),
+      fetch(`${API}/api/settings/public`, { next: { revalidate: 300 } }),
       fetch(`${API}/api/public/posts?pageSize=50`, { next: { revalidate: 60 } }),
     ]);
 

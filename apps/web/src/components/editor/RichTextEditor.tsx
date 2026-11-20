@@ -88,9 +88,17 @@ export function RichTextEditor({ value, onChange, placeholder, className }: Rich
 
   const addLink = useCallback(() => {
     const url = window.prompt('Enter URL:');
-    if (url && editor) {
-      editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
+    if (!url || !editor) return;
+    const trimmed = url.trim();
+    // Only http(s)/mailto are legitimate for article links — without this,
+    // a javascript:/data: URL typed (or pasted/AI-generated) here would
+    // sit in the live editor as a clickable link in the admin's own
+    // session until save, where the server-side sanitizer strips it.
+    if (!/^(https?:\/\/|mailto:)/i.test(trimmed)) {
+      window.alert('Only http://, https://, or mailto: links are allowed.');
+      return;
     }
+    editor.chain().focus().extendMarkRange('link').setLink({ href: trimmed }).run();
   }, [editor]);
 
   const uploadImage = useCallback(async () => {

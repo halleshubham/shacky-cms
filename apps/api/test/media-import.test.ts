@@ -2,15 +2,22 @@ import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import multipart from '@fastify/multipart';
 
-const prisma = vi.hoisted(() => ({ media: { findFirst: vi.fn(), create: vi.fn() } }));
+const prisma = vi.hoisted(() => ({
+  media: { findFirst: vi.fn(), create: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
+}));
 const uploadToS3 = vi.hoisted(() => vi.fn());
+const mockUser = vi.hoisted(() => ({ current: { id: 'u1', role: 'superadmin' as string } }));
 vi.mock('../src/plugins/prisma.js', () => ({ prisma }));
 vi.mock('../src/utils/audit.js', () => ({ audit: vi.fn() }));
 vi.mock('../src/utils/env.js', () => ({ env: { S3_PUBLIC_URL: 'https://cms.test/s3' } }));
 vi.mock('../src/utils/s3.js', () => ({ uploadToS3, deleteFromS3: vi.fn(), keyFromUrl: (u: string) => u }));
 vi.mock('../src/middleware/auth.js', () => ({
-  authenticate: async (req: any) => { req.user = { id: 'u1', role: 'superadmin' }; },
-  requireAdmin: async () => {},
+  authenticate: async (req: any) => { req.user = mockUser.current; },
+  requireAdmin: async (req: any, reply: any) => {
+    if (req.user?.role !== 'superadmin' && req.user?.role !== 'editor') {
+      reply.status(403).send({ statusCode: 403, error: 'Forbidden' });
+    }
+  },
 }));
 
 import mediaRoutes, { normalizeImportPath } from '../src/routes/media';
@@ -33,6 +40,7 @@ function form(fields: Record<string, string>, file: { name: string; type: string
 
 beforeEach(() => {
   vi.resetAllMocks();
+  mockUser.current = { id: 'u1', role: 'superadmin' };
   prisma.media.findFirst.mockResolvedValue(null);
   prisma.media.create.mockImplementation(async ({ data }: any) => ({ id: 'm1', ...data }));
 });
@@ -95,5 +103,72 @@ describe('POST /api/media/import', () => {
       expect(res.statusCode).toBe(400);
     }
     expect(uploadToS3).not.toHaveBeenCalled();
+  });
+});
+
+// Regression coverage: PATCH /:id (alt text) had no ownership check at
+// all beyond being logged in — any authenticated role, including
+// subscriber_manager, could overwrite the alt text of ANY media item
+// belonging to any other user. Non-admin roles can still edit alt text
+// on media they uploaded themselves (the media library is open to every
+// role, and authors routinely set alt text on their own uploads).
+describe('PATCH /api/media/:id — alt text ownership', () => {
+  beforeEach(() => {
+    prisma.media.update.mockImplementation(async ({ where, data }: any) => ({ id: where.id, ...data }));
+  });
+
+  it('blocks a non-admin from editing alt text on media they did not upload', async () => {
+    mockUser.current = { id: 'author1', role: 'author' };
+    prisma.media.findUnique.mockResolvedValue({ uploadedById: 'someone-else' });
+    const res = await app.inject({ method: 'PATCH', url: '/api/media/m1', payload: { altText: 'hijacked' } });
+    expect(res.statusCode).toBe(403);
+    expect(prisma.media.update).not.toHaveBeenCalled();
+  });
+
+  it('allows a non-admin to edit alt text on their own upload', async () => {
+    mockUser.current = { id: 'author1', role: 'author' };
+    prisma.media.findUnique.mockResolvedValue({ uploadedById: 'author1' });
+    const res = await app.inject({ method: 'PATCH', url: '/api/media/m1', payload: { altText: 'mine' } });
+    expect(res.statusCode).toBe(200);
+    expect(prisma.media.update).toHaveBeenCalled();
+  });
+
+  it.each(['superadmin', 'editor'])('allows %s to edit alt text on any media with no ownership check', async (role) => {
+    mockUser.current = { id: 'admin1', role };
+    const res = await app.inject({ method: 'PATCH', url: '/api/media/m1', payload: { altText: 'any' } });
+    expect(res.statusCode).toBe(200);
+    expect(prisma.media.findUnique).not.toHaveBeenCalled();
+  });
+});
+
+// Regression coverage: POST /upload stored non-image files with whatever
+// Content-Type the uploader claimed, with no validation at all — an
+// attacker could set Content-Type: text/html (or text/javascript,
+// image/svg+xml, etc) on any file and get it served back from the same
+// origin as if it were a real document, a stored-XSS vector. Only a fixed
+// allowlist of document/media types may now pass through unmodified;
+// anything else is rejected before it ever reaches uploadToS3.
+describe('POST /api/media/upload — non-image content-type allowlist', () => {
+  it('rejects text/html outright', async () => {
+    const { payload, headers } = form({}, { name: 'evil.html', type: 'text/html', body: Buffer.from('<script>alert(1)</script>') });
+    const res = await app.inject({ method: 'POST', url: '/api/media/upload', payload, headers });
+    expect(res.statusCode).toBe(415);
+    expect(uploadToS3).not.toHaveBeenCalled();
+    expect(prisma.media.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects an executable script content-type outright', async () => {
+    const { payload, headers } = form({}, { name: 'evil.js', type: 'text/javascript', body: Buffer.from('alert(1)') });
+    const res = await app.inject({ method: 'POST', url: '/api/media/upload', payload, headers });
+    expect(res.statusCode).toBe(415);
+    expect(uploadToS3).not.toHaveBeenCalled();
+  });
+
+  it('allows an allowlisted document type through untouched', async () => {
+    const body = Buffer.from('%PDF-1.4 real-ish pdf bytes');
+    const { payload, headers } = form({}, { name: 'report.pdf', type: 'application/pdf', body });
+    const res = await app.inject({ method: 'POST', url: '/api/media/upload', payload, headers });
+    expect(res.statusCode).toBe(201);
+    expect(uploadToS3).toHaveBeenCalledWith(expect.stringContaining('media/'), body, 'application/pdf');
   });
 });

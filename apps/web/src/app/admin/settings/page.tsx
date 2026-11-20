@@ -55,12 +55,15 @@ const PURGEABLE: { entity: PurgeEntity; label: string; description: string }[] =
 ];
 
 export default function SettingsPage() {
-  const { user } = useAuth();
+  const { user, refresh } = useAuth();
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [totpSecret, setTotpSecret] = useState('');
   const [totpCode, setTotpCode] = useState('');
   const [enablingTotp, setEnablingTotp] = useState(false);
   const [setupMode, setSetupMode] = useState(false);
+  const [disableMode, setDisableMode] = useState(false);
+  const [disableCode, setDisableCode] = useState('');
+  const [disablingTotp, setDisablingTotp] = useState(false);
 
   // Site settings
   const [siteTitle, setSiteTitle] = useState('');
@@ -472,10 +475,28 @@ export default function SettingsPage() {
       toast.success('2FA enabled successfully');
       setSetupMode(false);
       setQrCode(null);
+      setTotpCode('');
+      await refresh();
     } catch (err: any) {
       toast.error(err?.message || 'Invalid code');
     } finally {
       setEnablingTotp(false);
+    }
+  };
+
+  const disableTotp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setDisablingTotp(true);
+    try {
+      await api.post('/api/auth/totp/disable', { code: disableCode });
+      toast.success('2FA disabled');
+      setDisableMode(false);
+      setDisableCode('');
+      await refresh();
+    } catch (err: any) {
+      toast.error(err?.message || 'Invalid code');
+    } finally {
+      setDisablingTotp(false);
     }
   };
 
@@ -1287,9 +1308,31 @@ export default function SettingsPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           {user?.totpEnabled ? (
-            <div className="flex items-center gap-2 text-sm text-green-600">
-              <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
-              2FA is enabled on your account
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-sm text-green-600">
+                <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
+                2FA is enabled on your account
+              </div>
+              {disableMode ? (
+                <form onSubmit={disableTotp} className="flex gap-2 items-start">
+                  <Input
+                    placeholder="Enter your 6-digit code to confirm"
+                    value={disableCode}
+                    onChange={(e) => setDisableCode(e.target.value)}
+                    maxLength={6}
+                    inputMode="numeric"
+                    className="max-w-xs"
+                  />
+                  <Button type="submit" variant="destructive" disabled={disablingTotp || disableCode.length < 6}>
+                    {disablingTotp ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Confirm Disable'}
+                  </Button>
+                  <Button type="button" variant="ghost" onClick={() => { setDisableMode(false); setDisableCode(''); }}>Cancel</Button>
+                </form>
+              ) : (
+                <Button onClick={() => setDisableMode(true)} variant="outline" className="text-destructive hover:text-destructive gap-2">
+                  Disable 2FA
+                </Button>
+              )}
             </div>
           ) : setupMode ? (
             <div className="space-y-4">

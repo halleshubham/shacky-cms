@@ -14,11 +14,15 @@ import {
 import { sendMail, getEmailConfig } from '../services/email.js';
 import { sendMessagesToGroups } from '../services/botsab.js';
 import { audit } from '../utils/audit.js';
+import { fireWebhook } from '../utils/webhooks.js';
+import { mapWithConcurrency } from '../utils/concurrency.js';
+
+const SEND_CONCURRENCY = 10;
 
 const emailBlockSchema = z.object({
   id: z.string(),
   type: z.string(),
-  config: z.record(z.any()),
+  config: z.record(z.string(), z.any()),
 });
 
 const campaignBodySchema = z.object({
@@ -129,7 +133,15 @@ const campaignsRoutes: FastifyPluginAsync = async (fastify) => {
     if (!issue) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Issue not found' });
 
     const html = await generateNewsletterHtml(issue, { subscriberToken: 'test-preview' }, campaign.blocks as any);
-    await sendMail({ to: email, subject: `[TEST] ${issue.title}`, html });
+    try {
+      await sendMail({ to: email, subject: `[TEST] ${issue.title}`, html });
+    } catch (err: any) {
+      return reply.status(502).send({
+        statusCode: 502,
+        error: 'Bad Gateway',
+        message: err?.message || 'Failed to send test email — check your email provider settings',
+      });
+    }
     return reply.send({ success: true, sentTo: email });
   });
 
@@ -227,23 +239,43 @@ const campaignsRoutes: FastifyPluginAsync = async (fastify) => {
 
     const emailCfg = await getEmailConfig();
     let sent = 0;
-    for (const sub of subscribers) {
+    const failures: string[] = [];
+    await mapWithConcurrency(subscribers, SEND_CONCURRENCY, async (sub) => {
       try {
         const html = await generateNewsletterHtml(issue as any, { subscriberToken: sub.unsubscribeToken }, campaign.blocks as any);
         await sendMail({ to: sub.email!, subject: issue!.title, html }, emailCfg);
         sent++;
       } catch (err) {
         console.error(`Failed to send to ${sub.email}:`, err);
+        failures.push(sub.email!);
       }
-    }
-
-    await prisma.campaign.update({
-      where: { id },
-      data: { status: 'sent', sentAt: new Date(), sentCount: sent },
     });
 
-    await audit(req, 'campaign.sent', { entity: 'campaign', entityId: id, meta: { sent } });
-    return reply.send({ success: true, sent });
+    // Only claim "sent" when at least one email actually went out (or there
+    // was genuinely no one to send to) — not when every attempt failed, e.g.
+    // because no email provider is configured. CampaignStatus already has a
+    // `failed` state for exactly this; it just was never used.
+    const allFailed = subscribers.length > 0 && sent === 0;
+    await prisma.campaign.update({
+      where: { id },
+      data: { status: allFailed ? 'failed' : 'sent', sentAt: allFailed ? null : new Date(), sentCount: sent },
+    });
+
+    await audit(req, allFailed ? 'campaign.send_failed' : 'campaign.sent', {
+      entity: 'campaign',
+      entityId: id,
+      meta: { sent, failed: failures.length, total: subscribers.length },
+    });
+    if (!allFailed) fireWebhook('campaign.sent', { id, sent, failed: failures.length, total: subscribers.length });
+
+    if (allFailed) {
+      return reply.status(502).send({
+        statusCode: 502,
+        error: 'Bad Gateway',
+        message: `Failed to send to all ${subscribers.length} subscriber(s) — check your email provider settings`,
+      });
+    }
+    return reply.send({ success: true, sent, failed: failures.length });
   });
 
   // POST /campaigns/:id/botsab-send — send WA messages to groups via Botsab
