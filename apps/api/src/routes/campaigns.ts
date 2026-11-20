@@ -22,7 +22,7 @@ const SEND_CONCURRENCY = 10;
 const emailBlockSchema = z.object({
   id: z.string(),
   type: z.string(),
-  config: z.record(z.any()),
+  config: z.record(z.string(), z.any()),
 });
 
 const campaignBodySchema = z.object({

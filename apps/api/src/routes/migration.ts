@@ -45,7 +45,7 @@ const migrationRoutes: FastifyPluginAsync = async (fastify) => {
         firstVolumeNumber: z.number().int().positive().optional(),
         firstIssueNumber: z.number().int().positive().optional(),
         issuesPerVolume: z.number().int().positive().default(52),
-      }).default({}),
+      }).prefault({}),
     }).parse(req.body);
 
     const user = (req as any).user;
