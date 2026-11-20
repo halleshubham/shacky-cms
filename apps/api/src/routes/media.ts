@@ -267,9 +267,24 @@ const mediaRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   // PATCH /media/:id — update alt text
+  // Non-admin roles can still edit alt text on media they uploaded
+  // themselves (the admin media library is open to every role, and authors
+  // routinely set alt text on their own post images) — but previously any
+  // authenticated role could overwrite the alt text of ANY media item
+  // belonging to any OTHER user, with no ownership check at all.
   fastify.patch('/:id', { preHandler: [authenticate] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const { altText } = req.body as { altText?: string };
+
+    const isAdmin = req.user?.role === 'superadmin' || req.user?.role === 'editor';
+    if (!isAdmin) {
+      const existing = await prisma.media.findUnique({ where: { id }, select: { uploadedById: true } });
+      if (!existing) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Media not found' });
+      if (existing.uploadedById !== req.user?.id) {
+        return reply.status(403).send({ statusCode: 403, error: 'Forbidden', message: 'Cannot edit this media item' });
+      }
+    }
+
     const media = await prisma.media.update({ where: { id }, data: { altText } });
     return reply.send(media);
   });

@@ -101,6 +101,32 @@ const nextConfig = {
           { key: 'X-Frame-Options', value: 'DENY' },
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          // A practical first-layer CSP, not a nonce-based strict one — that
+          // would need a nonce-generating middleware and testing every
+          // existing embed, which is a larger separate effort. script-src
+          // keeps 'unsafe-inline'/'unsafe-eval' because Next.js's own
+          // hydration bootstrap needs them, AND because codeInjectionHead/
+          // Foot is an existing, intentional admin-only (superadmin/editor)
+          // "paste arbitrary tracking/embed HTML" feature — this still
+          // meaningfully restricts the actual gap server-side sanitization
+          // doesn't cover: script-src/connect-src can no longer point at an
+          // attacker's own domain, which is what turns a stored-XSS payload
+          // into exfiltration or a remote-script payload in the first place.
+          {
+            key: 'Content-Security-Policy',
+            value: [
+              "default-src 'self'",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com",
+              "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+              "img-src 'self' data: https:",
+              "font-src 'self' https://fonts.gstatic.com data:",
+              "connect-src 'self' https://www.googletagmanager.com https://*.google-analytics.com https://*.analytics.google.com",
+              "frame-src 'self' https://www.youtube.com https://player.vimeo.com",
+              "frame-ancestors 'none'",
+              "base-uri 'self'",
+              "form-action 'self'",
+            ].join('; '),
+          },
         ],
       },
     ];

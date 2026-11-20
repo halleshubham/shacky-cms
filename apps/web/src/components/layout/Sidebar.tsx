@@ -35,7 +35,7 @@ const navItems: NavItem[] = [
   { label: 'Users', href: '/admin/users', icon: Users, roles: ['superadmin'] },
   { label: 'Settings', href: '/admin/settings', icon: Settings, roles: ['superadmin'] },
   { label: 'Integrations', href: '/admin/integrations', icon: Plug, roles: ['superadmin'] },
-  { label: 'Migration', href: '/admin/migration', icon: Download, roles: ['superadmin'] },
+  { label: 'Migration', href: '/admin/migration', icon: Download, roles: ['superadmin', 'editor'] },
 ];
 
 interface SidebarProps {
