@@ -149,7 +149,7 @@
   letter-spacing: 0;
   color: hsl(var(--header-foreground));
 }
-[data-theme='thet'] [data-header-brand] img { max-height: 3.6rem; width: auto; }
+[data-theme='thet'] [data-header-brand] img { height: 3.75rem; max-height: none; width: auto; max-width: 16rem; }
 /* The default (no-logo) brand glyph is tinted with --primary, which vanishes on the
    header band — keep it on the brand red. */
 [data-theme='thet'] [data-header-brand] svg { color: hsl(var(--primary)); opacity: 1; }
@@ -204,6 +204,7 @@
   [data-theme='thet'] [data-header-search] { order: 4; flex-basis: 100%; }
 }
 @media (max-width: 1023px) {
+  [data-theme='thet'] [data-header-brand] img { height: 3.25rem; }
   [data-theme='thet'] [data-header-brand] { font-size: 1.3rem; }
   [data-theme='thet'] [data-header-nav] { padding-bottom: 0.5rem; }
 }
