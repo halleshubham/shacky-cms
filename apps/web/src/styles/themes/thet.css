@@ -472,7 +472,7 @@
 [data-theme='thet'] .thet-videos { scroll-margin-top: 6rem; }
 [data-theme='thet'] .thet-videos__grid {
   display: grid; gap: 2rem 1.75rem; margin-top: 1.6rem;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 30rem), 1fr));
 }
 [data-theme='thet'] .thet-videos__item h3 { font-size: 1.3rem; margin: 0 0 0.7rem; line-height: 1.4; }
 [data-theme='thet'] .thet-embed { position: relative; aspect-ratio: 16 / 9; border-radius: var(--radius); overflow: hidden; background: #000; box-shadow: var(--shadow-card); }
