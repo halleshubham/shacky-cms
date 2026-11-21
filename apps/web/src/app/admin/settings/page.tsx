@@ -657,6 +657,7 @@ export default function SettingsPage() {
                     <option value="default">Default (Neo Classic)</option>
                     <option value="samvidhan">Samvidhan — saffron / terracotta, Devanagari</option>
                     <option value="lokayat">Lokayat — newsprint, ink &amp; signal red, poster headlines</option>
+                    <option value="thet">Thet — ink black &amp; signal red, heavy Devanagari headlines</option>
                   </select>
                 </div>
                 <div className="space-y-1">
