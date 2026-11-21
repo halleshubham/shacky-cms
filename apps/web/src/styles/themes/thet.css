@@ -422,8 +422,12 @@
 [data-theme='thet'] .thet-hero { display: grid; gap: 1.25rem; align-items: stretch; }
 @media (min-width: 1024px) { [data-theme='thet'] .thet-hero { grid-template-columns: minmax(0, 1.75fr) minmax(0, 1fr); gap: 1.5rem; } }
 [data-theme='thet'] .thet-hero__video {
-  position: relative; aspect-ratio: 16 / 9; min-height: 100%;
+  position: relative; aspect-ratio: 16 / 9; min-width: 0;
   border-radius: calc(var(--radius) * 1.4); overflow: hidden; background: #fff; box-shadow: var(--shadow-card);
+}
+@media (min-width: 1024px) {
+  /* Row height comes from the follow panel; the video fills it (white letterbox is invisible on the reel). */
+  [data-theme='thet'] .thet-hero__video { aspect-ratio: auto; min-height: 26rem; }
 }
 [data-theme='thet'] .thet-hero__video video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #fff; }
 [data-theme='thet'] .thet-follow {
@@ -449,7 +453,8 @@
 
 /* Video grids */
 [data-theme='thet'] .thet-vsection { scroll-margin-top: 6rem; }
-[data-theme='thet'] .thet-vsection__head { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 0.5rem 1rem; }
+[data-theme='thet'] .thet-vsection__head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 0.25rem 1rem; }
+[data-theme='thet'] .thet-vsection__head .thet-more { padding-bottom: 0.95rem; }
 [data-theme='thet'] .thet-more { font-weight: 700; color: hsl(var(--primary)); text-decoration: none; }
 [data-theme='thet'] .thet-more:hover { text-decoration: underline; text-underline-offset: 3px; }
 [data-theme='thet'] .thet-vgrid {
