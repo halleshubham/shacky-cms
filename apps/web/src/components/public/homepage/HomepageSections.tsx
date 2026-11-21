@@ -3,9 +3,10 @@ import Link from 'next/link';
 import { format } from 'date-fns';
 import { BookOpen, ArrowRight, Download as DownloadIcon } from 'lucide-react';
 import { ArticleCard } from '@/components/public/ArticleCard';
+import { PublicForm, type FormDef } from '@/components/public/PublicForm';
 import type {
   Section, HeroConfig, PostGridConfig, LatestIssueConfig, IssueArticlesConfig,
-  CategoryRowConfig, DownloadBannerConfig, HtmlEmbedConfig, DividerConfig, SpacerConfig,
+  CategoryRowConfig, DownloadBannerConfig, HtmlEmbedConfig, FormBlockConfig, DividerConfig, SpacerConfig,
   ImageBlockConfig, RichTextConfig, HeadingBlockConfig, ButtonRowConfig,
   FileDownloadsConfig, ImageGalleryConfig, ColumnsBlockConfig, ColumnItem,
 } from '@/lib/page-builder';
@@ -252,6 +253,21 @@ function HtmlEmbedSection({ config }: { config: HtmlEmbedConfig }) {
   );
 }
 
+async function FormBlockSection({ config }: { config: FormBlockConfig }) {
+  const slug = config.slug?.trim();
+  if (!slug) return null;
+  let initial: FormDef | null = null;
+  try {
+    const res = await fetch(`${process.env.API_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL}/api/forms/public/${encodeURIComponent(slug)}`, { next: { revalidate: 60 } });
+    if (res.ok) initial = await res.json();
+  } catch { /* the client fetches it instead */ }
+  return (
+    <section data-form-block className="mx-auto w-full max-w-2xl">
+      <PublicForm slug={slug} showTitle={config.showTitle ?? false} initial={initial} />
+    </section>
+  );
+}
+
 function DividerSection({ config }: { config: DividerConfig }) {
   if (config.label) {
     return (
@@ -432,6 +448,7 @@ function ColumnNestedSection({ col }: { col: ColumnItem }) {
     case 'category_row':    return <CategoryRowSection config={cfg as CategoryRowConfig} /> as React.ReactNode;
     case 'download_banner': return <DownloadBannerSection config={cfg as DownloadBannerConfig} />;
     case 'html_embed':      return <HtmlEmbedSection config={cfg as HtmlEmbedConfig} />;
+    case 'form_block':      return <FormBlockSection config={cfg as FormBlockConfig} />;
     case 'divider':         return <DividerSection config={cfg as DividerConfig} />;
     case 'spacer':          return <SpacerSection config={cfg as SpacerConfig} />;
     case 'image_block':     return <ImageBlockSection config={cfg as ImageBlockConfig} />;
@@ -444,7 +461,8 @@ function ColumnNestedSection({ col }: { col: ColumnItem }) {
   }
 }
 
-function ColumnsBlockSection({ config }: { config: ColumnsBlockConfig }) {
+function ColumnsBlockSection({ config, headingLevel = 3 }: { config: ColumnsBlockConfig; headingLevel?: number }) {
+  const Title = `h${Math.min(6, Math.max(2, headingLevel))}` as 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
   if (!config.columns || config.columns.length === 0) return null;
   const colClass: Record<number, string> = { 1: 'grid-cols-1', 2: 'sm:grid-cols-2', 3: 'sm:grid-cols-2 md:grid-cols-3', 4: 'sm:grid-cols-2 md:grid-cols-4' };
   const gridClass = colClass[config.columnsPerRow] ?? 'sm:grid-cols-2';
@@ -455,7 +473,7 @@ function ColumnsBlockSection({ config }: { config: ColumnsBlockConfig }) {
     ghost:   'hover:bg-muted text-foreground',
   };
   return (
-    <div data-block="columns" className={`grid grid-cols-1 ${gridClass} gap-6 lg:gap-8`}>
+    <div data-block="columns" data-cols={config.columnsPerRow} className={`grid grid-cols-1 ${gridClass} gap-6 lg:gap-8`}>
       {config.columns.map((col: ColumnItem, i: number) => {
         // Nested block mode
         if (col.contentType && col.contentType !== 'card') {
@@ -469,11 +487,21 @@ function ColumnsBlockSection({ config }: { config: ColumnsBlockConfig }) {
         // Card mode (default)
         const imgEl = col.imageSrc ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={col.imageSrc} alt={col.imageAlt || col.title || ''} className="w-full rounded-lg object-cover aspect-video" />
+          <img
+            data-card-image
+            src={col.imageSrc}
+            alt={col.imageAlt || col.title || ''}
+            loading="lazy"
+            decoding="async"
+            className="w-full rounded-lg object-cover aspect-video"
+          />
         ) : null;
+        // One tab stop per card: when the button already goes to the same place, the cover link is a mouse/touch convenience only
+        const coverIsDuplicate = !!col.buttonUrl && (!col.imageLink || col.imageLink === col.buttonUrl);
+        const ext = (col.buttonUrl || '').split(/[?#]/)[0].match(/\.(pdf|docx?|pptx?|xlsx?|zip)$/i)?.[1]?.toUpperCase();
 
         return (
-          <div key={i} data-column="card" className={`flex flex-col gap-3 ${alignClass}`}>
+          <div key={i} data-column="card" data-has-link={col.buttonUrl ? 'true' : undefined} className={`flex flex-col gap-3 ${alignClass}`}>
             {imgEl && (
               col.imageLink ? (
                 <a
@@ -481,22 +509,27 @@ function ColumnsBlockSection({ config }: { config: ColumnsBlockConfig }) {
                   target={col.imageLinkNewTab ? '_blank' : '_self'}
                   rel={col.imageLinkNewTab ? 'noopener noreferrer' : undefined}
                   download={col.imageDownload ? true : undefined}
+                  tabIndex={coverIsDuplicate ? -1 : undefined}
+                  aria-hidden={coverIsDuplicate ? true : undefined}
                   className="block hover:opacity-90 transition-opacity"
                 >
                   {imgEl}
                 </a>
               ) : imgEl
             )}
-            {col.title && <h3 className="font-bold text-lg leading-snug">{col.title}</h3>}
-            {col.text && <p className="text-muted-foreground leading-relaxed text-sm">{col.text}</p>}
+            {col.title && <Title data-card-title className="font-bold text-lg leading-snug">{col.title}</Title>}
+            {col.text && <p data-card-text className="text-muted-foreground leading-relaxed text-sm">{col.text}</p>}
             {col.buttonLabel && col.buttonUrl && (
               <div className={`mt-auto pt-1 flex ${config.textAlign === 'center' ? 'justify-center' : config.textAlign === 'right' ? 'justify-end' : 'justify-start'}`}>
                 <a
                   data-btn
+                  data-card-link
+                  data-ext={ext}
                   data-variant={col.buttonVariant || 'primary'}
                   href={col.buttonUrl}
                   target={col.buttonNewTab ? '_blank' : '_self'}
                   rel={col.buttonNewTab ? 'noopener noreferrer' : undefined}
+                  aria-label={col.title && col.title !== col.buttonLabel ? `${col.buttonLabel}: ${col.title}` : undefined}
                   className={`inline-flex items-center px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors ${variantClass[col.buttonVariant || 'primary'] ?? variantClass.primary}`}
                 >
                   {col.buttonLabel}
@@ -512,9 +545,12 @@ function ColumnsBlockSection({ config }: { config: ColumnsBlockConfig }) {
 
 // ─── Main export ───────────────────────────────────────────────────────────────
 export async function HomepageSections({ sections }: { sections: Section[] }) {
+  let lastHeadingLevel = 1;
   return (
     <div className="space-y-12">
       {sections.map((section) => {
+        // card titles sit one level below the nearest heading above them, so the outline never skips a level
+        if (section.type === 'heading_block') lastHeadingLevel = (section.config as HeadingBlockConfig).level ?? 2;
         switch (section.type) {
           case 'hero':            return <HeroSection key={section.id} config={section.config as HeroConfig} />;
           case 'post_grid':       return <PostGridSection key={section.id} config={section.config as PostGridConfig} />;
@@ -523,6 +559,7 @@ export async function HomepageSections({ sections }: { sections: Section[] }) {
           case 'category_row':    return <CategoryRowSection key={section.id} config={section.config as CategoryRowConfig} />;
           case 'download_banner': return <DownloadBannerSection key={section.id} config={section.config as DownloadBannerConfig} />;
           case 'html_embed':      return <HtmlEmbedSection key={section.id} config={section.config as HtmlEmbedConfig} />;
+          case 'form_block':      return <FormBlockSection key={section.id} config={section.config as FormBlockConfig} />;
           case 'divider':         return <DividerSection key={section.id} config={section.config as DividerConfig} />;
           case 'spacer':          return <SpacerSection key={section.id} config={section.config as SpacerConfig} />;
           case 'image_block':     return <ImageBlockSection key={section.id} config={section.config as ImageBlockConfig} />;
@@ -531,7 +568,7 @@ export async function HomepageSections({ sections }: { sections: Section[] }) {
           case 'button_row':      return <ButtonRowSection key={section.id} config={section.config as ButtonRowConfig} />;
           case 'file_downloads':  return <FileDownloadsSection key={section.id} config={section.config as FileDownloadsConfig} />;
           case 'image_gallery':   return <ImageGallerySection key={section.id} config={section.config as ImageGalleryConfig} />;
-          case 'columns_block':   return <ColumnsBlockSection key={section.id} config={section.config as ColumnsBlockConfig} />;
+          case 'columns_block':   return <ColumnsBlockSection key={section.id} config={section.config as ColumnsBlockConfig} headingLevel={lastHeadingLevel + 1} />;
           default:                return null;
         }
       })}

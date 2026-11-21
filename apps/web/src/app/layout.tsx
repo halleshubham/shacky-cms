@@ -1,9 +1,11 @@
 import type { Metadata } from 'next';
 import { Playfair_Display, EB_Garamond, Montserrat, Mukta, Noto_Serif_Devanagari } from 'next/font/google';
+import localFont from 'next/font/local';
 import { ThemeProvider } from 'next-themes';
 import { Toaster } from 'react-hot-toast';
 import '@/styles/globals.css';
 import '@/styles/themes/samvidhan.css';
+import '@/styles/themes/lokayat.css';
 import { AuthProvider } from '@/components/providers/AuthProvider';
 import { getSiteSettings } from '@/lib/site-settings';
 
@@ -53,6 +55,28 @@ function verificationTokens(raw?: string): string[] {
   return (raw || '').split(/[\s,]+/).filter((t) => /^[A-Za-z0-9_-]{10,100}$/.test(t));
 }
 
+// Latin faces for the "lokayat" theme: Archivo (poster-style headlines + UI) and Source Serif 4
+// (long-form reading). Loaded lazily like the Devanagari faces above.
+// Both self-hosted: Google now serves Archivo from extension-less gstatic URLs that next/font/google (Next 14) cannot parse,
+// which fails the production build. Variable font, Latin subset, weights 400–900 (SIL Open Font License).
+const archivo = localFont({
+  src: '../fonts/Archivo-latin-variable.woff2',
+  variable: '--font-archivo',
+  weight: '400 900',
+  display: 'swap',
+  preload: false,
+});
+
+const sourceSerif = localFont({
+  src: [
+    { path: '../fonts/SourceSerif4-latin-normal.woff2', weight: '400 700', style: 'normal' },
+    { path: '../fonts/SourceSerif4-latin-italic.woff2', weight: '400 700', style: 'italic' },
+  ],
+  variable: '--font-source-serif',
+  display: 'swap',
+  preload: false,
+});
+
 export async function generateMetadata(): Promise<Metadata> {
   const s = await getSiteSettings();
   const title = s.site_title || 'Shacky CMS';
@@ -71,7 +95,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const lang = (settings.site_lang || 'en').trim() || 'en';
   return (
     <html lang={lang} suppressHydrationWarning>
-      <body className={`${playfair.variable} ${garamond.variable} ${montserrat.variable} ${mukta.variable} ${notoSerifDevanagari.variable} font-sans antialiased`}>
+      <body className={`${playfair.variable} ${garamond.variable} ${montserrat.variable} ${mukta.variable} ${notoSerifDevanagari.variable} ${archivo.variable} ${sourceSerif.variable} font-sans antialiased`}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <AuthProvider>
             {children}

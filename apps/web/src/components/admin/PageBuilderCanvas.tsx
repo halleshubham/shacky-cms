@@ -1,5 +1,5 @@
 'use client';
-import { useState, useCallback, useId } from 'react';
+import { useState, useCallback, useId, useEffect } from 'react';
 import {
   DndContext, DragOverlay, closestCenter,
   KeyboardSensor, PointerSensor, useSensor, useSensors,
@@ -15,9 +15,10 @@ import {
   AlignJustify, Download, Code, Minus, ImageIcon, Type, Heading,
   MousePointerClick, Trash2, ExternalLink, ChevronUp, ChevronDown,
   BookOpen, ArrowRight, Monitor, Tablet, Smartphone, ArrowLeft,
-  Settings2, Columns2, MoveVertical,
+  Settings2, Columns2, MoveVertical, ClipboardList,
 } from 'lucide-react';
 import Link from 'next/link';
+import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -27,7 +28,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import {
   type Section, type SectionType, type SectionConfig,
   type HeroConfig, type PostGridConfig, type LatestIssueConfig,
-  type IssueArticlesConfig, type CategoryRowConfig, type DownloadBannerConfig, type HtmlEmbedConfig,
+  type IssueArticlesConfig, type CategoryRowConfig, type DownloadBannerConfig, type HtmlEmbedConfig, type FormBlockConfig,
   type DividerConfig, type SpacerConfig, type ImageBlockConfig, type RichTextConfig,
   type HeadingBlockConfig, type ButtonRowConfig,
   type FileDownloadsConfig, type FileItem, type ImageGalleryConfig, type GalleryImage,
@@ -55,6 +56,7 @@ const SECTION_ICONS: Record<SectionType, React.ReactNode> = {
   category_row:    <AlignJustify className="h-4 w-4" />,
   download_banner: <Download className="h-4 w-4" />,
   html_embed:      <Code className="h-4 w-4" />,
+  form_block:      <ClipboardList className="h-4 w-4" />,
   divider:         <Minus className="h-4 w-4" />,
   spacer:          <MoveVertical className="h-4 w-4" />,
   image_block:     <ImageIcon className="h-4 w-4" />,
@@ -70,7 +72,7 @@ const PALETTE_GROUPS = (
   [
     { label: 'CMS Blocks',     types: ['hero', 'post_grid', 'latest_issue', 'issue_articles', 'category_row'] },
     { label: 'Content',        types: ['heading_block', 'rich_text', 'image_block', 'button_row', 'columns_block'] },
-    { label: 'Layout',         types: ['download_banner', 'divider', 'spacer', 'html_embed'] },
+    { label: 'Layout',         types: ['download_banner', 'divider', 'spacer', 'html_embed', 'form_block'] },
     { label: 'Media',          types: ['file_downloads', 'image_gallery'] },
   ] as { label: string; types: SectionType[] }[]
 ).map((g) => ({ ...g, types: g.types.filter((t) => SECTION_META[t].surfaces.includes('homepage')) }));
@@ -219,6 +221,15 @@ function HtmlEmbedPreview({ config }: { config: HtmlEmbedConfig }) {
   );
 }
 
+function FormBlockPreview({ config }: { config: FormBlockConfig }) {
+  return (
+    <div className="border border-dashed border-border rounded-lg p-4 bg-muted/20 text-center">
+      <ClipboardList className="h-6 w-6 mx-auto text-muted-foreground/40 mb-2" />
+      <p className="text-sm font-medium text-muted-foreground">{config.slug ? `Form: ${config.slug}` : 'Form — choose one in settings'}</p>
+    </div>
+  );
+}
+
 function FileDownloadsPreview({ config }: { config: FileDownloadsConfig }) {
   const EXT_COLORS: Record<string, string> = { pdf: 'bg-red-100 text-red-700', docx: 'bg-blue-100 text-blue-700', ppt: 'bg-orange-100 text-orange-700', mp4: 'bg-purple-100 text-purple-700', other: 'bg-slate-100 text-slate-700' };
   return (
@@ -312,6 +323,7 @@ function SectionPreview({ section }: { section: Section }) {
     case 'category_row':    return <CategoryRowPreview config={section.config as CategoryRowConfig} />;
     case 'download_banner': return <DownloadBannerPreview config={section.config as DownloadBannerConfig} />;
     case 'html_embed':      return <HtmlEmbedPreview config={section.config as HtmlEmbedConfig} />;
+    case 'form_block':      return <FormBlockPreview config={section.config as FormBlockConfig} />;
     case 'divider':         return <DividerPreview config={section.config as DividerConfig} />;
     case 'spacer':          return <SpacerPreview config={section.config as SpacerConfig} />;
     case 'image_block':     return <ImageBlockPreview config={section.config as ImageBlockConfig} />;
@@ -563,6 +575,27 @@ function HtmlEmbedConfigForm({ config, onChange }: { config: HtmlEmbedConfig; on
     <div className="space-y-4">
       <div className="space-y-1.5"><Label className="text-xs font-medium">Label</Label><Input className="h-8 text-sm" placeholder="Newsletter Widget" value={config.label || ''} onChange={(e) => onChange({ ...config, label: e.target.value })} /></div>
       <div className="space-y-1.5"><Label className="text-xs font-medium">HTML Code</Label><Textarea className="text-xs font-mono min-h-[160px]" value={config.code} onChange={(e) => onChange({ ...config, code: e.target.value })} /></div>
+    </div>
+  );
+}
+
+function FormBlockConfigForm({ config, onChange }: { config: FormBlockConfig; onChange: (c: FormBlockConfig) => void }) {
+  const [forms, setForms] = useState<{ slug: string; name: string }[]>([]);
+  useEffect(() => {
+    api.get<{ slug: string; name: string }[]>('/api/forms').then((r) => setForms(Array.isArray(r) ? r : [])).catch(() => {});
+  }, []);
+  return (
+    <div className="space-y-4">
+      <div className="space-y-1.5">
+        <Label className="text-xs font-medium">Form</Label>
+        <select className="w-full h-8 text-sm rounded-md border border-input bg-background px-2" value={config.slug} onChange={(e) => onChange({ ...config, slug: e.target.value })}>
+          <option value="">— choose a form —</option>
+          {forms.map((f) => <option key={f.slug} value={f.slug}>{f.name} ({f.slug})</option>)}
+          {config.slug && !forms.some((f) => f.slug === config.slug) && <option value={config.slug}>{config.slug}</option>}
+        </select>
+        <p className="text-xs text-muted-foreground">Create and edit forms under Admin → Forms.</p>
+      </div>
+      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!config.showTitle} onChange={(e) => onChange({ ...config, showTitle: e.target.checked })} /> Show the form's name as a header</label>
     </div>
   );
 }
@@ -833,6 +866,7 @@ function SectionConfigForm({ section, onChange, categories, issues }: { section:
     case 'category_row':    return <CategoryRowConfigForm config={section.config as CategoryRowConfig} onChange={onChange} categories={categories} />;
     case 'download_banner': return <DownloadBannerConfigForm config={section.config as DownloadBannerConfig} onChange={onChange} />;
     case 'html_embed':      return <HtmlEmbedConfigForm config={section.config as HtmlEmbedConfig} onChange={onChange} />;
+    case 'form_block':      return <FormBlockConfigForm config={section.config as FormBlockConfig} onChange={onChange} />;
     case 'divider':         return <DividerConfigForm config={section.config as DividerConfig} onChange={onChange} />;
     case 'spacer':          return <SpacerConfigForm config={section.config as SpacerConfig} onChange={onChange} />;
     case 'image_block':     return <ImageBlockConfigForm config={section.config as ImageBlockConfig} onChange={onChange} />;

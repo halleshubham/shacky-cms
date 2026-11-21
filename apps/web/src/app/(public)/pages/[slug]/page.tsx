@@ -41,7 +41,10 @@ export default async function PublicPageView({ params }: { params: Promise<{ slu
   if (sections && sections.length > 0) {
     return (
       <article>
-        <h1 className="sr-only">{page.title}</h1>
+        {/* Exactly one h1 per page: only add the hidden title when the content has no visible level-1 heading of its own */}
+        {!sections.some((x) => x.type === 'heading_block' && (x.config as { level?: number })?.level === 1) && (
+          <h1 className="sr-only">{page.title}</h1>
+        )}
         <HomepageSections sections={sections} />
       </article>
     );

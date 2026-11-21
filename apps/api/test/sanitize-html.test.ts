@@ -58,6 +58,22 @@ describe('sanitizePostContent', () => {
     expect(out).toContain('https://cms.test/x.jpg');
   });
 
+  it('keeps video embeds from the CSP-allowed hosts and layout wrappers, but drops their inline styles', () => {
+    const yt = '<div style="position:absolute" class="video"><iframe src="https://www.youtube.com/embed/abc" style="x:y" onload="alert(1)" loading="lazy"></iframe></div>';
+    const out = sanitizePostContent(yt);
+    expect(out).toContain('<iframe src="https://www.youtube.com/embed/abc"');
+    expect(out).toContain('class="video"');
+    expect(out).not.toContain('style=');
+    expect(out).not.toContain('onload');
+    const fig = sanitizePostContent('<figure class="f"><img src="https://cms.test/a.jpg"><figcaption>c</figcaption></figure>');
+    expect(fig).toContain('<figcaption>c</figcaption>');
+  });
+
+  it('removes iframes from any other host', () => {
+    expect(sanitizePostContent('<iframe src="https://evil.example/x"></iframe>')).not.toContain('iframe');
+    expect(sanitizePostContent('<iframe src="javascript:alert(1)"></iframe>')).not.toContain('iframe');
+  });
+
   it('passes through empty content unchanged', () => {
     expect(sanitizePostContent('')).toBe('');
   });

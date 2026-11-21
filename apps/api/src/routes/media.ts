@@ -116,8 +116,11 @@ async function processAndUpload(
   return { url, filename, width: null, height: null, size: buffer.length, mimeType };
 }
 
-// Key prefix (inside media/) that mirrors WordPress's wp-content/uploads tree.
-const LEGACY_PREFIX = 'wp-content/uploads';
+// Key prefixes (inside media/) for imported legacy files:
+//   uploads -> mirrors WordPress's wp-content/uploads tree (served at /wp-content/uploads/*)
+//   site    -> files that lived loose in the old site's web root, e.g. /books/x.pdf, /pamphlets/y.pdf
+//              (served at the same path via the rewrites in next.config.mjs)
+const LEGACY_AREAS = { uploads: 'wp-content/uploads', site: 'legacy-root' } as const;
 
 /**
  * Validates a client-supplied relative path for /media/import. Returns the normalised
@@ -211,7 +214,8 @@ const mediaRoutes: FastifyPluginAsync = async (fastify) => {
   // WordPress uploads working after a migration. Idempotent: re-importing the same path
   // returns the existing record (200) instead of creating a duplicate.
   //
-  // Multipart fields must precede the file part: path (required), altText, mimeType.
+  // Multipart fields must precede the file part: path (required), area ("uploads" default | "site"),
+  // altText, mimeType.
   fastify.post('/import', { preHandler: [authenticate, requireAdmin] }, async (req, reply) => {
     const data = await req.file();
     if (!data) {
@@ -227,7 +231,8 @@ const mediaRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'A valid relative "path" field is required (sent before the file)' });
     }
 
-    const key = `media/${LEGACY_PREFIX}/${rel}`;
+    const area = field('area') === 'site' ? 'site' : 'uploads';
+    const key = `media/${LEGACY_AREAS[area]}/${rel}`;
     const url = `${env.S3_PUBLIC_URL}/${key.split('/').map(encodeURIComponent).join('/')}`;
 
     const existing = await prisma.media.findFirst({ where: { url } });

@@ -42,6 +42,7 @@ const PUBLIC_KEYS = [
   'google_tag_id', 'google_site_verification',
   'social_facebook', 'social_instagram', 'social_whatsapp',
   'social_telegram', 'social_youtube', 'social_x',
+  'download_gate_form', 'download_gate_title', 'download_gate_intro', 'download_gate_consent',
 ];
 
 const settingsRoutes: FastifyPluginAsync = async (fastify) => {

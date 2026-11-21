@@ -17,6 +17,9 @@
  * Optional env: CONCURRENCY (3), STATE_FILE (./wp-media-import.state.json),
  *               LIMIT (only first N, for trials), DRY_RUN=1 (list, don't transfer),
  *               ONLY_MIME (prefix filter, e.g. "image/"),
+ *               ROOT_PATHS (file with one site-root path per line, e.g. /books/x.pdf — files that
+ *               sat loose in the old web root rather than in the media library; the CMS serves
+ *               them at the same URL, see LEGACY_STATIC_DIRS in apps/web/next.config.mjs),
  *               EXTRA_PATHS (comma-separated paths under wp-content/uploads to import as well —
  *               for files that pages reference but WordPress' public media list hides, e.g.
  *               attachments of private posts).
@@ -34,6 +37,7 @@ const LIMIT = Number(env('LIMIT', '0'));
 const DRY_RUN = env('DRY_RUN', '') === '1';
 const ONLY_MIME = env('ONLY_MIME', '');
 const EXTRA_PATHS = env('EXTRA_PATHS', '').split(',').map((p) => p.trim()).filter(Boolean);
+const ROOT_PATHS_FILE = env('ROOT_PATHS', '');
 const UA = 'ShackyCMS-Migrator/1.0';
 const MARKER = '/wp-content/uploads/';
 const MIME_BY_EXT = {
@@ -98,8 +102,8 @@ async function login() {
 
 // ── One item ────────────────────────────────────────────────────────────────────
 async function transfer(item) {
-  const idx = item.source_url.indexOf(MARKER);
-  const relPath = decodeURIComponent(item.source_url.slice(idx + MARKER.length));
+  const area = item.area || 'uploads';
+  const relPath = item.relPath ?? decodeURIComponent(item.source_url.slice(item.source_url.indexOf(MARKER) + MARKER.length));
 
   const body = await retry(`download ${relPath}`, async () => {
     const r = await fetch(item.source_url, { headers: { 'User-Agent': UA } });
@@ -107,7 +111,7 @@ async function transfer(item) {
     return Buffer.from(await r.arrayBuffer());
   });
 
-  const expected = item.media_details?.filesize;
+  const expected = Number(item.media_details?.filesize) || 0; // WordPress sometimes sends this as a string
   if (expected && expected !== body.length) {
     console.warn(`  ! size differs from WordPress metadata for ${relPath}: ${body.length} vs ${expected}`);
   }
@@ -115,6 +119,7 @@ async function transfer(item) {
   const send = async () => {
     const fd = new FormData(); // fields first — the API reads them before the file part
     fd.append('path', relPath);
+    if (area !== 'uploads') fd.append('area', area);
     fd.append('mimeType', item.mime_type);
     if (item.alt_text) fd.append('altText', item.alt_text);
     fd.append('file', new Blob([body], { type: item.mime_type }), relPath.split('/').pop());
@@ -148,7 +153,20 @@ EXTRA_PATHS.filter((p) => !known.has(p)).forEach((p, n) => items.push({
 }));
 if (ONLY_MIME) items = items.filter((i) => i.mime_type.startsWith(ONLY_MIME));
 if (LIMIT) items = items.slice(0, LIMIT);
-const totalBytes = items.reduce((n, i) => n + (i.media_details?.filesize || 0), 0);
+if (ROOT_PATHS_FILE) {
+  const rows = (await readFile(ROOT_PATHS_FILE, 'utf8')).split('\n').map((l) => l.trim().replace(/^\/+/, '')).filter(Boolean);
+  for (const rel of rows) {
+    items.push({
+      id: `site:${rel}`, // state key; not a WordPress id
+      source_url: WP_URL + '/' + rel.split('/').map(encodeURIComponent).join('/'),
+      relPath: rel, area: 'site',
+      mime_type: MIME_BY_EXT[rel.split('.').pop().toLowerCase()] ?? 'application/octet-stream',
+      alt_text: '', media_details: {},
+    });
+  }
+}
+
+const totalBytes = items.reduce((n, i) => n + (Number(i.media_details?.filesize) || 0), 0);
 console.log(`WordPress: ${items.length} attachments, ~${mb(totalBytes)}${DRY_RUN ? ' (dry run)' : ''}`);
 if (DRY_RUN) process.exit(0);
 
