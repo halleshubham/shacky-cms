@@ -6,6 +6,7 @@ import { Toaster } from 'react-hot-toast';
 import '@/styles/globals.css';
 import '@/styles/themes/samvidhan.css';
 import '@/styles/themes/lokayat.css';
+import '@/styles/themes/thet.css';
 import { AuthProvider } from '@/components/providers/AuthProvider';
 import { getSiteSettings } from '@/lib/site-settings';
 
