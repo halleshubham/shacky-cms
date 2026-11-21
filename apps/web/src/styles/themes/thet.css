@@ -434,6 +434,9 @@
   width: min(100%, 340px); aspect-ratio: 9 / 16; border-radius: 1rem; background: #fff;
   box-shadow: var(--shadow-lift);
 }
+/* Wide (16:9) intro reel: the video carries the logo, so it stands alone. */
+[data-theme='thet'] .thet-intro--wide { padding: 0; }
+[data-theme='thet'] .thet-intro--wide video { width: min(100%, 60rem); aspect-ratio: 16 / 9; object-fit: contain; border-radius: calc(var(--radius) * 1.4); }
 [data-theme='thet'] .thet-intro__text { max-width: 28rem; }
 [data-theme='thet'] .thet-intro__name { font-size: clamp(3.2rem, 2rem + 5vw, 5.75rem); line-height: 1.05; margin: 0; font-weight: 800; }
 [data-theme='thet'] .thet-intro__handle { font-size: 1.4rem; margin: 0.5rem 0 0; font-weight: 700; color: hsl(var(--primary)); }
