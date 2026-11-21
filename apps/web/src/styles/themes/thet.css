@@ -403,3 +403,76 @@
   [data-theme='thet'] [data-site-header],
   [data-theme='thet'] [data-site-footer] { display: none; }
 }
+
+/* ── 5. News-house homepage blocks (used from html_embed sections) ───────────
+   .thet-intro     brand + intro video
+   .thet-follow    "follow every handle" band (Facebook / YouTube / Instagram / X)
+   .thet-videos    embedded YouTube playlists
+   ─────────────────────────────────────────────────────────────────────────── */
+[data-theme='thet'] .thet-section-title {
+  font-size: clamp(1.6rem, 1.2rem + 1.6vw, 2.35rem);
+  font-weight: 800;
+  line-height: 1.3;
+  margin: 0;
+}
+[data-theme='thet'] .thet-section-title::after {
+  content: '';
+  display: block;
+  width: 4.5rem;
+  height: 4px;
+  margin-top: 0.6rem;
+  background: hsl(var(--primary));
+  border-radius: 4px;
+}
+[data-theme='thet'] .thet-section-lead { margin: 0.9rem 0 0; max-width: 42rem; font-size: 1.1rem; color: hsl(var(--muted-foreground)); }
+
+[data-theme='thet'] .thet-intro {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
+  gap: 2rem 3.5rem; padding: 1rem 0 0.5rem;
+}
+[data-theme='thet'] .thet-intro video {
+  width: min(100%, 340px); aspect-ratio: 9 / 16; border-radius: 1rem; background: #fff;
+  box-shadow: var(--shadow-lift);
+}
+[data-theme='thet'] .thet-intro__text { max-width: 28rem; }
+[data-theme='thet'] .thet-intro__name { font-size: clamp(3.2rem, 2rem + 5vw, 5.75rem); line-height: 1.05; margin: 0; font-weight: 800; }
+[data-theme='thet'] .thet-intro__handle { font-size: 1.4rem; margin: 0.5rem 0 0; font-weight: 700; color: hsl(var(--primary)); }
+[data-theme='thet'] .thet-intro__tag { margin: 0.9rem 0 0; font-size: 1.15rem; color: hsl(var(--muted-foreground)); }
+
+[data-theme='thet'] .thet-follow {
+  background: hsl(var(--foreground));
+  color: hsl(var(--background));
+  border-radius: calc(var(--radius) * 1.6);
+  padding: clamp(1.5rem, 1rem + 2.5vw, 2.75rem);
+  scroll-margin-top: 6rem;
+}
+[data-theme='thet'] .thet-follow .thet-section-title { color: #fff; }
+[data-theme='thet'] .thet-follow .thet-section-lead { color: hsl(0 0% 100% / 0.78); }
+[data-theme='thet'] .thet-follow__grid {
+  display: grid; gap: 0.9rem; margin-top: 1.6rem;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+}
+[data-theme='thet'] .thet-follow__card {
+  display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto auto; column-gap: 0.9rem;
+  align-items: center; padding: 1rem 1.1rem; border-radius: var(--radius);
+  background: hsl(0 0% 100% / 0.07); border: 1px solid hsl(0 0% 100% / 0.14);
+  color: #fff; text-decoration: none;
+  transition: background 0.15s, transform 0.15s, border-color 0.15s;
+}
+[data-theme='thet'] .thet-follow__card:hover { background: hsl(var(--primary)); border-color: hsl(var(--primary)); transform: translateY(-2px); }
+[data-theme='thet'] .thet-follow__card svg { grid-row: 1 / span 3; width: 2.4rem; height: 2.4rem; fill: currentColor; }
+[data-theme='thet'] .thet-follow__name { font-weight: 800; font-size: 1.2rem; line-height: 1.3; }
+[data-theme='thet'] .thet-follow__handle { font-size: 0.95rem; opacity: 0.8; line-height: 1.4; }
+[data-theme='thet'] .thet-follow__cta { margin-top: 0.4rem; font-weight: 700; font-size: 0.98rem; color: hsl(4 90% 72%); }
+[data-theme='thet'] .thet-follow__card:hover .thet-follow__cta { color: #fff; }
+
+[data-theme='thet'] .thet-videos { scroll-margin-top: 6rem; }
+[data-theme='thet'] .thet-videos__grid {
+  display: grid; gap: 2rem 1.75rem; margin-top: 1.6rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+}
+[data-theme='thet'] .thet-videos__item h3 { font-size: 1.3rem; margin: 0 0 0.7rem; line-height: 1.4; }
+[data-theme='thet'] .thet-embed { position: relative; aspect-ratio: 16 / 9; border-radius: var(--radius); overflow: hidden; background: #000; box-shadow: var(--shadow-card); }
+[data-theme='thet'] .thet-embed iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+[data-theme='thet'] .thet-more { display: inline-block; margin-top: 0.65rem; font-weight: 700; color: hsl(var(--primary)); text-decoration: none; }
+[data-theme='thet'] .thet-more:hover { text-decoration: underline; text-underline-offset: 3px; }
